@@ -12,16 +12,40 @@ namespace Pixalink\Loyalty\Spike;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * What the shopper chose (points, vouchers) plus the last quote, stored under one WC session key.
+ * What the shopper chose (points, vouchers) plus the last quote, keyed by the WC session's customer id.
+ *
+ * Stored in its own transient, NOT inside the WC session blob: that blob is last-writer-wins, and same-session
+ * requests that started earlier (Action Scheduler's async queue runner forwards the shopper's cookies on a loopback
+ * at shutdown) write their stale copy back and erase our keys. Seen in the e2e trace; see ADR 0001 pitfall 1.
  *
  * The virtual coupons are re-resolved from this on every `new WC_Coupon( $code )`, so it must be cheap: no HTTP.
  */
 final class RedemptionState {
 
 	/**
-	 * WC session key.
+	 * Transient key prefix (suffix = md5 of the WC session customer id).
 	 */
 	public const SESSION_KEY = 'pixalink_loyalty_redemption';
+
+	/**
+	 * Lifetime, aligned with the WC session (48 h).
+	 */
+	private const TTL = 2 * DAY_IN_SECONDS;
+
+	/**
+	 * Storage key for the current session.
+	 *
+	 * @return string|null
+	 */
+	private static function key(): ?string {
+		if ( ! self::is_available() ) {
+			return null;
+		}
+
+		$customer = (string) WC()->session->get_customer_id();
+
+		return '' === $customer ? null : self::SESSION_KEY . '_' . md5( $customer );
+	}
 
 	/**
 	 * Whether a WC session exists in this request (front end / Store API; not admin, cron or IPN callbacks).
@@ -46,11 +70,12 @@ final class RedemptionState {
 			'vouchers'    => array(),
 		);
 
-		if ( ! self::is_available() ) {
+		$key = self::key();
+		if ( null === $key ) {
 			return $defaults;
 		}
 
-		$stored = WC()->session->get( self::SESSION_KEY );
+		$stored = get_transient( $key );
 		if ( ! is_array( $stored ) ) {
 			return $defaults;
 		}
@@ -71,11 +96,12 @@ final class RedemptionState {
 	 * @return void
 	 */
 	public static function update( array $changes ): void {
-		if ( ! self::is_available() ) {
+		$key = self::key();
+		if ( null === $key ) {
 			return;
 		}
 
-		WC()->session->set( self::SESSION_KEY, array_merge( self::get(), $changes ) );
+		set_transient( $key, array_merge( self::get(), $changes ), self::TTL );
 	}
 
 	/**
@@ -84,8 +110,9 @@ final class RedemptionState {
 	 * @return void
 	 */
 	public static function reset(): void {
-		if ( self::is_available() ) {
-			WC()->session->set( self::SESSION_KEY, null );
+		$key = self::key();
+		if ( null !== $key ) {
+			delete_transient( $key );
 		}
 	}
 

@@ -57,9 +57,11 @@ final class SpikeDebug {
 		global $wpdb;
 		$customer = function_exists( 'WC' ) && WC()->session instanceof \WC_Session ? (string) WC()->session->get_customer_id() : '';
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$row    = '' === $customer ? null : $wpdb->get_var( $wpdb->prepare( "SELECT session_value FROM {$wpdb->prefix}woocommerce_sessions WHERE session_key = %s", $customer ) );
-		$stored = is_string( $row ) ? maybe_unserialize( $row ) : null;
-		$state  = is_array( $stored ) && isset( $stored[ RedemptionState::SESSION_KEY ] ) ? maybe_unserialize( $stored[ RedemptionState::SESSION_KEY ] ) : null;
+		$row = '' === $customer ? null : $wpdb->get_var( $wpdb->prepare( "SELECT session_value FROM {$wpdb->prefix}woocommerce_sessions WHERE session_key = %s", $customer ) );
+		// The redemption state's own transient, read straight from the table (no object cache).
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$raw   = '' === $customer ? null : $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", '_transient_' . RedemptionState::SESSION_KEY . '_' . md5( $customer ) ) );
+		$state = is_string( $raw ) ? maybe_unserialize( $raw ) : null;
 
 		self::log(
 			sprintf(

@@ -67,10 +67,10 @@ final class CartActions {
 	}
 
 	/**
-	 * Write the session now instead of at `shutdown:20`. The WC session is one last-writer-wins blob, and other
-	 * requests on the same session can load it before that save and write their copy back afterwards. Action
-	 * Scheduler's async queue runner does exactly that: at `shutdown:10` it fires a loopback admin-ajax request that
-	 * forwards this shopper's cookies ($_COOKIE). The e2e run lost the linked state that way on its first attempt.
+	 * Write the WC session (applied coupons) now instead of at `shutdown:20`. This narrows, but cannot close, the
+	 * last-writer-wins window: a same-session request that loaded the blob earlier still writes its stale copy back.
+	 * Action Scheduler's async queue runner is one such request (a loopback with this shopper's cookies). That is why
+	 * RedemptionState lives in its own transient, not in the blob.
 	 *
 	 * @return void
 	 */
