@@ -23,6 +23,15 @@ module.exports = {
 		'classic-phone': entry( 'classic-phone' ),
 		account: entry( 'account' ),
 		admin: entry( 'admin' ),
+		// SPIKE (P02, throwaway): virtual-coupon experiment bundles.
+		'spike-blocks': path.resolve(
+			__dirname,
+			'assets/js/src/spike/blocks.js'
+		),
+		'spike-classic': path.resolve(
+			__dirname,
+			'assets/js/src/spike/classic.js'
+		),
 	},
 	output: {
 		...defaultConfig.output,

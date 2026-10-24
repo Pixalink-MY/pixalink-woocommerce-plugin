@@ -1,0 +1,92 @@
+<?php
+/**
+ * SPIKE (P02, throwaway): Cart & Checkout blocks integration.
+ *
+ * @package Pixalink\Loyalty
+ */
+
+declare( strict_types=1 );
+
+namespace Pixalink\Loyalty\Spike;
+
+use Automattic\WooCommerce\Blocks\Integrations\IntegrationInterface;
+use Automattic\WooCommerce\Blocks\Integrations\IntegrationRegistry;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Loads build/spike-blocks.js (ExperimentalDiscountsMeta fill + coupons checkout filter) in the Cart and Checkout blocks.
+ */
+final class BlocksIntegration implements IntegrationInterface {
+
+	/**
+	 * Script handle.
+	 */
+	public const HANDLE = 'pixalink-loyalty-spike-blocks';
+
+	/**
+	 * `woocommerce_blocks_{cart,checkout}_block_registration` callback.
+	 *
+	 * @param mixed $registry Integration registry.
+	 * @return void
+	 */
+	public static function register_with( $registry ): void {
+		if ( $registry instanceof IntegrationRegistry && ! $registry->is_registered( 'pixalink-loyalty-spike' ) ) {
+			$registry->register( new self() );
+		}
+	}
+
+	/**
+	 * Integration name.
+	 *
+	 * @return string
+	 */
+	public function get_name() {
+		return 'pixalink-loyalty-spike';
+	}
+
+	/**
+	 * Register the script.
+	 *
+	 * @return void
+	 */
+	public function initialize() {
+		$asset_file = PIXALINK_LOYALTY_DIR . 'build/spike-blocks.asset.php';
+		$asset      = is_readable( $asset_file ) ? require $asset_file : array();
+		$asset      = is_array( $asset ) ? $asset : array();
+		$deps       = is_array( $asset['dependencies'] ?? null ) ? $asset['dependencies'] : array();
+		$version    = is_string( $asset['version'] ?? null ) ? $asset['version'] : PIXALINK_LOYALTY_VERSION;
+
+		// The bundle reads window.wc.blocksCheckout / window.wp.* globals, so declare those handles explicitly.
+		$deps = array_values( array_unique( array_merge( $deps, array( 'wc-blocks-checkout', 'wp-plugins', 'wp-element', 'wp-data' ) ) ) );
+
+		wp_register_script( self::HANDLE, PIXALINK_LOYALTY_URL . 'build/spike-blocks.js', $deps, $version, true );
+	}
+
+	/**
+	 * Front-end script handles.
+	 *
+	 * @return array<int,string>
+	 */
+	public function get_script_handles() {
+		return array( self::HANDLE );
+	}
+
+	/**
+	 * Editor script handles.
+	 *
+	 * @return array<int,string>
+	 */
+	public function get_editor_script_handles() {
+		return array();
+	}
+
+	/**
+	 * Data for getSetting( 'pixalink-loyalty-spike_data' ).
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function get_script_data() {
+		return array( 'points_code' => CouponMapper::POINTS_CODE );
+	}
+}

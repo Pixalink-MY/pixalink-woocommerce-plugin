@@ -1,0 +1,98 @@
+<?php
+/**
+ * SPIKE (P02, throwaway): classic (shortcode) checkout panel.
+ *
+ * @package Pixalink\Loyalty
+ */
+
+declare( strict_types=1 );
+
+namespace Pixalink\Loyalty\Spike;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Renders a minimal panel above the classic order review; build/spike-classic.js POSTs to the Store API
+ * cart/extensions route (same callback as Blocks) and then triggers `update_checkout`.
+ */
+final class ClassicPanel {
+
+	/**
+	 * Script handle.
+	 */
+	public const HANDLE = 'pixalink-loyalty-spike-classic';
+
+	/**
+	 * Register hooks.
+	 *
+	 * @return void
+	 */
+	public static function register(): void {
+		add_action( 'woocommerce_checkout_before_order_review', array( self::class, 'render' ) );
+		add_action( 'wp_enqueue_scripts', array( self::class, 'enqueue' ) );
+	}
+
+	/**
+	 * Enqueue on classic checkout pages only.
+	 *
+	 * @return void
+	 */
+	public static function enqueue(): void {
+		if ( ! function_exists( 'is_checkout' ) || ! is_checkout() || has_block( 'woocommerce/checkout' ) ) {
+			return;
+		}
+
+		$asset_file = PIXALINK_LOYALTY_DIR . 'build/spike-classic.asset.php';
+		$asset      = is_readable( $asset_file ) ? require $asset_file : array();
+		$asset      = is_array( $asset ) ? $asset : array();
+		$deps       = is_array( $asset['dependencies'] ?? null ) ? $asset['dependencies'] : array();
+		$version    = is_string( $asset['version'] ?? null ) ? $asset['version'] : PIXALINK_LOYALTY_VERSION;
+
+		wp_enqueue_script( self::HANDLE, PIXALINK_LOYALTY_URL . 'build/spike-classic.js', array_merge( $deps, array( 'jquery', 'wc-checkout' ) ), $version, true );
+		wp_add_inline_script(
+			self::HANDLE,
+			'window.pixalinkLoyaltySpike = ' . wp_json_encode(
+				array(
+					'endpoint'  => rest_url( 'wc/store/v1/cart/extensions' ),
+					'namespace' => Spike::STORE_API_NAMESPACE,
+					// Store API CSRF nonce (header "Nonce").
+					'nonce'     => wp_create_nonce( 'wc_store_api' ),
+					// Without X-WP-Nonce a logged-in shopper's REST request runs as user 0 and WC_Session_Handler destroys the session.
+					'restNonce' => wp_create_nonce( 'wp_rest' ),
+				)
+			) . ';',
+			'before'
+		);
+	}
+
+	/**
+	 * Panel markup (outside the AJAX-refreshed fragments; totals show up in the review table rows).
+	 *
+	 * @return void
+	 */
+	public static function render(): void {
+		$data = StoreApiExtension::data();
+		?>
+		<div class="pixalink-loyalty-spike-classic" data-testid="pixalink-loyalty-spike-classic">
+			<p><strong><?php esc_html_e( 'Pixalink loyalty (spike)', 'pixalink-loyalty-for-woocommerce' ); ?></strong></p>
+			<?php if ( ! $data['linked'] ) : ?>
+				<button type="button" class="button" data-pixalink-action="spike_link"><?php esc_html_e( 'Link Pixalink (spike)', 'pixalink-loyalty-for-woocommerce' ); ?></button>
+			<?php else : ?>
+				<p>
+					<?php
+					/* translators: %s: points balance. */
+					echo esc_html( sprintf( __( 'Balance: %s pts', 'pixalink-loyalty-for-woocommerce' ), number_format_i18n( (int) $data['points']['balance'] ) ) );
+					?>
+				</p>
+				<label for="pixalink-spike-points"><?php esc_html_e( 'Points to redeem', 'pixalink-loyalty-for-woocommerce' ); ?></label>
+				<input type="number" id="pixalink-spike-points" min="0" max="<?php echo esc_attr( (string) $data['points']['max'] ); ?>" step="<?php echo esc_attr( (string) $data['points']['step'] ); ?>" value="<?php echo esc_attr( (string) $data['points']['applied'] ); ?>" />
+				<button type="button" class="button" data-pixalink-action="set_points"><?php esc_html_e( 'Apply points', 'pixalink-loyalty-for-woocommerce' ); ?></button>
+				<?php foreach ( $data['vouchers'] as $voucher ) : ?>
+					<button type="button" class="button" data-pixalink-action="apply_voucher" data-code="<?php echo esc_attr( $voucher['code'] ); ?>"><?php echo esc_html( $voucher['title'] ); ?></button>
+				<?php endforeach; ?>
+			<?php endif; ?>
+			<p class="pixalink-spike-error" role="alert"></p>
+		</div>
+		<?php
+	}
+}

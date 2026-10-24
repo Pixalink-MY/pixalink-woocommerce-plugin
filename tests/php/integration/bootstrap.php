@@ -25,6 +25,11 @@ if ( ! $pixalink_loyalty_tests_dir || ! is_readable( $pixalink_loyalty_tests_dir
 
 require_once $pixalink_loyalty_tests_dir . '/includes/functions.php';
 
+// SPIKE (P02, throwaway): register the virtual-coupon experiment for tests/php/integration/Spike.
+if ( ! defined( 'PIXALINK_LOYALTY_SPIKE' ) ) {
+	define( 'PIXALINK_LOYALTY_SPIKE', true );
+}
+
 /**
  * Switch WooCommerce's authoritative order storage.
  *

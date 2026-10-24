@@ -88,3 +88,6 @@ register_deactivation_hook( __FILE__, array( \Pixalink\Loyalty\Install\Installer
 add_action( 'before_woocommerce_init', array( \Pixalink\Loyalty\Compat\FeaturesCompat::class, 'declare_compatibility' ) );
 
 add_action( 'plugins_loaded', array( \Pixalink\Loyalty\Plugin::class, 'boot' ) );
+
+// SPIKE (P02, throwaway): virtual-coupon redemption experiment, only when PIXALINK_LOYALTY_SPIKE is true.
+add_action( 'pixalink_loyalty_booted', array( \Pixalink\Loyalty\Spike\Spike::class, 'maybe_register' ) );

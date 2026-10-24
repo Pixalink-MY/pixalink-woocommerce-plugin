@@ -178,6 +178,79 @@ jobs:
           env WORDPRESS_TABLE_PREFIX=wptests_ PIXALINK_LOYALTY_HPOS=${{ matrix.hpos }}
           vendor/bin/phpunit -c phpunit-integration.xml.dist
 
+  # SPIKE (P02, throwaway): Playwright run of tests/e2e/specs/spike-checkout.spec.ts against the WC floor and latest.
+  spike-e2e:
+    name: Spike E2E (WC ${{ matrix.wc }})
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        wc: ['11.0.1', 'latest-stable']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Write .wp-env.override.json
+        env:
+          WC: ${{ matrix.wc }}
+        run: |
+          node -e '
+            const fs = require( "fs" );
+            fs.writeFileSync( ".wp-env.override.json", JSON.stringify( {
+              plugins: [ `https://downloads.wordpress.org/plugin/woocommerce.${ process.env.WC }.zip` ],
+              config: {
+                WP_DEBUG: true,
+                WP_DEBUG_LOG: true,
+                WP_DEBUG_DISPLAY: false,
+                SCRIPT_DEBUG: true,
+                WP_ENVIRONMENT_TYPE: "local",
+                PIXALINK_LOYALTY_API_BASE: "https://fake-pixalink.test/api/commerce/v1",
+                PIXALINK_FAKE_SERVER: true,
+                PIXALINK_LOYALTY_SPIKE: true,
+              },
+            }, null, 2 ) + "\n" );
+          '
+          cat .wp-env.override.json
+      - name: Start wp-env
+        run: |
+          for attempt in 1 2 3; do
+            npx wp-env start && exit 0
+            echo "wp-env start failed (attempt $attempt); retrying"
+            npx wp-env stop || true
+            sleep 15
+          done
+          exit 1
+      - name: Versions under test
+        run: |
+          npx wp-env run cli wp core version
+          npx wp-env run cli wp plugin list --fields=name,status,version
+      - name: Spike store setup
+        run: npx wp-env run cli wp eval-file wp-content/plugins/pixalink-loyalty-for-woocommerce/tests/e2e/spike/setup.php
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright (spike-checkout.spec.ts)
+        run: npx playwright test --config=playwright.config.ts tests/e2e/specs/spike-checkout.spec.ts
+      - name: WordPress debug log
+        if: always()
+        run: npx wp-env run cli bash -c 'cat wp-content/debug.log 2>/dev/null | tail -n 200' || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: spike-e2e-wc-${{ matrix.wc }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
   plugin-check:
     name: Plugin Check (wporg zip)
     needs: gate
