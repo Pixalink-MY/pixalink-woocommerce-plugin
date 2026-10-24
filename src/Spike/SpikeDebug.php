@@ -48,9 +48,11 @@ final class SpikeDebug {
 	 */
 	public static function on_shutdown(): void {
 		$uri = isset( $_SERVER['REQUEST_URI'] ) ? sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '';
-		if ( false === strpos( $uri, 'wc/store' ) && false === strpos( $uri, 'checkout' ) ) {
+		if ( false === strpos( $uri, 'wc/store' ) && false === strpos( $uri, 'checkout' ) && false === strpos( $uri, 'admin-ajax' ) ) {
 			return;
 		}
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$ajax_action = isset( $_REQUEST['action'] ) ? sanitize_key( wp_unslash( $_REQUEST['action'] ) ) : '';
 
 		global $wpdb;
 		$customer = function_exists( 'WC' ) && WC()->session instanceof \WC_Session ? (string) WC()->session->get_customer_id() : '';
@@ -61,7 +63,8 @@ final class SpikeDebug {
 
 		self::log(
 			sprintf(
-				'shutdown db_row=%s db_verified=%s',
+				'shutdown%s db_row=%s db_verified=%s',
+				'' === $ajax_action ? '' : ' ajax_action=' . $ajax_action,
 				null === $row ? 'none' : 'yes',
 				is_array( $state ) ? var_export( $state['verified'] ?? null, true ) : 'n/a' // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_var_export
 			)

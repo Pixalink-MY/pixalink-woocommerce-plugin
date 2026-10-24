@@ -44,22 +44,41 @@ final class CartActions {
 		 */
 		do_action( 'pixalink_loyalty_spike_cart_action', $action, $data );
 
-		switch ( $action ) {
-			case 'spike_link':
-				$this->link();
-				return;
-			case 'set_points':
-				$this->set_points( (int) ( $data['points'] ?? 0 ) );
-				return;
-			case 'apply_voucher':
-				$this->apply_voucher( is_string( $data['code'] ?? null ) ? $data['code'] : '' );
-				return;
-			case 'remove_voucher':
-				$this->remove_voucher( is_string( $data['code'] ?? null ) ? $data['code'] : '' );
-				return;
-		}
+		try {
+			switch ( $action ) {
+				case 'spike_link':
+					$this->link();
+					return;
+				case 'set_points':
+					$this->set_points( (int) ( $data['points'] ?? 0 ) );
+					return;
+				case 'apply_voucher':
+					$this->apply_voucher( is_string( $data['code'] ?? null ) ? $data['code'] : '' );
+					return;
+				case 'remove_voucher':
+					$this->remove_voucher( is_string( $data['code'] ?? null ) ? $data['code'] : '' );
+					return;
+			}
 
-		throw new RouteException( 'pixalink_loyalty_unknown_action', esc_html__( 'Unknown Pixalink action.', 'pixalink-loyalty-for-woocommerce' ), 400 );
+			throw new RouteException( 'pixalink_loyalty_unknown_action', esc_html__( 'Unknown Pixalink action.', 'pixalink-loyalty-for-woocommerce' ), 400 );
+		} finally {
+			self::persist_session();
+		}
+	}
+
+	/**
+	 * Write the session now instead of at `shutdown:20`. The WC session is one last-writer-wins blob, and other
+	 * requests on the same session can load it before that save and write their copy back afterwards. Action
+	 * Scheduler's async queue runner does exactly that: at `shutdown:10` it fires a loopback admin-ajax request that
+	 * forwards this shopper's cookies ($_COOKIE). The e2e run lost the linked state that way on its first attempt.
+	 *
+	 * @return void
+	 */
+	private static function persist_session(): void {
+		$session = function_exists( 'WC' ) ? WC()->session : null;
+		if ( is_object( $session ) && method_exists( $session, 'save_data' ) ) {
+			$session->save_data();
+		}
 	}
 
 	/**

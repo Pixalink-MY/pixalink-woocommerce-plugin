@@ -18,9 +18,17 @@ const {
 
 const NAMESPACE = 'pixalink-loyalty';
 
+// The order-summary discount block calls applyCheckoutFilter( { filterName: 'coupons' } ) without `extensions`
+// (WC 11.0-11.2), so the documented second argument is empty there: read the cart store instead.
+const extensionData = ( extensions ) =>
+	extensions?.[ NAMESPACE ] ??
+	window.wp.data.select( 'wc/store/cart' ).getCartData()?.extensions?.[
+		NAMESPACE
+	];
+
 registerCheckoutFilters( NAMESPACE, {
 	coupons: ( coupons, extensions ) => {
-		const data = extensions?.[ NAMESPACE ];
+		const data = extensionData( extensions );
 		return coupons.map( ( coupon ) =>
 			data && coupon.code === data.points_code
 				? { ...coupon, label: data.points_label }

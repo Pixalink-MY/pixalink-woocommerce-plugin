@@ -84,11 +84,14 @@ test.describe( 'P02 spike: Blocks checkout', () => {
 
 		await panel.getByLabel( 'Points to redeem' ).fill( '1000' );
 		await panel.getByRole( 'button', { name: 'Apply points' } ).click();
+		// The coupon chip renders "Coupon: <label>" inside the order summary's coupon list.
 		await expect(
-			page.getByText( 'Points (1,000 pts)', { exact: true } ).first()
+			page
+				.getByRole( 'listitem' )
+				.filter( { hasText: 'Points (1,000 pts)' } )
 		).toBeVisible();
 		await expect(
-			page.getByText( 'pxl-points', { exact: true } )
+			page.getByRole( 'listitem' ).filter( { hasText: 'pxl-points' } )
 		).toHaveCount( 0 );
 
 		await panel.getByRole( 'button', { name: 'Welcome 10 off' } ).click();
@@ -129,7 +132,9 @@ test.describe( 'P02 spike: Blocks checkout', () => {
 		await panel.getByLabel( 'Points to redeem' ).fill( '1500' );
 		await panel.getByRole( 'button', { name: 'Apply points' } ).click();
 		await expect(
-			page.getByText( 'Points (1,500 pts)', { exact: true } ).first()
+			page
+				.getByRole( 'listitem' )
+				.filter( { hasText: 'Points (1,500 pts)' } )
 		).toBeVisible();
 
 		await page.getByRole( 'button', { name: /place order/i } ).click();
