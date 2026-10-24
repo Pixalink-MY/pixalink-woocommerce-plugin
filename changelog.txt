@@ -1,0 +1,8 @@
+*** Pixalink Loyalty for WooCommerce Changelog ***
+
+= 0.1.0 - unreleased =
+* Add - Plugin scaffold: requirements checks (PHP 8.1, sodium, WooCommerce 11.0+), HPOS and Cart & Checkout blocks compatibility declarations.
+* Add - Install lifecycle: activation seeds options, deactivation unschedules work, opt-in data removal on uninstall.
+* Add - Support layer: encrypted credentials (sodium secretbox), masked WooCommerce logging, RFC 4122 UUIDs, money helpers, server-aligned clock.
+* Add - Signed Pixalink Commerce API client with timestamp-skew recovery and the Connect resource.
+* Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check) and release pipeline.

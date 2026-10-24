@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<ruleset name="Pixalink Loyalty for WooCommerce">
+	<description>WordPress-Extra + WooCommerce-Core + PHPCompatibilityWP (PHP 8.1+).</description>
+
+	<file>./pixalink-loyalty-for-woocommerce.php</file>
+	<file>./uninstall.php</file>
+	<file>./src</file>
+	<file>./tests/e2e/mu-plugins</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/dist/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="basepath" value="./"/>
+	<arg name="parallel" value="8"/>
+	<arg name="cache" value=".phpcs-cache"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="testVersion" value="8.1-"/>
+	<config name="minimum_wp_version" value="7.0"/>
+
+	<rule ref="PHPCompatibilityWP"/>
+	<rule ref="WordPress-Extra"/>
+	<rule ref="WooCommerce-Core">
+		<!-- PSR-4: file names are class names, not class-*.php. -->
+		<exclude name="WordPress.Files.FileName"/>
+		<!-- Squiz's file-comment rules expect PEAR tags (@author, @copyright, ...) that WordPress does not use. -->
+		<exclude name="Squiz.Commenting.FileComment.MissingPackageTag"/>
+		<exclude name="Squiz.Commenting.FileComment.Missing"/>
+		<exclude name="Squiz.Commenting.FileComment.SpacingAfterComment"/>
+		<!-- Generic array shapes (array<string,mixed>) are PHPStan types, not PHP type hints. -->
+		<exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+		<!-- PHPStan's @template / @phpstan-* tags and promoted constants are documented by type, not prose. -->
+		<exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="pixalink-loyalty-for-woocommerce"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="pixalink_loyalty"/>
+				<element value="Pixalink\Loyalty"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

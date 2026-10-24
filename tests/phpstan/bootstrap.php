@@ -1,0 +1,12 @@
+<?php
+/**
+ * PHPStan bootstrap: constants defined at runtime by WordPress or the main plugin file.
+ *
+ * @package Pixalink\Loyalty
+ */
+
+define( 'PIXALINK_LOYALTY_VERSION', '0.0.0' );
+define( 'PIXALINK_LOYALTY_FILE', __FILE__ );
+define( 'PIXALINK_LOYALTY_DIR', __DIR__ . '/' );
+define( 'PIXALINK_LOYALTY_URL', 'https://example.test/wp-content/plugins/pixalink-loyalty-for-woocommerce/' );
+define( 'PIXALINK_LOYALTY_DISTRIBUTION', 'dev' );
