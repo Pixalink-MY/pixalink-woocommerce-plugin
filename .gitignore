@@ -1,0 +1,30 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build output
+/build/
+/dist/
+/build-info.php
+
+# Local environment
+.wp-env.override.json
+.phpunit.result.cache
+.phpunit.cache/
+/tests/e2e/.auth/
+/artifacts/
+/test-results/
+/playwright-report/
+/.cache/
+
+# Tooling
+.phpcs-cache
+/.phpstan-cache/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
