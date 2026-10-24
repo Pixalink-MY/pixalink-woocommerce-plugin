@@ -94,7 +94,8 @@
 					}
 				},
 				"server_time": { "$ref": "#/$defs/unix_time" },
-				"available": { "type": "integer", "minimum": 0 }
+				"available": { "type": "integer", "minimum": 0 },
+				"available_cents": { "type": "integer", "minimum": 0 }
 			}
 		},
 		"outlet": {
@@ -179,16 +180,52 @@
 			"enum": [ "points", "voucher", "credit" ]
 		},
 		"held_redemption": {
+			"description": "One hold the server placed, in the order of the request's redemptions. coupon_code echoes the request entry (compared case-insensitively) so the store can map the hold to its coupon line.",
 			"type": "object",
-			"required": [ "redemption_id", "kind", "status", "expires_at" ],
+			"required": [ "redemption_id", "kind", "status", "expires_at", "coupon_code" ],
 			"properties": {
 				"redemption_id": { "$ref": "#/$defs/hold_ref" },
 				"kind": { "$ref": "#/$defs/redemption_kind" },
 				"status": { "const": "held" },
 				"expires_at": { "$ref": "#/$defs/datetime" },
+				"coupon_code": { "type": "string", "minLength": 1 },
 				"voucher_id": { "$ref": "#/$defs/id" },
 				"points": { "type": "integer", "minimum": 1 },
-				"discount": { "$ref": "#/$defs/non_negative_decimal" }
+				"amount_cents": { "$ref": "#/$defs/cents" },
+				"discount_cents": { "$ref": "#/$defs/cents" }
+			}
+		},
+		"commerce_line": {
+			"description": "One cart line, priced before any coupon. line_id is the store's cart item key; external_product_id is the store's product (or variation) id; category_code / category_name describe the product's first category.",
+			"type": "object",
+			"required": [ "line_id", "sku", "external_product_id", "name", "quantity", "unit_price_cents", "line_total_cents" ],
+			"additionalProperties": false,
+			"properties": {
+				"line_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+				"sku": { "type": [ "string", "null" ] },
+				"external_product_id": { "$ref": "#/$defs/id" },
+				"name": { "type": "string" },
+				"category_code": { "type": "string" },
+				"category_name": { "type": "string" },
+				"quantity": { "type": "number", "exclusiveMinimum": 0 },
+				"unit_price_cents": { "$ref": "#/$defs/cents" },
+				"line_total_cents": { "$ref": "#/$defs/cents" }
+			}
+		},
+		"commerce_cart": {
+			"description": "A cart as the store prices it, in integer cents of `currency`. Product amounts (unit_price_cents, line_total_cents, subtotal_cents, discount_cents) include tax exactly when prices_include_tax is true: the base WooCommerce applies fixed_cart coupons to. Lines are priced before any coupon and subtotal_cents is their sum; discount_cents is what the store's own coupons take off (never a Pixalink voucher, points or credits); shipping_cents excludes tax and no loyalty discount comes off it; tax_cents is all the tax in the cart total. held_refs names the holds the shopper's current order already carries: their value is already spent, so balances are read as they stand.",
+			"type": "object",
+			"required": [ "lines", "subtotal_cents", "currency", "shipping_cents", "discount_cents", "tax_cents", "prices_include_tax", "held_refs" ],
+			"additionalProperties": false,
+			"properties": {
+				"lines": { "type": "array", "items": { "$ref": "#/$defs/commerce_line" } },
+				"subtotal_cents": { "$ref": "#/$defs/cents" },
+				"currency": { "$ref": "#/$defs/currency" },
+				"shipping_cents": { "$ref": "#/$defs/cents" },
+				"discount_cents": { "$ref": "#/$defs/cents" },
+				"tax_cents": { "$ref": "#/$defs/cents" },
+				"prices_include_tax": { "type": "boolean" },
+				"held_refs": { "type": "array", "items": { "$ref": "#/$defs/hold_ref" }, "uniqueItems": true }
 			}
 		}
 	}

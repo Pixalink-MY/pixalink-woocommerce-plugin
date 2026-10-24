@@ -72,20 +72,29 @@ final class SchemasTest extends TestCase {
 			'redemptions-put.request.json',
 			array(
 				'customer_id' => '5001',
-				'currency'    => 'myr',
+				'cart'        => array(
+					'lines'              => array(),
+					'subtotal_cents'     => 0,
+					'currency'           => 'myr',
+					'shipping_cents'     => 0,
+					'discount_cents'     => 0,
+					'tax_cents'          => 0,
+					'prices_include_tax' => false,
+					'held_refs'          => array(),
+				),
 				'redemptions' => array(
 					array(
-						'kind'         => 'points',
-						'coupon_code'  => 'pxl-points',
-						'discount'     => '5',
-						'discount_tax' => '0',
+						'kind'               => 'points',
+						'coupon_code'        => 'pxl-points',
+						'discount_cents'     => 500,
+						'discount_tax_cents' => 0,
 					),
 				),
 			)
 		);
 
 		$this->assertNotEmpty( $violations );
-		$this->assertStringContainsString( '/currency', implode( "\n", $violations ) );
+		$this->assertStringContainsString( '/cart/currency', implode( "\n", $violations ) );
 		$this->assertStringContainsString( '/redemptions/0', implode( "\n", $violations ), 'Points redemptions must carry points.' );
 
 		// Cross-file $ref (common.json#/$defs/outlet) is resolved and enforced.

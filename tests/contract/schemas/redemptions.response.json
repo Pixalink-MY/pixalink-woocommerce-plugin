@@ -2,8 +2,9 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/redemptions.response.json",
 	"title": "PUT and DELETE orders/{order_ref}/redemptions 200 response: the holds now active for the order",
+	"description": "redemptions lists the active holds in the order of the PUT's redemptions (empty after a release); each echoes the coupon_code it answers. released counts the holds this call gave back.",
 	"type": "object",
-	"required": [ "order_ref", "redemptions" ],
+	"required": [ "redemptions" ],
 	"properties": {
 		"order_ref": { "$ref": "common.json#/$defs/order_ref" },
 		"redemptions": { "type": "array", "items": { "$ref": "common.json#/$defs/held_redemption" } },
@@ -13,11 +14,13 @@
 		{
 			"order_ref": "wc_order_AbC123xyz",
 			"redemptions": [
-				{ "redemption_id": "CH-01JABCDEF", "kind": "voucher", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "voucher_id": "88", "discount": "10.00" },
-				{ "redemption_id": "CH-01JABCDEG", "kind": "points", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "points": 500, "discount": "5.00" }
+				{ "redemption_id": "CH-01JABCDEF", "kind": "voucher", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "coupon_code": "pxl-welcome-88", "voucher_id": "88", "discount_cents": 1000 },
+				{ "redemption_id": "CH-01JABCDEG", "kind": "points", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "coupon_code": "pxl-points", "points": 500, "discount_cents": 500 },
+				{ "redemption_id": "CH-01JABCDEH", "kind": "credit", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "coupon_code": "pxl-credits", "amount_cents": 250, "discount_cents": 250 }
 			],
 			"released": 0
 		},
-		{ "order_ref": "wc_order_AbC123xyz", "redemptions": [], "released": 2 }
+		{ "redemptions": [] },
+		{ "order_ref": "wc_order_AbC123xyz", "redemptions": [], "released": 3 }
 	]
 }

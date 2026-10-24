@@ -1,31 +1,33 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/redemptions-put.request.json",
-	"title": "PUT orders/{order_ref}/redemptions request: the full declarative set of holds (empty = release all)",
-	"description": "409 points_insufficient {available} / voucher_unavailable, 422 discount_mismatch.",
+	"title": "PUT orders/{order_ref}/redemptions request: the full declarative set of holds for an order (empty = release all)",
+	"description": "Sent with an Idempotency-Key when the shopper places the order, built from the order's Pixalink coupon lines: what WooCommerce actually discounted. discount_cents / discount_tax_cents are the coupon line's discount and its tax share; the value taken off is discount_cents, plus discount_tax_cents when cart.prices_include_tax (in a tax-exclusive store the tax share comes off on top, WooCommerce coupon semantics). points is the points spent: the shopper's choice, or fewer when WooCommerce capped the discount at the subtotal (the fewest points that cover the value), so it need not be a multiple of the quote's step. amount_cents is the credits spent (= the value). coupon_code is lower case (WooCommerce lower-cases coupon codes; match case-insensitively, or by voucher_id). Errors: 409 points_insufficient {available} | credits_insufficient {available_cents} | voucher_unavailable, 422 discount_mismatch (the value exceeds what the redemption is worth), 403 verification_required.",
 	"type": "object",
-	"required": [ "customer_id", "currency", "redemptions" ],
+	"required": [ "customer_id", "cart", "redemptions" ],
 	"additionalProperties": false,
 	"properties": {
 		"customer_id": { "$ref": "common.json#/$defs/id" },
-		"currency": { "$ref": "common.json#/$defs/currency" },
+		"cart": { "$ref": "common.json#/$defs/commerce_cart" },
 		"redemptions": {
 			"type": "array",
 			"items": {
 				"type": "object",
-				"required": [ "kind", "coupon_code", "discount", "discount_tax" ],
+				"required": [ "kind", "coupon_code", "discount_cents", "discount_tax_cents" ],
 				"additionalProperties": false,
 				"properties": {
 					"kind": { "$ref": "common.json#/$defs/redemption_kind" },
 					"voucher_id": { "$ref": "common.json#/$defs/id" },
 					"points": { "type": "integer", "minimum": 1 },
+					"amount_cents": { "type": "integer", "minimum": 1 },
 					"coupon_code": { "type": "string", "minLength": 1 },
-					"discount": { "$ref": "common.json#/$defs/non_negative_decimal" },
-					"discount_tax": { "$ref": "common.json#/$defs/non_negative_decimal" }
+					"discount_cents": { "$ref": "common.json#/$defs/cents" },
+					"discount_tax_cents": { "$ref": "common.json#/$defs/cents" }
 				},
 				"allOf": [
 					{ "if": { "properties": { "kind": { "const": "voucher" } } }, "then": { "required": [ "voucher_id" ] } },
-					{ "if": { "properties": { "kind": { "const": "points" } } }, "then": { "required": [ "points" ] } }
+					{ "if": { "properties": { "kind": { "const": "points" } } }, "then": { "required": [ "points" ] } },
+					{ "if": { "properties": { "kind": { "const": "credit" } } }, "then": { "required": [ "amount_cents" ] } }
 				]
 			}
 		}
@@ -33,12 +35,26 @@
 	"examples": [
 		{
 			"customer_id": "5001",
-			"currency": "MYR",
+			"cart": {
+				"lines": [ { "line_id": "c4ca4238a0b923820dcc509a6f75849b", "sku": "LATTE-12", "external_product_id": "21", "name": "Latte 12oz", "quantity": 5, "unit_price_cents": 1200, "line_total_cents": 6000 } ],
+				"subtotal_cents": 6000,
+				"currency": "MYR",
+				"shipping_cents": 0,
+				"discount_cents": 0,
+				"tax_cents": 0,
+				"prices_include_tax": false,
+				"held_refs": []
+			},
 			"redemptions": [
-				{ "kind": "voucher", "voucher_id": "88", "coupon_code": "PXL-WELCOME-88", "discount": "10.00", "discount_tax": "0.00" },
-				{ "kind": "points", "points": 500, "coupon_code": "pxl-points", "discount": "5.00", "discount_tax": "0.00" }
+				{ "kind": "voucher", "voucher_id": "88", "coupon_code": "pxl-welcome-88", "discount_cents": 1000, "discount_tax_cents": 0 },
+				{ "kind": "points", "points": 500, "coupon_code": "pxl-points", "discount_cents": 500, "discount_tax_cents": 0 },
+				{ "kind": "credit", "amount_cents": 250, "coupon_code": "pxl-credits", "discount_cents": 250, "discount_tax_cents": 0 }
 			]
 		},
-		{ "customer_id": "5001", "currency": "MYR", "redemptions": [] }
+		{
+			"customer_id": "5001",
+			"cart": { "lines": [], "subtotal_cents": 0, "currency": "MYR", "shipping_cents": 0, "discount_cents": 0, "tax_cents": 0, "prices_include_tax": false, "held_refs": [ "CH-01JABCDEF" ] },
+			"redemptions": []
+		}
 	]
 }
