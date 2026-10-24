@@ -1,0 +1,195 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/common.json",
+	"title": "Shared definitions for the Pixalink Commerce API (/api/commerce/v1)",
+	"description": "Mirrored into explore tests/Fixtures/commerce/. Ids are strings; money is a decimal string plus currency, except fields suffixed _cents (integer hundredths).",
+	"$defs": {
+		"id": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64
+		},
+		"decimal": {
+			"type": "string",
+			"pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+		},
+		"non_negative_decimal": {
+			"type": "string",
+			"pattern": "^[0-9]+(\\.[0-9]+)?$"
+		},
+		"cents": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"currency": {
+			"type": "string",
+			"pattern": "^[A-Z]{3}$"
+		},
+		"datetime": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"nullable_datetime": {
+			"type": [ "string", "null" ],
+			"format": "date-time"
+		},
+		"unix_time": {
+			"type": "integer",
+			"minimum": 1000000000
+		},
+		"e164": {
+			"type": "string",
+			"pattern": "^\\+[1-9][0-9]{6,14}$"
+		},
+		"country_code": {
+			"type": "string",
+			"pattern": "^[A-Z]{2}$"
+		},
+		"email": {
+			"type": "string",
+			"format": "email"
+		},
+		"url": {
+			"type": "string",
+			"format": "uri",
+			"pattern": "^https?://"
+		},
+		"nonce": {
+			"description": "Event id or Idempotency-Key: the server rejects anything else (UUID v4/v5 fit).",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9-]{16,64}$"
+		},
+		"sha256_hex": {
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$"
+		},
+		"semver": {
+			"type": "string",
+			"pattern": "^[0-9]+\\.[0-9]+(\\.[0-9]+)?([-+][0-9A-Za-z.-]+)?$"
+		},
+		"order_ref": {
+			"description": "WooCommerce order key (wc_order_...).",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{1,64}$"
+		},
+		"hold_ref": {
+			"type": "string",
+			"pattern": "^CH-[A-Za-z0-9]+$"
+		},
+		"linked_via": {
+			"description": "How the shopper proved the phone number; balances and redemption require otp or sso_ticket.",
+			"enum": [ "otp", "sso_ticket", "none", null ]
+		},
+		"error": {
+			"type": "object",
+			"required": [ "message", "code" ],
+			"properties": {
+				"message": { "type": "string" },
+				"code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+				"errors": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": { "type": "string" }
+					}
+				},
+				"server_time": { "$ref": "#/$defs/unix_time" },
+				"available": { "type": "integer", "minimum": 0 }
+			}
+		},
+		"outlet": {
+			"type": "object",
+			"required": [ "id", "uuid", "name" ],
+			"properties": {
+				"id": { "$ref": "#/$defs/id" },
+				"uuid": { "type": "string", "format": "uuid" },
+				"name": { "type": "string", "minLength": 1 },
+				"currency": { "$ref": "#/$defs/currency" },
+				"timezone": { "type": "string" }
+			}
+		},
+		"organisation": {
+			"type": "object",
+			"required": [ "id", "name" ],
+			"properties": {
+				"id": { "$ref": "#/$defs/id" },
+				"name": { "type": "string", "minLength": 1 }
+			}
+		},
+		"marketing_consent": {
+			"type": "object",
+			"required": [ "value", "source", "captured_at", "text_hash" ],
+			"additionalProperties": false,
+			"properties": {
+				"value": { "type": "boolean" },
+				"source": { "enum": [ "checkout", "my_account", "registration", "admin" ] },
+				"captured_at": { "$ref": "#/$defs/datetime" },
+				"text_hash": { "$ref": "#/$defs/sha256_hex" }
+			}
+		},
+		"customer_ref": {
+			"type": "object",
+			"required": [ "id", "linked_via" ],
+			"properties": {
+				"id": { "$ref": "#/$defs/id" },
+				"first_name": { "type": [ "string", "null" ] },
+				"last_name": { "type": [ "string", "null" ] },
+				"phone_e164": { "oneOf": [ { "$ref": "#/$defs/e164" }, { "type": "null" } ] },
+				"email": { "oneOf": [ { "$ref": "#/$defs/email" }, { "type": "null" } ] },
+				"woocommerce_id": { "type": [ "string", "null" ] },
+				"linked_via": { "$ref": "#/$defs/linked_via" }
+			}
+		},
+		"woo_coupon": {
+			"description": "Spec for the virtual WC coupon the plugin builds via woocommerce_get_shop_coupon_data.",
+			"type": "object",
+			"required": [ "discount_type", "amount", "product_skus", "excluded_product_skus", "category_slugs", "minimum_amount", "maximum_amount", "limit_usage_to_x_items", "exclude_sale_items", "individual_use" ],
+			"additionalProperties": false,
+			"properties": {
+				"discount_type": { "enum": [ "fixed_cart", "percent", "fixed_product" ] },
+				"amount": { "$ref": "#/$defs/non_negative_decimal" },
+				"product_skus": { "type": "array", "items": { "type": "string" } },
+				"excluded_product_skus": { "type": "array", "items": { "type": "string" } },
+				"category_slugs": { "type": "array", "items": { "type": "string" } },
+				"minimum_amount": { "oneOf": [ { "$ref": "#/$defs/non_negative_decimal" }, { "type": "null" } ] },
+				"maximum_amount": { "oneOf": [ { "$ref": "#/$defs/non_negative_decimal" }, { "type": "null" } ] },
+				"limit_usage_to_x_items": { "type": [ "integer", "null" ], "minimum": 1 },
+				"exclude_sale_items": { "type": "boolean" },
+				"individual_use": { "type": "boolean" }
+			}
+		},
+		"quote_voucher": {
+			"type": "object",
+			"required": [ "id", "code", "title", "description", "image_url", "expires_at", "redeemable_online", "discount_cents", "eligible", "ineligible_reason", "woo_coupon" ],
+			"properties": {
+				"id": { "$ref": "#/$defs/id" },
+				"code": { "type": "string", "minLength": 1 },
+				"title": { "type": "string" },
+				"description": { "type": [ "string", "null" ] },
+				"image_url": { "oneOf": [ { "$ref": "#/$defs/url" }, { "type": "null" } ] },
+				"expires_at": { "$ref": "#/$defs/nullable_datetime" },
+				"redeemable_online": { "type": "boolean" },
+				"discount_cents": { "$ref": "#/$defs/cents" },
+				"eligible": { "type": "boolean" },
+				"ineligible_reason": { "type": [ "string", "null" ] },
+				"woo_coupon": { "oneOf": [ { "$ref": "#/$defs/woo_coupon" }, { "type": "null" } ] }
+			}
+		},
+		"redemption_kind": {
+			"enum": [ "points", "voucher", "credit" ]
+		},
+		"held_redemption": {
+			"type": "object",
+			"required": [ "redemption_id", "kind", "status", "expires_at" ],
+			"properties": {
+				"redemption_id": { "$ref": "#/$defs/hold_ref" },
+				"kind": { "$ref": "#/$defs/redemption_kind" },
+				"status": { "const": "held" },
+				"expires_at": { "$ref": "#/$defs/datetime" },
+				"voucher_id": { "$ref": "#/$defs/id" },
+				"points": { "type": "integer", "minimum": 1 },
+				"discount": { "$ref": "#/$defs/non_negative_decimal" }
+			}
+		}
+	}
+}

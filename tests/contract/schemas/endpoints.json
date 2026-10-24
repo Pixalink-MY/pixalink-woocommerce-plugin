@@ -1,0 +1,26 @@
+{
+	"$comment": "Endpoint manifest for /api/commerce/v1, shared with explore (tests/Fixtures/commerce/). auth: none = unauthenticated + unsigned; signed = Bearer outlet key + X-Pixalink-Signature. nonce: event_id | idempotency_key | read ('-').",
+	"base_path": "/api/commerce/v1",
+	"signature": {
+		"header": "X-Pixalink-Signature",
+		"scheme": "v1",
+		"string_to_sign": "{timestamp}.{nonce}.{raw_body}",
+		"key": "hash_hmac('sha256', 'pixalink-commerce-events-v1', hash('sha256', <api key part after the first '|'>)) as lower-case hex, used as-is",
+		"nonce_pattern": "^[A-Za-z0-9-]{16,64}$",
+		"window_seconds": 300
+	},
+	"endpoints": [
+		{ "method": "POST", "path": "connect/exchange", "auth": "none", "nonce": null, "request": "connect-exchange.request.json", "response": "connect-exchange.response.json" },
+		{ "method": "POST", "path": "connection/heartbeat", "auth": "signed", "nonce": "idempotency_key", "request": "connection-heartbeat.request.json", "response": "connection-heartbeat.response.json" },
+		{ "method": "GET", "path": "outlet", "auth": "signed", "nonce": "read", "request": null, "response": "outlet.response.json" },
+		{ "method": "GET", "path": "customers", "auth": "signed", "nonce": "read", "query": "customers-lookup.query.json", "request": null, "response": "customers-lookup.response.json" },
+		{ "method": "POST", "path": "customers", "auth": "signed", "nonce": "idempotency_key", "request": "customers-create.request.json", "response": "customers-create.response.json" },
+		{ "method": "GET", "path": "customers/{id}", "auth": "signed", "nonce": "read", "request": null, "response": "customer-summary.response.json" },
+		{ "method": "POST", "path": "customers/{id}/otp", "auth": "signed", "nonce": "idempotency_key", "request": "customer-otp.request.json", "response": "customer-otp.response.json" },
+		{ "method": "POST", "path": "customers/{id}/otp/verify", "auth": "signed", "nonce": "idempotency_key", "request": "customer-otp-verify.request.json", "response": "customer-otp-verify.response.json" },
+		{ "method": "POST", "path": "quote", "auth": "signed", "nonce": "idempotency_key", "request": "quote.request.json", "response": "quote.response.json" },
+		{ "method": "PUT", "path": "orders/{order_ref}/redemptions", "auth": "signed", "nonce": "idempotency_key", "request": "redemptions-put.request.json", "response": "redemptions.response.json" },
+		{ "method": "DELETE", "path": "orders/{order_ref}/redemptions", "auth": "signed", "nonce": "idempotency_key", "request": null, "response": "redemptions.response.json" },
+		{ "method": "POST", "path": "events", "auth": "signed", "nonce": "event_id", "request": "event.request.json", "response": "event.response.json" }
+	]
+}

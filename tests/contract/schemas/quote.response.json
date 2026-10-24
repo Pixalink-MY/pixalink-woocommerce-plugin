@@ -1,0 +1,84 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/quote.response.json",
+	"title": "POST quote 200 response",
+	"description": "points/credits are null when the feature is off or the shopper is not verified (linked_via otp|sso_ticket).",
+	"type": "object",
+	"required": [ "currency", "vouchers", "points", "earn_preview", "ttl_seconds" ],
+	"properties": {
+		"currency": { "$ref": "common.json#/$defs/currency" },
+		"vouchers": { "type": "array", "items": { "$ref": "common.json#/$defs/quote_voucher" } },
+		"points": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"required": [ "balance", "available", "value_per_point", "min", "max_for_cart", "step" ],
+					"properties": {
+						"balance": { "type": "integer", "minimum": 0 },
+						"available": { "type": "integer", "minimum": 0 },
+						"value_per_point": { "$ref": "common.json#/$defs/non_negative_decimal" },
+						"min": { "type": "integer", "minimum": 0 },
+						"max_for_cart": { "type": "integer", "minimum": 0 },
+						"step": { "type": "integer", "minimum": 1 }
+					}
+				}
+			]
+		},
+		"credits": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"required": [ "balance", "currency" ],
+					"properties": {
+						"balance": { "$ref": "common.json#/$defs/non_negative_decimal" },
+						"currency": { "$ref": "common.json#/$defs/currency" }
+					}
+				}
+			]
+		},
+		"lines": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [ "line_id", "class" ],
+				"properties": {
+					"line_id": { "type": "string" },
+					"class": { "enum": [ "regular", "membership", "top_up" ] }
+				}
+			}
+		},
+		"earn_preview": {
+			"type": "object",
+			"required": [ "points" ],
+			"properties": { "points": { "type": "integer", "minimum": 0 } }
+		},
+		"ttl_seconds": { "type": "integer", "minimum": 0 }
+	},
+	"examples": [
+		{
+			"currency": "MYR",
+			"vouchers": [
+				{
+					"id": "88",
+					"code": "PXL-WELCOME-88",
+					"title": "RM10 off",
+					"description": "Welcome voucher",
+					"image_url": null,
+					"expires_at": "2026-12-31T15:59:59Z",
+					"redeemable_online": true,
+					"discount_cents": 1000,
+					"eligible": true,
+					"ineligible_reason": null,
+					"woo_coupon": { "discount_type": "fixed_cart", "amount": "10.00", "product_skus": [], "excluded_product_skus": [], "category_slugs": [], "minimum_amount": "50.00", "maximum_amount": null, "limit_usage_to_x_items": null, "exclude_sale_items": false, "individual_use": false }
+				}
+			],
+			"points": { "balance": 1250, "available": 1250, "value_per_point": "0.01", "min": 100, "max_for_cart": 1200, "step": 100 },
+			"credits": null,
+			"lines": [ { "line_id": "c4ca4238a0b923820dcc509a6f75849b", "class": "regular" } ],
+			"earn_preview": { "points": 150 },
+			"ttl_seconds": 300
+		}
+	]
+}

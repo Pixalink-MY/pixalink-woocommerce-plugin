@@ -1,0 +1,44 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/redemptions-put.request.json",
+	"title": "PUT orders/{order_ref}/redemptions request: the full declarative set of holds (empty = release all)",
+	"description": "409 points_insufficient {available} / voucher_unavailable, 422 discount_mismatch.",
+	"type": "object",
+	"required": [ "customer_id", "currency", "redemptions" ],
+	"additionalProperties": false,
+	"properties": {
+		"customer_id": { "$ref": "common.json#/$defs/id" },
+		"currency": { "$ref": "common.json#/$defs/currency" },
+		"redemptions": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [ "kind", "coupon_code", "discount", "discount_tax" ],
+				"additionalProperties": false,
+				"properties": {
+					"kind": { "$ref": "common.json#/$defs/redemption_kind" },
+					"voucher_id": { "$ref": "common.json#/$defs/id" },
+					"points": { "type": "integer", "minimum": 1 },
+					"coupon_code": { "type": "string", "minLength": 1 },
+					"discount": { "$ref": "common.json#/$defs/non_negative_decimal" },
+					"discount_tax": { "$ref": "common.json#/$defs/non_negative_decimal" }
+				},
+				"allOf": [
+					{ "if": { "properties": { "kind": { "const": "voucher" } } }, "then": { "required": [ "voucher_id" ] } },
+					{ "if": { "properties": { "kind": { "const": "points" } } }, "then": { "required": [ "points" ] } }
+				]
+			}
+		}
+	},
+	"examples": [
+		{
+			"customer_id": "5001",
+			"currency": "MYR",
+			"redemptions": [
+				{ "kind": "voucher", "voucher_id": "88", "coupon_code": "PXL-WELCOME-88", "discount": "10.00", "discount_tax": "0.00" },
+				{ "kind": "points", "points": 500, "coupon_code": "pxl-points", "discount": "5.00", "discount_tax": "0.00" }
+			]
+		},
+		{ "customer_id": "5001", "currency": "MYR", "redemptions": [] }
+	]
+}

@@ -1,0 +1,13 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/error.response.json",
+	"title": "Error envelope (every non-2xx response)",
+	"description": "404 cross-org, 409 conflict/retryable, 422 business rejection, 429 throttle, 401 timestamp_skew carries server_time, 409 points_insufficient carries available.",
+	"$ref": "common.json#/$defs/error",
+	"examples": [
+		{ "message": "The request timestamp is outside the allowed window.", "code": "timestamp_skew", "server_time": 1761300000 },
+		{ "message": "Not enough points.", "code": "points_insufficient", "available": 120 },
+		{ "message": "The given data was invalid.", "code": "validation_failed", "errors": { "phone_e164": [ "The phone e164 field is required." ] } },
+		{ "message": "The authorisation code is invalid or expired.", "code": "invalid_grant" }
+	]
+}

@@ -1,0 +1,13 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customer-otp-verify.request.json",
+	"title": "POST customers/{id}/otp/verify request",
+	"type": "object",
+	"required": [ "code" ],
+	"additionalProperties": false,
+	"properties": {
+		"code": { "type": "string", "pattern": "^[0-9]{4,8}$" },
+		"woocommerce_id": { "type": [ "string", "null" ], "pattern": "^[0-9]+$" }
+	},
+	"examples": [ { "code": "123456", "woocommerce_id": "17" } ]
+}

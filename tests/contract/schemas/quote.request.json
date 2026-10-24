@@ -1,0 +1,62 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/quote.request.json",
+	"title": "POST quote request: price vouchers and points for a cart (no server writes)",
+	"type": "object",
+	"required": [ "customer_id", "currency", "cart" ],
+	"additionalProperties": false,
+	"properties": {
+		"customer_id": { "oneOf": [ { "$ref": "common.json#/$defs/id" }, { "type": "null" } ] },
+		"currency": { "$ref": "common.json#/$defs/currency" },
+		"cart": {
+			"type": "object",
+			"required": [ "subtotal", "discount_total", "shipping_total", "total", "lines", "applied_coupons" ],
+			"additionalProperties": false,
+			"properties": {
+				"subtotal": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"discount_total": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"shipping_total": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"total": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"lines": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [ "line_id", "sku", "product_id", "name", "quantity", "unit_price", "line_subtotal", "line_total" ],
+						"additionalProperties": false,
+						"properties": {
+							"line_id": { "type": "string", "minLength": 1 },
+							"sku": { "type": [ "string", "null" ] },
+							"product_id": { "$ref": "common.json#/$defs/id" },
+							"variation_id": { "oneOf": [ { "$ref": "common.json#/$defs/id" }, { "type": "null" } ] },
+							"name": { "type": "string" },
+							"category_slugs": { "type": "array", "items": { "type": "string" } },
+							"quantity": { "type": "number", "exclusiveMinimum": 0 },
+							"unit_price": { "$ref": "common.json#/$defs/non_negative_decimal" },
+							"line_subtotal": { "$ref": "common.json#/$defs/non_negative_decimal" },
+							"line_total": { "$ref": "common.json#/$defs/non_negative_decimal" },
+							"on_sale": { "type": "boolean" }
+						}
+					}
+				},
+				"applied_coupons": { "type": "array", "items": { "type": "string" } }
+			}
+		}
+	},
+	"examples": [
+		{
+			"customer_id": "5001",
+			"currency": "MYR",
+			"cart": {
+				"subtotal": "150.00",
+				"discount_total": "0.00",
+				"shipping_total": "10.00",
+				"total": "160.00",
+				"lines": [
+					{ "line_id": "c4ca4238a0b923820dcc509a6f75849b", "sku": "LATTE-12", "product_id": "21", "variation_id": null, "name": "Latte 12oz", "category_slugs": [ "coffee" ], "quantity": 2, "unit_price": "12.00", "line_subtotal": "24.00", "line_total": "24.00", "on_sale": false },
+					{ "line_id": "c81e728d9d4c2f636f067f89cc14862c", "sku": "BEANS-1KG", "product_id": "35", "variation_id": "36", "name": "House Blend 1kg", "category_slugs": [ "beans" ], "quantity": 1, "unit_price": "126.00", "line_subtotal": "126.00", "line_total": "126.00", "on_sale": true }
+				],
+				"applied_coupons": []
+			}
+		}
+	]
+}

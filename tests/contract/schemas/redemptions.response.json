@@ -1,0 +1,23 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/redemptions.response.json",
+	"title": "PUT and DELETE orders/{order_ref}/redemptions 200 response: the holds now active for the order",
+	"type": "object",
+	"required": [ "order_ref", "redemptions" ],
+	"properties": {
+		"order_ref": { "$ref": "common.json#/$defs/order_ref" },
+		"redemptions": { "type": "array", "items": { "$ref": "common.json#/$defs/held_redemption" } },
+		"released": { "type": "integer", "minimum": 0 }
+	},
+	"examples": [
+		{
+			"order_ref": "wc_order_AbC123xyz",
+			"redemptions": [
+				{ "redemption_id": "CH-01JABCDEF", "kind": "voucher", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "voucher_id": "88", "discount": "10.00" },
+				{ "redemption_id": "CH-01JABCDEG", "kind": "points", "status": "held", "expires_at": "2026-10-31T08:00:00Z", "points": 500, "discount": "5.00" }
+			],
+			"released": 0
+		},
+		{ "order_ref": "wc_order_AbC123xyz", "redemptions": [], "released": 2 }
+	]
+}

@@ -1,0 +1,14 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customers-create.response.json",
+	"title": "POST customers 200/201 response",
+	"type": "object",
+	"required": [ "customer", "created" ],
+	"properties": {
+		"customer": { "$ref": "common.json#/$defs/customer_ref" },
+		"created": { "type": "boolean" }
+	},
+	"examples": [
+		{ "customer": { "id": "5001", "first_name": "Aisyah", "last_name": "Rahman", "phone_e164": "+60123456789", "email": "member@example.com", "woocommerce_id": "17", "linked_via": "none" }, "created": true }
+	]
+}

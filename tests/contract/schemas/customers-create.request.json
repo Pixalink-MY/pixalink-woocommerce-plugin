@@ -1,0 +1,31 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customers-create.request.json",
+	"title": "POST customers request: resolve or create, link the WooCommerce id, apply consent",
+	"description": "Consent true only lifts Do_Not_Contact; false never touches Blocked. Idempotent per organisation + phone.",
+	"type": "object",
+	"required": [ "phone_e164", "phone_country", "verified_via" ],
+	"additionalProperties": false,
+	"properties": {
+		"phone_e164": { "$ref": "common.json#/$defs/e164" },
+		"phone_country": { "$ref": "common.json#/$defs/country_code" },
+		"email": { "oneOf": [ { "$ref": "common.json#/$defs/email" }, { "type": "null" } ] },
+		"first_name": { "type": [ "string", "null" ], "maxLength": 191 },
+		"last_name": { "type": [ "string", "null" ], "maxLength": 191 },
+		"woocommerce_id": { "type": [ "string", "null" ], "pattern": "^[0-9]+$" },
+		"marketing_consent": { "oneOf": [ { "$ref": "common.json#/$defs/marketing_consent" }, { "type": "null" } ] },
+		"verified_via": { "enum": [ "sso_ticket", "otp", "none" ] }
+	},
+	"examples": [
+		{
+			"phone_e164": "+60123456789",
+			"phone_country": "MY",
+			"email": "member@example.com",
+			"first_name": "Aisyah",
+			"last_name": "Rahman",
+			"woocommerce_id": "17",
+			"marketing_consent": { "value": true, "source": "checkout", "captured_at": "2026-10-24T08:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" },
+			"verified_via": "none"
+		}
+	]
+}

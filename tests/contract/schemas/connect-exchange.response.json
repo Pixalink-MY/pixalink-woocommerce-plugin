@@ -1,0 +1,23 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connect-exchange.response.json",
+	"title": "POST connect/exchange 200 response (any failure is 400 invalid_grant)",
+	"type": "object",
+	"required": [ "api_key", "outlet", "organisation", "api_base_url", "dashboard_url" ],
+	"properties": {
+		"api_key": { "type": "string", "pattern": "^[0-9]+\\|[A-Za-z0-9]{20,}$" },
+		"outlet": { "$ref": "common.json#/$defs/outlet" },
+		"organisation": { "$ref": "common.json#/$defs/organisation" },
+		"api_base_url": { "$ref": "common.json#/$defs/url" },
+		"dashboard_url": { "$ref": "common.json#/$defs/url" }
+	},
+	"examples": [
+		{
+			"api_key": "1|abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+			"outlet": { "id": "101", "uuid": "9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81", "name": "Online Store" },
+			"organisation": { "id": "229", "name": "Demo Cafe" },
+			"api_base_url": "https://explore.pixalink.io/api/commerce/v1",
+			"dashboard_url": "https://explore.pixalink.io/admin"
+		}
+	]
+}
