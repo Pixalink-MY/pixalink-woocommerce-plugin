@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Pixalink\Loyalty\Admin;
 
 use Pixalink\Loyalty\Connect\ConnectController;
+use Pixalink\Loyalty\Fields\ConsentText;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -130,7 +131,7 @@ final class SettingsPage extends \WC_Settings_Page {
 				'desc'     => __( 'Points are credited to the phone number entered at checkout. Shoppers without one cannot earn.', 'pixalink-loyalty-for-woocommerce' ),
 				'desc_tip' => true,
 			),
-			self::checkbox( Options::CHECKOUT_CONSENT_ENABLED, __( 'Marketing consent', 'pixalink-loyalty-for-woocommerce' ), __( 'Ask shoppers whether they want to receive offers', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::checkbox( Options::CHECKOUT_CONSENT_ENABLED, __( 'Marketing consent', 'pixalink-loyalty-for-woocommerce' ), __( 'Ask shoppers at checkout and sign-up whether they want to receive offers (the box is never ticked for them)', 'pixalink-loyalty-for-woocommerce' ) ),
 			array(
 				'title'       => __( 'Consent text', 'pixalink-loyalty-for-woocommerce' ),
 				'id'          => Options::CHECKOUT_CONSENT_TEXT,
@@ -142,7 +143,6 @@ final class SettingsPage extends \WC_Settings_Page {
 				'desc_tip'    => true,
 				'css'         => 'min-width: 400px; min-height: 60px;',
 			),
-			self::checkbox( Options::CHECKOUT_CONSENT_DEFAULT_VALUE, __( 'Consent box', 'pixalink-loyalty-for-woocommerce' ), __( 'Tick the consent box by default (check that your local privacy law allows pre-ticked consent)', 'pixalink-loyalty-for-woocommerce' ) ),
 			array(
 				'type' => 'sectionend',
 				'id'   => 'pixalink_loyalty_checkout_section',
@@ -206,7 +206,7 @@ final class SettingsPage extends \WC_Settings_Page {
 	 * @return string
 	 */
 	public static function default_consent_text(): string {
-		return __( 'Send me offers and news by WhatsApp, SMS and e-mail. I can opt out at any time.', 'pixalink-loyalty-for-woocommerce' );
+		return ConsentText::default_text();
 	}
 
 	/**

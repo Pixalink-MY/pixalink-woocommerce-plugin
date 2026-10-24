@@ -1,5 +1,6 @@
 /**
- * Phone country + number field (E.164) and marketing consent on the classic checkout and registration forms.
+ * Phone country + number field (E.164) and marketing consent on the classic checkout and account forms.
  *
- * Intentionally empty until work unit P07.
+ * The fields are rendered and validated server-side (Fields\CheckoutFields, Fields\AccountFields), so this entry has no
+ * behaviour yet; it stays as the hook for client-side niceties such as live formatting.
  */

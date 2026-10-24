@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Pixalink\Loyalty\Install;
 
+use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -24,14 +25,16 @@ final class Uninstaller {
 	 * User meta keys owned by the plugin.
 	 */
 	public const USER_META_KEYS = array(
-		'pixalink_customer_id',
-		'pixalink_phone_e164',
-		'pixalink_phone_country',
-		'pixalink_phone_verified_at',
-		'pixalink_marketing_consent',
-		'pixalink_marketing_consent_at',
-		'pixalink_marketing_consent_source',
-		'pixalink_linked_at',
+		UserMeta::CUSTOMER_ID,
+		UserMeta::PHONE_E164,
+		UserMeta::PHONE_COUNTRY,
+		UserMeta::PHONE_VERIFIED_AT,
+		UserMeta::CONSENT,
+		UserMeta::CONSENT_AT,
+		UserMeta::CONSENT_SOURCE,
+		UserMeta::CONSENT_TEXT_HASH,
+		UserMeta::LINKED_AT,
+		UserMeta::LINKED_VIA,
 		'pixalink_loyalty_dismissed_notices',
 	);
 
