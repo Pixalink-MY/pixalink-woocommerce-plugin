@@ -1,7 +1,6 @@
 <?php
 /**
  * Plugin Name:          Pixalink Loyalty for WooCommerce
- * Plugin URI:           https://pixalink.io/woocommerce
  * Description:          Pixalink loyalty points, vouchers and member accounts for WooCommerce: earn on every order, redeem at checkout, see balances under My Account.
  * Version:              0.1.0
  * Requires at least:    7.0
