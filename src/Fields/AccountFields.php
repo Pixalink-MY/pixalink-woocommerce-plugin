@@ -73,11 +73,12 @@ final class AccountFields {
 	private CustomerEvents $events;
 
 	/**
-	 * Whether the current request submitted the My Account registration form (not a checkout sign-up).
+	 * E-mail address submitted through the My Account registration form in this request ('' when none), so a
+	 * checkout sign-up (which records its own answer) is never mistaken for it.
 	 *
-	 * @var bool
+	 * @var string
 	 */
-	private bool $registering = false;
+	private string $registering = '';
 
 	/**
 	 * Constructor.
@@ -105,7 +106,7 @@ final class AccountFields {
 	 */
 	public function register(): void {
 		add_action( 'woocommerce_register_form', array( $this, 'render_registration' ) );
-		add_filter( 'woocommerce_process_registration_errors', array( $this, 'validate_registration' ), 10, 1 );
+		add_filter( 'woocommerce_process_registration_errors', array( $this, 'validate_registration' ), 10, 4 );
 		add_action( 'woocommerce_created_customer', array( $this, 'save_registration' ), 10, 1 );
 
 		add_action( 'woocommerce_edit_account_form', array( $this, 'render_edit_account' ) );
@@ -129,11 +130,15 @@ final class AccountFields {
 	/**
 	 * `woocommerce_process_registration_errors` filter (My Account registration form only).
 	 *
-	 * @param mixed $errors WP_Error.
+	 * @param mixed $errors   WP_Error.
+	 * @param mixed $username Username.
+	 * @param mixed $password Password.
+	 * @param mixed $email    E-mail address.
 	 * @return mixed
 	 */
-	public function validate_registration( $errors ) {
-		$this->registering = true;
+	public function validate_registration( $errors, $username = '', $password = '', $email = '' ) {
+		unset( $username, $password );
+		$this->registering = is_string( $email ) ? strtolower( trim( $email ) ) : '';
 
 		if ( $errors instanceof \WP_Error ) {
 			$message = $this->phone_error( self::posted( self::PHONE ) ?? '', self::posted( self::COUNTRY ) ?? '' );
@@ -152,12 +157,14 @@ final class AccountFields {
 	 * @return void
 	 */
 	public function save_registration( $customer_id ): void {
-		if ( ! $this->registering || ! is_numeric( $customer_id ) ) {
+		$user = is_numeric( $customer_id ) ? get_userdata( (int) $customer_id ) : false;
+		if ( '' === $this->registering || ! $user instanceof \WP_User || strtolower( (string) $user->user_email ) !== $this->registering ) {
 			return;
 		}
 
-		$user_id = (int) $customer_id;
-		$changed = $this->save_phone( $user_id );
+		$this->registering = '';
+		$user_id           = (int) $user->ID;
+		$changed           = $this->save_phone( $user_id );
 		if ( $this->options->get_bool( Options::CHECKOUT_CONSENT_ENABLED ) && '1' === self::posted( self::CONSENT ) ) {
 			$changed = UserMeta::set_consent( $user_id, ConsentRecord::given( true, ConsentRecord::SOURCE_REGISTRATION, $this->consent_text->text( ConsentRecord::SOURCE_REGISTRATION ), time() ) ) || $changed;
 		}

@@ -243,7 +243,8 @@ final class SsoLanding {
 	 */
 	private function keep_as_guest( Link $link ): void {
 		$session = function_exists( 'WC' ) ? WC()->session : null;
-		if ( $session instanceof \WC_Session_Handler && ! $session->has_session() ) {
+		// The session cookie keeps the guest link for the next requests (headers are still open on template_redirect).
+		if ( $session instanceof \WC_Session_Handler && ! $session->has_session() && ! headers_sent() ) {
 			$session->set_customer_session_cookie( true );
 		}
 

@@ -464,11 +464,12 @@ final class CheckoutFields {
 	private static function forget_blocks_consent( \WC_Order $order ): void {
 		$key = BlocksCheckoutFields::OTHER_FIELDS_PREFIX . self::BLOCKS_CONSENT;
 
+		// The session customer (what the next checkout reads) and, for accounts, the stored profile (user meta).
 		$customers = array();
 		if ( function_exists( 'WC' ) && WC()->customer instanceof \WC_Customer ) {
 			$customers[] = WC()->customer;
 		}
-		if ( $order->get_customer_id() > 0 && ( array() === $customers || (int) $customers[0]->get_id() !== (int) $order->get_customer_id() ) ) {
+		if ( $order->get_customer_id() > 0 ) {
 			$customers[] = new \WC_Customer( (int) $order->get_customer_id() );
 		}
 

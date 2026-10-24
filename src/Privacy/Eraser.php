@@ -104,7 +104,13 @@ final class Eraser {
 			return;
 		}
 
-		$order->delete_meta_data( OrderMeta::PHONE_E164 );
-		$order->delete_meta_data( OrderMeta::PHONE_COUNTRY );
+		// WooCommerce has already saved the anonymised order when this fires, so persist the meta change ourselves.
+		OrderMeta::update(
+			$order,
+			array(
+				OrderMeta::PHONE_E164    => null,
+				OrderMeta::PHONE_COUNTRY => null,
+			)
+		);
 	}
 }
