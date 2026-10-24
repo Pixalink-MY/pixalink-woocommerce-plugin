@@ -6,6 +6,7 @@
  */
 
 require_once dirname( __DIR__, 3 ) . '/vendor/autoload.php';
+require_once dirname( __DIR__ ) . '/fixtures/wordpress-classes.php';
 
 // Source files guard direct access with ABSPATH.
 if ( ! defined( 'ABSPATH' ) ) {
