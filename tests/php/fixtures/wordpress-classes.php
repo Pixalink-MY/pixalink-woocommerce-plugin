@@ -25,6 +25,13 @@ if ( ! class_exists( 'WC_Data' ) ) {
 if ( ! class_exists( 'WP_Term' ) ) {
 	class WP_Term {
 		/**
+		 * Term id.
+		 *
+		 * @var int
+		 */
+		public $term_id = 0;
+
+		/**
 		 * Slug.
 		 *
 		 * @var string
