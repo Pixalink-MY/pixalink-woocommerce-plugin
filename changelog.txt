@@ -9,4 +9,8 @@
 * Add - Six-hourly connection heartbeat with remote feature switches, clock alignment and a "reconnect" state when Pixalink rejects the key.
 * Add - Detects old Pixalink WooCommerce webhooks and offers to pause them when connecting.
 * Add - Admin notices for a missing connection, a rejected key, an outdated plugin, an inactive Pixalink account and disabled coupons.
-* Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check) and release pipeline.
+* Add - Vouchers, points and credits at checkout as virtual WooCommerce coupons, priced by a Pixalink quote, in the Checkout block (order summary panel, relabelled coupon chips) and the classic checkout (loyalty panel); only phone-verified members can use them.
+* Add - Points, credits and vouchers are held when the order is placed and released when payment fails, the order is cancelled or it is abandoned (15-minute sweep).
+* Add - Order-received page: points earned or when they will be added, and the rewards the order used; order screen: held and settled redemptions.
+* Add - WooCommerce › Settings › Pixalink Loyalty › Checkout: credits toggle; each toggle shows when Pixalink switched the feature off.
+* Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check, Playwright checkout e2e) and release pipeline.

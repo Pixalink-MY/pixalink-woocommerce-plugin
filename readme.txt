@@ -42,6 +42,14 @@ No. Guests earn points with the phone number they enter at checkout. Shoppers wh
 
 Checkout keeps working. Order events wait in a queue on your site and are retried automatically; redemptions are only offered while Pixalink confirms them.
 
+= Can I still create my own coupons whose code starts with "PXL-"? =
+
+No. Coupon codes starting with `PXL-` (any case) are reserved for Pixalink: vouchers appear at checkout as `PXL-` coupons, and points and credits as `pxl-points` and `pxl-credits`. A store coupon with such a code is ignored while the plugin is active.
+
+= How do points and credits discounts work with tax? =
+
+Like any WooCommerce fixed cart coupon: in a store whose prices exclude tax, the discount comes off the price before tax, so the order total falls by the discount plus its tax. Credits are applied as a discount, so the part of an order paid with credits does not earn points.
+
 = Does uninstalling delete my data? =
 
 Only if you enable **Delete all data on uninstall** in the plugin settings. Order notes and order meta stay with your orders either way.
@@ -58,7 +66,8 @@ What is sent, and when:
 * **When you disconnect:** a request asking Pixalink to revoke the store's key.
 * **When an order is paid for, completed, cancelled, refunded or (unpaid) deleted:** the order number and key, totals, currency, line items (product name, SKU, category, quantity, price), coupons, shipping total, and the shopper's name, e-mail address, phone number, WordPress user id (if logged in) and marketing-consent choice with its time and the hash of the consent text shown.
 * **When an administrator sends a test ping from the settings:** an empty test event.
-* **When a shopper views My Account › Loyalty or redeems at checkout:** the shopper's phone number or Pixalink customer id and the cart contents needed to price vouchers and points.
+* **When a shopper views My Account › Loyalty or redeems at checkout:** the shopper's phone number or Pixalink customer id and the cart contents needed to price vouchers, points and credits (product names, SKUs, categories, quantities and prices, store discounts, shipping and tax totals).
+* **When a member places an order using vouchers, points or credits:** the order key, the cart contents and the rewards to hold for the order; when an unpaid order is abandoned, a request to release them.
 * **When a shopper verifies their phone number:** the phone number, so Pixalink can send a one-time code by WhatsApp or SMS, and the code the shopper enters.
 
 Every request is signed with a key derived from your outlet API key. Pixalink processes this data as your service provider under its terms.
@@ -71,5 +80,6 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 == Changelog ==
 
 = 0.1.0 =
+* Checkout: members use Pixalink vouchers, points and credits in the Checkout block and the classic checkout; they are held when the order is placed and released if payment fails or the order is cancelled or abandoned.
 * Foundation: requirements checks, HPOS and Cart & Checkout blocks compatibility, encrypted credential storage, signed API client.
 * Connect screen under WooCommerce › Settings › Pixalink Loyalty: connect with your Pixalink sign-in or an outlet API key, request access, test and disconnect; connection heartbeat and admin notices.
