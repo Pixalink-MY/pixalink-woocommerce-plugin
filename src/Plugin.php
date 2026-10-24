@@ -16,6 +16,7 @@ use Pixalink\Loyalty\Admin\SettingsPage;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Api\Resources\Connect;
+use Pixalink\Loyalty\Api\Resources\Redemptions;
 use Pixalink\Loyalty\Connect\ConnectController;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Connect\ConnectService;
@@ -23,7 +24,10 @@ use Pixalink\Loyalty\Connect\Heartbeat;
 use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\LegacyWebhookDetector;
 use Pixalink\Loyalty\Connect\PkceState;
+use Pixalink\Loyalty\Identity\ShopperContextInterface;
+use Pixalink\Loyalty\Identity\UserMetaShopperContext;
 use Pixalink\Loyalty\Install\Installer;
+use Pixalink\Loyalty\Redemption\Features;
 use Pixalink\Loyalty\Support\Clock;
 use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Support\Logger;
@@ -96,6 +100,7 @@ final class Plugin {
 
 		$plugin->register_hooks();
 		$plugin->events()->register();
+		$plugin->redemption()->register();
 
 		/**
 		 * Fires once the plugin has booted and its requirements are met.
@@ -227,6 +232,65 @@ final class Plugin {
 		return $this->service(
 			Events\Module::class,
 			fn (): Events\Module => new Events\Module( $this->client(), $this->credentials(), $this->options(), $this->logger() )
+		);
+	}
+
+	/**
+	 * Who the current shopper is (guest, unlinked, verified).
+	 *
+	 * The identity unit replaces the user-meta stand-in through the `pixalink_loyalty_shopper_context` filter; the
+	 * service is built on first use, so the filter must be added before checkout code runs (on boot is enough).
+	 *
+	 * @return ShopperContextInterface
+	 */
+	public function shopper_context(): ShopperContextInterface {
+		return $this->service(
+			ShopperContextInterface::class,
+			static function (): ShopperContextInterface {
+				$default = new UserMetaShopperContext();
+
+				/**
+				 * Filters the shopper context redemption asks "is this shopper verified, and as which Pixalink
+				 * customer?".
+				 *
+				 * @since 0.2.0
+				 *
+				 * @param ShopperContextInterface $context Default: user meta `pixalink_customer_id` + `pixalink_phone_verified_at`.
+				 */
+				$context = apply_filters( 'pixalink_loyalty_shopper_context', $default );
+
+				return $context instanceof ShopperContextInterface ? $context : $default;
+			}
+		);
+	}
+
+	/**
+	 * Checkout API resource (quote, holds).
+	 *
+	 * @return Redemptions
+	 */
+	public function redemptions_api(): Redemptions {
+		return $this->service( Redemptions::class, fn (): Redemptions => new Redemptions( $this->client() ) );
+	}
+
+	/**
+	 * Redemption kill switches.
+	 *
+	 * @return Features
+	 */
+	public function features(): Features {
+		return $this->service( Features::class, fn (): Features => new Features( $this->connection(), $this->options(), $this->credentials() ) );
+	}
+
+	/**
+	 * Vouchers, points and credits at checkout.
+	 *
+	 * @return Redemption\Module
+	 */
+	public function redemption(): Redemption\Module {
+		return $this->service(
+			Redemption\Module::class,
+			fn (): Redemption\Module => new Redemption\Module( $this->redemptions_api(), $this->shopper_context(), $this->features(), $this->events()->lifecycle(), $this->logger() )
 		);
 	}
 
