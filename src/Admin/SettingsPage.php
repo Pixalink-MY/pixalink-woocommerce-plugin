@@ -114,9 +114,10 @@ final class SettingsPage extends \WC_Settings_Page {
 				'desc'  => __( 'Redemption options appear only for shoppers who verified their phone number, and only while Pixalink keeps the matching feature switched on.', 'pixalink-loyalty-for-woocommerce' ),
 				'id'    => 'pixalink_loyalty_checkout_section',
 			),
-			self::checkbox( Options::CHECKOUT_PANEL_ENABLED, __( 'Loyalty panel', 'pixalink-loyalty-for-woocommerce' ), __( 'Show members their points and vouchers at checkout', 'pixalink-loyalty-for-woocommerce' ) ),
-			self::checkbox( Options::VOUCHERS_ENABLED, __( 'Vouchers', 'pixalink-loyalty-for-woocommerce' ), __( 'Let members apply their Pixalink vouchers', 'pixalink-loyalty-for-woocommerce' ) ),
-			self::checkbox( Options::POINTS_REDEMPTION_ENABLED, __( 'Points', 'pixalink-loyalty-for-woocommerce' ), __( 'Let members turn points into a discount', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::checkbox( Options::CHECKOUT_PANEL_ENABLED, __( 'Loyalty panel', 'pixalink-loyalty-for-woocommerce' ), __( 'Show members their points, credits and vouchers at checkout', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::redemption_checkbox( Options::VOUCHERS_ENABLED, 'vouchers', __( 'Vouchers', 'pixalink-loyalty-for-woocommerce' ), __( 'Let members apply their Pixalink vouchers', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::redemption_checkbox( Options::POINTS_REDEMPTION_ENABLED, 'points_redemption', __( 'Points', 'pixalink-loyalty-for-woocommerce' ), __( 'Let members turn points into a discount', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::redemption_checkbox( Options::CREDITS_ENABLED, 'credits', __( 'Credits', 'pixalink-loyalty-for-woocommerce' ), __( 'Let members pay part of an order with their Pixalink credits (applied as a discount; credit-paid spend earns no points)', 'pixalink-loyalty-for-woocommerce' ) ),
 			array(
 				'title'    => __( 'Phone number', 'pixalink-loyalty-for-woocommerce' ),
 				'id'       => Options::PHONE_FIELD,
@@ -207,6 +208,28 @@ final class SettingsPage extends \WC_Settings_Page {
 	 */
 	public static function default_consent_text(): string {
 		return __( 'Send me offers and news by WhatsApp, SMS and e-mail. I can opt out at any time.', 'pixalink-loyalty-for-woocommerce' );
+	}
+
+	/**
+	 * A redemption toggle that also says when Pixalink itself switched the feature off (the remote switch wins).
+	 *
+	 * @param string $option  Option name.
+	 * @param string $feature Heartbeat `features.*` key.
+	 * @param string $title   Left-column title.
+	 * @param string $desc    Checkbox label.
+	 * @return array<string,mixed>
+	 */
+	private static function redemption_checkbox( string $option, string $feature, string $title, string $desc ): array {
+		$field      = self::checkbox( $option, $title, $desc );
+		$connection = \Pixalink\Loyalty\Plugin::instance()->connection();
+
+		if ( null === $connection->last_heartbeat_at() ) {
+			$field['desc_tip'] = __( 'Pixalink confirms whether this is available for your store after the first connection check.', 'pixalink-loyalty-for-woocommerce' );
+		} elseif ( ! $connection->feature( $feature ) ) {
+			$field['desc'] .= ' — ' . __( 'currently switched off by Pixalink for your account', 'pixalink-loyalty-for-woocommerce' );
+		}
+
+		return $field;
 	}
 
 	/**

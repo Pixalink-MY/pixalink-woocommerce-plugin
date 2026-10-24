@@ -119,7 +119,7 @@ final class OrderAdmin {
 		echo '</p>';
 
 		if ( '' !== $redemption ) {
-			echo '<p><strong>' . esc_html__( 'Redemptions', 'pixalink-loyalty-for-woocommerce' ) . ':</strong> ' . esc_html( $redemption ) . '</p>';
+			$this->render_redemptions( $order, $redemption );
 		}
 
 		if ( array() === $events ) {
@@ -150,6 +150,63 @@ final class OrderAdmin {
 			esc_url( Module::events_url( array( 's' => (string) $order->get_id() ) ) ),
 			esc_html__( 'View all events', 'pixalink-loyalty-for-woocommerce' )
 		);
+	}
+
+	/**
+	 * The order's Pixalink redemptions: their state and, per coupon line, what it took off and its hold.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @param string    $state Redemption state meta.
+	 * @return void
+	 */
+	private function render_redemptions( \WC_Order $order, string $state ): void {
+		$expires = (int) OrderMeta::get_string( $order, OrderMeta::REDEMPTION_EXPIRES_AT );
+		$label   = self::redemption_state_label( $state );
+		if ( OrderMeta::REDEMPTION_HELD === $state && $expires > 0 ) {
+			/* translators: 1: state such as "Held", 2: date and time. */
+			$label = sprintf( __( '%1$s until %2$s', 'pixalink-loyalty-for-woocommerce' ), $label, self::local_time( gmdate( 'Y-m-d H:i:s', $expires ) ) );
+		}
+
+		echo '<p><strong>' . esc_html__( 'Redemptions', 'pixalink-loyalty-for-woocommerce' ) . ':</strong> ' . esc_html( $label ) . '</p>';
+
+		$holds = array();
+		$held  = OrderMeta::get( $order, OrderMeta::REDEMPTIONS );
+		foreach ( is_array( $held ) ? $held : array() as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['coupon_code'], $entry['redemption_id'] ) && is_string( $entry['coupon_code'] ) && is_string( $entry['redemption_id'] ) ) {
+				$holds[ strtolower( $entry['coupon_code'] ) ] = $entry['redemption_id'];
+			}
+		}
+
+		$rewards = ThankYou::rewards( $order );
+		if ( array() === $rewards ) {
+			return;
+		}
+
+		echo '<ul class="pixalink-loyalty-redemptions" style="margin:0 0 8px">';
+		foreach ( $rewards as $reward ) {
+			echo '<li style="margin:0 0 4px">' . esc_html( $reward['label'] ) . ' &middot; &minus;' . wp_kses_post( wc_price( $reward['saving'], array( 'currency' => $order->get_currency() ) ) );
+			$ref = $holds[ strtolower( $reward['code'] ) ] ?? '';
+			if ( '' !== $ref ) {
+				echo '<br><code style="font-size:11px">' . esc_html( $ref ) . '</code>';
+			}
+			echo '</li>';
+		}
+		echo '</ul>';
+	}
+
+	/**
+	 * Label for the redemption state.
+	 *
+	 * @param string $state State meta.
+	 * @return string
+	 */
+	private static function redemption_state_label( string $state ): string {
+		return match ( $state ) {
+			OrderMeta::REDEMPTION_HELD     => __( 'Held', 'pixalink-loyalty-for-woocommerce' ),
+			OrderMeta::REDEMPTION_SETTLED  => __( 'Settled', 'pixalink-loyalty-for-woocommerce' ),
+			OrderMeta::REDEMPTION_RELEASED => __( 'Released', 'pixalink-loyalty-for-woocommerce' ),
+			default                        => $state,
+		};
 	}
 
 	/**

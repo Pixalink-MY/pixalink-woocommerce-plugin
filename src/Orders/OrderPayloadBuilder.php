@@ -201,6 +201,8 @@ final class OrderPayloadBuilder {
 		$redemption_id = self::meta_string( $item, OrderMeta::COUPON_REDEMPTION_ID );
 		$voucher_id    = self::meta_string( $item, OrderMeta::COUPON_VOUCHER_ID );
 		$points        = (int) self::meta_string( $item, OrderMeta::COUPON_POINTS );
+		$amount        = self::meta_string( $item, OrderMeta::COUPON_AMOUNT_CENTS );
+		$is_ours       = in_array( $kind, self::REDEMPTION_KINDS, true );
 
 		return array(
 			'id'           => (int) $item->get_id(),
@@ -208,11 +210,43 @@ final class OrderPayloadBuilder {
 			'discount'     => Money::to_decimal( $item->get_discount() ),
 			'discount_tax' => Money::to_decimal( $item->get_discount_tax() ),
 			'meta'         => array(
-				'pixalink_kind'          => in_array( $kind, self::REDEMPTION_KINDS, true ) ? $kind : null,
+				'pixalink_kind'          => $is_ours ? $kind : null,
 				'pixalink_redemption_id' => 1 === preg_match( self::HOLD_PATTERN, $redemption_id ) ? $redemption_id : null,
 				'pixalink_voucher_id'    => '' !== $voucher_id && strlen( $voucher_id ) <= 64 ? $voucher_id : null,
 				'pixalink_points'        => $points >= 1 ? $points : null,
+				'pixalink_amount_cents'  => $is_ours && ctype_digit( $amount ) ? (int) $amount : null,
+				'pixalink_coupon'        => $is_ours ? self::snapshot( $item->get_meta( OrderMeta::COUPON_SNAPSHOT, true ) ) : null,
 			),
+		);
+	}
+
+	/**
+	 * The `_pixalink_coupon` snapshot of a coupon line, reduced to the contract's fields (null when unreadable).
+	 *
+	 * @param mixed $snapshot Stored snapshot.
+	 * @return array<string,mixed>|null
+	 */
+	private static function snapshot( $snapshot ): ?array {
+		$types = array( 'fixed_cart', 'percent', 'fixed_product' );
+		if ( ! is_array( $snapshot ) || ! isset( $snapshot['discount_type'] ) || ! in_array( $snapshot['discount_type'], $types, true ) ) {
+			return null;
+		}
+
+		$ids   = static fn ( $value ): array => is_array( $value ) ? array_values( array_filter( array_map( 'intval', $value ), static fn ( int $id ): bool => $id > 0 ) ) : array();
+		$limit = $snapshot['limit_usage_to_x_items'] ?? null;
+
+		return array(
+			'discount_type'               => $snapshot['discount_type'],
+			'amount'                      => Money::to_decimal( is_numeric( $snapshot['amount'] ?? null ) ? (float) $snapshot['amount'] : 0.0 ),
+			'product_ids'                 => $ids( $snapshot['product_ids'] ?? array() ),
+			'excluded_product_ids'        => $ids( $snapshot['excluded_product_ids'] ?? array() ),
+			'product_categories'          => $ids( $snapshot['product_categories'] ?? array() ),
+			'excluded_product_categories' => $ids( $snapshot['excluded_product_categories'] ?? array() ),
+			'limit_usage_to_x_items'      => is_numeric( $limit ) && (int) $limit > 0 ? (int) $limit : null,
+			'exclude_sale_items'          => true === ( $snapshot['exclude_sale_items'] ?? false ),
+			'minimum_amount'              => is_scalar( $snapshot['minimum_amount'] ?? null ) ? (string) $snapshot['minimum_amount'] : '',
+			'maximum_amount'              => is_scalar( $snapshot['maximum_amount'] ?? null ) ? (string) $snapshot['maximum_amount'] : '',
+			'individual_use'              => true === ( $snapshot['individual_use'] ?? false ),
 		);
 	}
 
