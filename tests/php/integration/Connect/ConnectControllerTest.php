@@ -111,7 +111,9 @@ final class ConnectControllerTest extends \WP_UnitTestCase {
 				ConnectController::FIELD_CONSENT_SHOWN => '1',
 			)
 		);
-		$this->assertStringStartsWith( Plugin::instance()->connect_service()->authorize_endpoint() . '?', $start );
+		$endpoint = Plugin::instance()->connect_service()->authorize_endpoint();
+		// wp-env's fake hosted page already has a query (?rest_route=...), so ours is appended with "&".
+		$this->assertStringStartsWith( $endpoint . ( false === strpos( $endpoint, '?' ) ? '?' : '&' ) . 'site=', $start );
 		$this->assertSame( home_url(), self::query_of( $start )['site'] );
 
 		$callback = self::visit_hosted_page( $start );
