@@ -39,15 +39,19 @@ trait FakePixalinkHttp {
 	protected array $http_scripts = array();
 
 	/**
-	 * Route templates by regex (mirrors the fake server).
+	 * Route templates by regex (mirrors the fake server). A method, not a constant: traits get constants in PHP 8.2.
+	 *
+	 * @return array<string,string>
 	 */
-	private const FAKE_ROUTES = array(
-		'#^customers$#'                         => 'customers',
-		'#^customers/(?P<id>[A-Za-z0-9-]+)$#'   => 'customers/{id}',
-		'#^customers/(?P<id>[A-Za-z0-9-]+)/otp$#' => 'customers/{id}/otp',
-		'#^customers/(?P<id>[A-Za-z0-9-]+)/otp/verify$#' => 'customers/{id}/otp/verify',
-		'#^events$#'                            => 'events',
-	);
+	private static function fake_routes(): array {
+		return array(
+			'#^customers$#'                                  => 'customers',
+			'#^customers/(?P<id>[A-Za-z0-9-]+)$#'            => 'customers/{id}',
+			'#^customers/(?P<id>[A-Za-z0-9-]+)/otp$#'        => 'customers/{id}/otp',
+			'#^customers/(?P<id>[A-Za-z0-9-]+)/otp/verify$#' => 'customers/{id}/otp/verify',
+			'#^events$#'                                     => 'events',
+		);
+	}
 
 	/**
 	 * Install the HTTP stubs.
@@ -139,7 +143,7 @@ trait FakePixalinkHttp {
 			}
 		}
 
-		foreach ( self::FAKE_ROUTES as $pattern => $route ) {
+		foreach ( self::fake_routes() as $pattern => $route ) {
 			if ( 1 !== preg_match( $pattern, $path, $matches ) ) {
 				continue;
 			}
