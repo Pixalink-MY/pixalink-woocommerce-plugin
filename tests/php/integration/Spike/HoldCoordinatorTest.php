@@ -131,7 +131,33 @@ final class HoldCoordinatorTest extends SpikeTestCase {
 		$this->assertSame( 200, $retry->get_status(), (string) wp_json_encode( $retry->get_data() ) );
 		$this->assertSame( $draft_id, (int) $retry->get_data()['order_id'], 'draft reused, nothing orphaned' );
 		$this->assertSame( array( $draft_id ), $this->order_ids() );
-		$this->assert_held( wc_get_order( $draft_id ) );
+		$order = wc_get_order( $draft_id );
+		$this->assert_held( $order );
+		$this->assertSame( '1000', (string) $this->coupon_line( $order, 'pxl-points' )->get_meta( '_pixalink_points' ) );
+		$this->assertEqualsWithDelta( 10.0, (float) $this->coupon_line( $order, 'pxl-points' )->get_discount(), 0.001 );
+	}
+
+	/**
+	 * WooCommerce behaviour without VirtualCoupons::refresh_draft_coupon_lines(): the Store API rebuilds a reused
+	 * draft's coupon lines only when the applied coupon *codes* change, so the retry still carries 1,500 points.
+	 */
+	public function test_a_reused_draft_keeps_a_stale_points_line_without_the_refresh(): void {
+		add_filter( 'pixalink_loyalty_spike_refresh_draft_coupon_lines', '__return_false' );
+		$this->spend( 1500, false );
+		$this->assertSame( 409, $this->blocks_checkout()->get_status() );
+
+		$this->cart_action(
+			array(
+				'action' => 'set_points',
+				'points' => 1000,
+			)
+		);
+		$retry = $this->blocks_checkout();
+
+		$this->assertSame( 409, $retry->get_status(), 'stale line re-sent' );
+		$put = $this->last_put();
+		$this->assertSame( 1500, $put['body']['redemptions'][0]['points'] );
+		$this->assertSame( '15.00', $put['body']['redemptions'][0]['discount'] );
 	}
 
 	/**

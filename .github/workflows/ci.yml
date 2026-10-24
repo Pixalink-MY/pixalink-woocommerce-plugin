@@ -240,6 +240,9 @@ jobs:
         run: npx wp-env run cli wp eval-file wp-content/plugins/pixalink-loyalty-for-woocommerce/tests/e2e/spike/setup.php
       - run: npx playwright install --with-deps chromium
       - name: Playwright (spike-checkout.spec.ts)
+        # @wordpress/e2e-test-utils-playwright defaults WP_BASE_URL to :8889 (the wp-env tests site) for REST discovery.
+        env:
+          WP_BASE_URL: http://localhost:8888
         run: npx playwright test --config=playwright.config.ts tests/e2e/specs/spike-checkout.spec.ts
       - name: WordPress debug log
         if: always()

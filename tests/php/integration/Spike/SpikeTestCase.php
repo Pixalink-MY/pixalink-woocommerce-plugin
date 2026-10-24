@@ -166,7 +166,12 @@ abstract class SpikeTestCase extends \WP_UnitTestCase {
 		// Fresh server = fresh Store API route objects, like a new HTTP request (the Checkout route keeps $this->order).
 		$GLOBALS['wp_rest_server'] = null;
 
-		return rest_ensure_response( rest_get_server()->dispatch( $request ) );
+		$response = rest_ensure_response( rest_get_server()->dispatch( $request ) );
+
+		// Store API schemas return nested stdClass objects (totals, extensions); compare what a client would decode.
+		$response->set_data( json_decode( (string) wp_json_encode( $response->get_data() ), true ) );
+
+		return $response;
 	}
 
 	/**

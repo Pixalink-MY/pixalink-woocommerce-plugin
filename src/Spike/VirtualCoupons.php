@@ -29,6 +29,7 @@ final class VirtualCoupons {
 		add_filter( 'woocommerce_order_recalculate_coupons_coupon_object', array( $this, 'rebuild_for_recalculation' ), 10, 4 );
 		add_filter( 'woocommerce_cart_totals_coupon_label', array( $this, 'classic_label' ), 10, 2 );
 		add_filter( 'woocommerce_coupon_error', array( $this, 'removal_message' ), 10, 3 );
+		add_action( 'woocommerce_store_api_checkout_update_order_meta', array( $this, 'refresh_draft_coupon_lines' ) );
 		add_action( 'woocommerce_removed_coupon', array( $this, 'forget_removed' ) );
 		add_action( 'woocommerce_cart_emptied', array( $this, 'forget_selection' ) );
 	}
@@ -182,7 +183,7 @@ final class VirtualCoupons {
 
 		if ( wc_is_same_coupon( $code, CouponMapper::POINTS_CODE ) ) {
 			$item->add_meta_data( '_pixalink_kind', 'points', true );
-			$item->add_meta_data( '_pixalink_points', RedemptionState::get()['points'], true );
+			$item->add_meta_data( '_pixalink_points', (string) RedemptionState::get()['points'], true );
 			return;
 		}
 
@@ -221,6 +222,39 @@ final class VirtualCoupons {
 		$rebuilt->set_virtual( true );
 
 		return $rebuilt;
+	}
+
+	/**
+	 * `woocommerce_store_api_checkout_update_order_meta` action (POST /checkout, right after the draft order is
+	 * created or synced from the cart).
+	 *
+	 * OrderController::update_line_items_from_cart() only rebuilds coupon lines when `_coupons_hash`
+	 * (md5 of the applied coupon *codes*) changes. Changing the points amount keeps the code `pxl-points`, so a reused
+	 * draft (retry after a refused hold) keeps the old line: stale `discount`, `discount_tax` and `_pixalink_points`.
+	 * Rebuild the coupon lines whenever one of ours is present.
+	 *
+	 * @param mixed $order Draft order.
+	 * @return void
+	 */
+	public function refresh_draft_coupon_lines( $order ): void {
+		/**
+		 * Whether to rebuild the draft order's coupon lines at POST /checkout.
+		 *
+		 * @since 0.0.0 Spike only.
+		 *
+		 * @param bool $refresh Default true.
+		 */
+		if ( ! $order instanceof \WC_Order || ! WC()->cart instanceof \WC_Cart || ! (bool) apply_filters( 'pixalink_loyalty_spike_refresh_draft_coupon_lines', true ) ) {
+			return;
+		}
+
+		$ours = array_filter( $order->get_coupon_codes(), array( CouponMapper::class, 'is_ours' ) );
+		if ( array() === $ours ) {
+			return;
+		}
+
+		$order->remove_order_items( 'coupon' );
+		WC()->checkout()->create_order_coupon_lines( $order, WC()->cart );
 	}
 
 	/**
