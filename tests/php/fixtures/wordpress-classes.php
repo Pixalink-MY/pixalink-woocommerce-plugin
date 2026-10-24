@@ -48,5 +48,12 @@ if ( ! class_exists( 'WP_User' ) ) {
 		 * @var int
 		 */
 		public $ID = 0;
+
+		/**
+		 * E-mail address.
+		 *
+		 * @var string
+		 */
+		public $user_email = '';
 	}
 }
