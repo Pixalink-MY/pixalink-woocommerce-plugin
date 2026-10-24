@@ -27,13 +27,40 @@ abstract class TestCase extends PolyfillTestCase {
 	protected array $options = array();
 
 	/**
+	 * In-memory transients: name => [value, expiration seconds].
+	 *
+	 * @var array<string,array{0:mixed,1:int}>
+	 */
+	protected array $transients = array();
+
+	/**
 	 * Set up Brain Monkey and common WordPress function stubs.
 	 */
 	protected function set_up(): void {
 		parent::set_up();
 		Monkey\setUp();
 
-		$this->options = array();
+		$this->options    = array();
+		$this->transients = array();
+
+		Functions\when( 'get_transient' )->alias(
+			fn ( string $name ) => array_key_exists( $name, $this->transients ) ? $this->transients[ $name ][0] : false
+		);
+		Functions\when( 'set_transient' )->alias(
+			function ( string $name, $value, int $expiration = 0 ): bool {
+				$this->transients[ $name ] = array( $value, $expiration );
+
+				return true;
+			}
+		);
+		Functions\when( 'delete_transient' )->alias(
+			function ( string $name ): bool {
+				$existed = array_key_exists( $name, $this->transients );
+				unset( $this->transients[ $name ] );
+
+				return $existed;
+			}
+		);
 
 		Functions\stubEscapeFunctions();
 		Functions\stubTranslationFunctions();

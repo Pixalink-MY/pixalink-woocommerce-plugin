@@ -32,6 +32,7 @@ final class Uninstaller {
 		'pixalink_marketing_consent_at',
 		'pixalink_marketing_consent_source',
 		'pixalink_linked_at',
+		'pixalink_loyalty_dismissed_notices',
 	);
 
 	/**
