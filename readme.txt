@@ -8,7 +8,7 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connect your WooCommerce store to Pixalink: shoppers earn points on every order, redeem vouchers and points at checkout, and track rewards in My Account.
+Shoppers earn Pixalink points on every order, redeem vouchers and points at checkout, and track rewards in My Account.
 
 == Description ==
 

@@ -63,8 +63,8 @@ final class Schema {
 		global $wpdb;
 
 		foreach ( self::table_names() as $table ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Table names come from a fixed list.
-			$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}{$table}" );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Opt-in uninstall drops the plugin's own tables.
+			$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $table ) );
 		}
 	}
 
