@@ -58,5 +58,33 @@ final class FakeServerResponsesTest extends TestCase {
 		$this->assertSame( Responses::POINTS_AVAILABLE, $samples['hold too many points']['response']['body']['available'] );
 		$this->assertSame( 'duplicate', $samples['event duplicate']['response']['body']['status'] );
 		$this->assertSame( 1761300000, $samples['timestamp skew']['response']['body']['server_time'] );
+		$this->assertSame( 409, $samples['heartbeat other site']['response']['status'] );
+		$this->assertSame( 'site_already_connected', $samples['heartbeat other site']['response']['body']['code'] );
+	}
+
+	public function test_disconnect_answers_no_content(): void {
+		$this->assertSame(
+			array(
+				'status' => 204,
+				'body'   => null,
+			),
+			Responses::respond( 'POST', 'connection/disconnect', array(), array(), array( 'reason' => 'merchant_request' ), array() )
+		);
+	}
+
+	public function test_a_heartbeat_from_the_connected_site_is_accepted(): void {
+		$response = Responses::respond(
+			'POST',
+			'connection/heartbeat',
+			array(),
+			array(),
+			array( 'site' => 'https://shop.example.test/' ),
+			array(
+				'now'            => 1761300000,
+				'connected_site' => 'https://shop.example.test',
+			)
+		);
+
+		$this->assertSame( 200, $response['status'] );
 	}
 }

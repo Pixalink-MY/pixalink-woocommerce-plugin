@@ -389,6 +389,10 @@ final class Client {
 			)
 		);
 
+		if ( 204 === $status ) {
+			return new ApiResponse( $status, array(), array_filter( $response_headers ) );
+		}
+
 		if ( $status >= 200 && $status < 300 ) {
 			if ( null === $data ) {
 				$exception = ApiException::invalid_response( $status );
@@ -421,7 +425,13 @@ final class Client {
 	 * @return ApiException
 	 */
 	public static function exception_for( int $status, array $body, array $headers ): ApiException {
-		$code    = isset( $body['code'] ) && is_string( $body['code'] ) && '' !== $body['code'] ? $body['code'] : 'http_' . $status;
+		$code = 'http_' . $status;
+		if ( isset( $body['code'] ) && is_string( $body['code'] ) && '' !== $body['code'] ) {
+			$code = $body['code'];
+		} elseif ( isset( $body['error'] ) && is_string( $body['error'] ) && '' !== $body['error'] ) {
+			// OAuth-style envelope (`{"error":"invalid_grant"}`), accepted for connect/exchange.
+			$code = $body['error'];
+		}
 		$message = isset( $body['message'] ) && is_string( $body['message'] ) ? $body['message'] : '';
 
 		$server_time = Clock::parse_server_time( $body['server_time'] ?? null );
@@ -431,7 +441,7 @@ final class Client {
 
 		$details = array();
 		foreach ( $body as $key => $value ) {
-			if ( is_string( $key ) && ! in_array( $key, array( 'code', 'message' ), true ) ) {
+			if ( is_string( $key ) && ! in_array( $key, array( 'code', 'message', 'error' ), true ) ) {
 				$details[ $key ] = $value;
 			}
 		}

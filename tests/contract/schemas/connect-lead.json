@@ -1,0 +1,47 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connect-lead.json",
+	"title": "Lead prefill decoded from the `lead` parameter of connect-authorize.query.json",
+	"description": "Sent only when the store admin clicks 'Request access' (intent=request_access); never on a normal connect. Prefills the request-access form, which the admin still submits on pixalink.io. marketing_consent is present only when the admin was shown the (unticked by default) Pixalink marketing box; source is always 'admin'.",
+	"type": "object",
+	"required": [ "site_url", "home_url", "store_name", "admin_email", "admin_name", "plugin_version", "wp_version", "wc_version", "php_version", "locale", "currency", "country", "timezone", "checkout_type", "hpos" ],
+	"additionalProperties": false,
+	"properties": {
+		"site_url": { "$ref": "common.json#/$defs/url" },
+		"home_url": { "$ref": "common.json#/$defs/url" },
+		"store_name": { "type": "string", "maxLength": 255 },
+		"admin_email": { "type": "string", "maxLength": 255 },
+		"admin_name": { "type": "string", "maxLength": 255 },
+		"plugin_version": { "$ref": "common.json#/$defs/semver" },
+		"wp_version": { "$ref": "common.json#/$defs/semver" },
+		"wc_version": { "$ref": "common.json#/$defs/semver" },
+		"php_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+" },
+		"locale": { "type": "string", "pattern": "^[a-z]{2,3}(_[A-Za-z0-9]+)*$" },
+		"currency": { "oneOf": [ { "$ref": "common.json#/$defs/currency" }, { "type": "null" } ] },
+		"country": { "oneOf": [ { "$ref": "common.json#/$defs/country_code" }, { "type": "null" } ] },
+		"timezone": { "type": "string", "minLength": 1 },
+		"checkout_type": { "enum": [ "blocks", "classic", "none" ] },
+		"hpos": { "type": "boolean" },
+		"marketing_consent": { "$ref": "common.json#/$defs/marketing_consent" }
+	},
+	"examples": [
+		{
+			"site_url": "https://shop.example.test",
+			"home_url": "https://shop.example.test",
+			"store_name": "Demo Shop",
+			"admin_email": "owner@shop.example.test",
+			"admin_name": "Siti Owner",
+			"plugin_version": "0.1.0",
+			"wp_version": "7.0",
+			"wc_version": "11.2.1",
+			"php_version": "8.3.12",
+			"locale": "en_US",
+			"currency": "MYR",
+			"country": "MY",
+			"timezone": "Asia/Kuala_Lumpur",
+			"checkout_type": "blocks",
+			"hpos": true,
+			"marketing_consent": { "value": false, "source": "admin", "captured_at": "2026-10-24T08:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" }
+		}
+	]
+}

@@ -38,6 +38,7 @@ final class Responses {
 	public const ROUTES = array(
 		'connect/exchange',
 		'connection/heartbeat',
+		'connection/disconnect',
 		'outlet',
 		'customers',
 		'customers/{id}',
@@ -56,7 +57,7 @@ final class Responses {
 	 * @param array<string,mixed> $params  Path parameters (id, order_ref).
 	 * @param array<string,mixed> $query   Query parameters.
 	 * @param array<mixed>        $body    Decoded JSON body.
-	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool}.
+	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool, connected_site:string}.
 	 * @return array{status:int,body:mixed}
 	 */
 	public static function respond( string $method, string $route, array $params, array $query, array $body, array $context ): array {
@@ -73,7 +74,18 @@ final class Responses {
 				return self::ok( self::exchange( $api_key ) );
 
 			case 'POST connection/heartbeat':
+				$connected_site = isset( $context['connected_site'] ) && is_string( $context['connected_site'] ) ? $context['connected_site'] : '';
+				$site           = isset( $body['site'] ) && is_string( $body['site'] ) ? rtrim( $body['site'], '/' ) : '';
+				if ( '' !== $connected_site && $connected_site !== $site ) {
+					return self::error( 409, 'site_already_connected', 'This outlet is already connected to another WooCommerce store.' );
+				}
 				return self::ok( self::heartbeat( $now ) );
+
+			case 'POST connection/disconnect':
+				return array(
+					'status' => 204,
+					'body'   => null,
+				);
 
 			case 'GET outlet':
 				return self::ok(
@@ -206,6 +218,17 @@ final class Responses {
 			'exchange'             => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => 'fake-code-0123456789abcdef' ), $context ), 'connect-exchange.response.json' ),
 			'exchange invalid'     => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => self::INVALID_CODE_PREFIX . '-1' ), $context ), 'error.response.json' ),
 			'heartbeat'            => array( self::respond( 'POST', 'connection/heartbeat', array(), array(), array(), $context ), 'connection-heartbeat.response.json' ),
+			'heartbeat other site' => array(
+				self::respond(
+					'POST',
+					'connection/heartbeat',
+					array(),
+					array(),
+					array( 'site' => 'https://shop.example.test' ),
+					array( 'connected_site' => 'https://other-shop.example.test' ) + $context
+				),
+				'error.response.json',
+			),
 			'outlet'               => array( self::respond( 'GET', 'outlet', array(), array(), array(), $context ), 'outlet.response.json' ),
 			'lookup hit'           => array( self::respond( 'GET', 'customers', array(), array( 'phone' => self::MEMBER_PHONE ), array(), $context ), 'customers-lookup.response.json' ),
 			'lookup miss'          => array( self::respond( 'GET', 'customers', array(), array( 'phone' => '+60199999999' ), array(), $context ), 'customers-lookup.response.json' ),
