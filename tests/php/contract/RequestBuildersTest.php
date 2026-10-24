@@ -9,8 +9,11 @@ namespace Pixalink\Loyalty\Tests\Contract;
 
 use Brain\Monkey\Functions;
 use Pixalink\Loyalty\Api\Resources\Connect;
+use Pixalink\Loyalty\Api\Resources\Customers;
 use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\PkceState;
+use Pixalink\Loyalty\Fields\ConsentRecord;
+use Pixalink\Loyalty\Fields\PhoneNumber;
 use Pixalink\Loyalty\Support\Uuid;
 use Pixalink\Loyalty\Tests\FakeServer\ContractValidator;
 use Pixalink\Loyalty\Tests\Unit\TestCase;
@@ -18,9 +21,10 @@ use Pixalink\Loyalty\Tests\Unit\TestCase;
 /**
  * The plugin's request builders produce bodies the server's schemas accept.
  *
- * Builders for customers, quote, redemptions and events join this suite as work units P05-P09 add them.
+ * Builders for quote and redemptions join this suite as work unit W3 adds them.
  *
  * @covers \Pixalink\Loyalty\Api\Resources\Connect
+ * @covers \Pixalink\Loyalty\Api\Resources\Customers
  * @covers \Pixalink\Loyalty\Connect\LeadPayload
  * @covers \Pixalink\Loyalty\Connect\PkceState
  */
@@ -111,6 +115,67 @@ final class RequestBuildersTest extends TestCase {
 
 		$decoded = json_decode( (string) base64_decode( strtr( $query['lead'], '-_', '+/' ) ), true ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode
 		$this->assertSame( $lead, $decoded, 'lead is unpadded base64url(JSON).' );
+	}
+
+	public function test_customer_lookup_query(): void {
+		$this->assertSame( array(), ContractValidator::validate( 'customers-lookup.query.json', Customers::lookup_query( '+60123456789' ) ) );
+		$this->assertSame( array( 'phone' => '+60123456789' ), Customers::lookup_query( '+60123456789' ) );
+	}
+
+	public function test_customer_create_payload_for_a_member_with_consent(): void {
+		$payload = Customers::create_payload(
+			17,
+			new PhoneNumber( '+60123456789', 'MY', '123456789' ),
+			'member@example.com',
+			'Aisyah',
+			'Rahman',
+			ConsentRecord::given( true, ConsentRecord::SOURCE_MY_ACCOUNT, 'Send me offers.', 1761300000 )
+		);
+
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $payload ) );
+		$this->assertSame( '17', $payload['external_id'] );
+		$this->assertSame( 'none', $payload['verified_via'] );
+		$this->assertArrayNotHasKey( 'sso_ticket', $payload );
+	}
+
+	public function test_customer_create_payload_for_a_guest_without_details(): void {
+		$payload = Customers::create_payload( 0, new PhoneNumber( '+6591234567', 'SG', '91234567' ), 'not-an-email', '', '  ', null );
+
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $payload ) );
+		$this->assertNull( $payload['external_id'] );
+		$this->assertNull( $payload['email'], 'Invalid e-mail addresses are sent as null.' );
+		$this->assertNull( $payload['first_name'] );
+		$this->assertNull( $payload['marketing_consent'] );
+	}
+
+	public function test_withdrawn_consent_from_pixalink_is_never_echoed_back(): void {
+		$payload = Customers::create_payload( 17, new PhoneNumber( '+60123456789', 'MY', '123456789' ), null, null, null, ConsentRecord::given( false, ConsentRecord::SOURCE_PIXALINK, '', 1761300000 ) );
+
+		$this->assertNull( $payload['marketing_consent'] );
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $payload ) );
+	}
+
+	public function test_sso_ticket_payload(): void {
+		$guest = Customers::ticket_payload( 'kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ', 0 );
+		$user  = Customers::ticket_payload( 'kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ', 17 );
+
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $guest ) );
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $user ) );
+		$this->assertSame( 'sso_ticket', $guest['verified_via'] );
+		$this->assertNull( $guest['external_id'] );
+		$this->assertSame( '17', $user['external_id'] );
+	}
+
+	public function test_otp_payloads(): void {
+		$this->assertSame( array(), ContractValidator::validate( 'customer-otp.request.json', Customers::otp_payload() ) );
+		$this->assertSame( array(), ContractValidator::validate( 'customer-otp-verify.request.json', Customers::verify_payload( ' 123456 ' ) ) );
+		$this->assertSame( array( 'code' => '123456' ), Customers::verify_payload( ' 123456 ' ) );
+	}
+
+	public function test_customer_paths_encode_the_id(): void {
+		$this->assertSame( 'customers/5001', Customers::summary_path( '5001' ) );
+		$this->assertSame( 'customers/a%2Fb/otp', Customers::otp_path( 'a/b' ) );
+		$this->assertSame( 'customers/5001/otp/verify', Customers::verify_path( '5001' ) );
 	}
 
 	public function test_event_ids_satisfy_the_envelope_schema(): void {
