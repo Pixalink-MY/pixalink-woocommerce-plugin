@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	WordPress + WooCommerce integration suite.
+
+	Run inside wp-env:  npm run test:integration
+	HPOS mode:          PIXALINK_LOYALTY_HPOS=1 (custom order tables) or 0 (posts); unset = WooCommerce default.
+-->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="tests/php/integration/bootstrap.php"
+	colors="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	failOnRisky="true"
+	failOnWarning="true"
+	cacheResultFile=".phpunit.cache/integration.result.cache"
+>
+	<testsuites>
+		<testsuite name="integration">
+			<directory suffix="Test.php">tests/php/integration</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
