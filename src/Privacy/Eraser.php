@@ -13,12 +13,13 @@ use Pixalink\Loyalty\Account\SummaryService;
 use Pixalink\Loyalty\Identity\PendingLinks;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Orders\OrderMeta;
+use Pixalink\Loyalty\Redemption\RedemptionState;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Adds "Pixalink loyalty" to Tools › Erase Personal Data: removes the account's loyalty user meta, its cached
- * summary and any pending code. When WooCommerce anonymises an order it also drops the order's loyalty phone number.
+ * Adds "Pixalink loyalty" to Tools › Erase Personal Data: removes the account's loyalty user meta, its stored
+ * checkout redemption state, its cached summary and any pending code. When WooCommerce anonymises an order it also drops the order's loyalty phone number.
  *
  * Data held by Pixalink itself is erased in Pixalink (the store owner's Pixalink account), not here.
  */
@@ -81,6 +82,12 @@ final class Eraser {
 				delete_user_meta( $user_id, $key );
 				$result['items_removed'] = true;
 			}
+		}
+
+		// The checkout redemption state mirrored to the account: the member's quote, balances and chosen rewards.
+		if ( metadata_exists( 'user', $user_id, RedemptionState::USER_META ) ) {
+			delete_user_meta( $user_id, RedemptionState::USER_META );
+			$result['items_removed'] = true;
 		}
 
 		delete_transient( SummaryService::key( $user_id ) );

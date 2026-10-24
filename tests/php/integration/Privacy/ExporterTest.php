@@ -14,10 +14,12 @@ use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Privacy\Eraser;
 use Pixalink\Loyalty\Privacy\Exporter;
+use Pixalink\Loyalty\Redemption\RedemptionState;
 use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 
 /**
- * Tools › Export / Erase Personal Data include the loyalty link; WooCommerce's order anonymiser drops the loyalty phone.
+ * Tools › Export / Erase Personal Data include the loyalty link (erasure also drops the stored checkout redemption state);
+ * WooCommerce's order anonymiser drops the loyalty phone.
  *
  * @covers \Pixalink\Loyalty\Privacy\Exporter
  * @covers \Pixalink\Loyalty\Privacy\Eraser
@@ -79,6 +81,26 @@ final class ExporterTest extends \WP_UnitTestCase {
 
 		$again = call_user_func( $erasers[ Eraser::ID ]['callback'], 'privacy@example.com', 1 );
 		$this->assertFalse( $again['items_removed'] );
+	}
+
+	public function test_erasure_removes_the_stored_checkout_redemption_state(): void {
+		foreach ( UserMeta::KEYS as $key ) {
+			delete_user_meta( $this->user_id, $key );
+		}
+		update_user_meta(
+			$this->user_id,
+			RedemptionState::USER_META,
+			array(
+				'customer_id' => '5001',
+				'points'      => 500,
+			)
+		);
+		$erasers = apply_filters( 'wp_privacy_personal_data_erasers', array() );
+
+		$result = call_user_func( $erasers[ Eraser::ID ]['callback'], 'privacy@example.com', 1 );
+
+		$this->assertTrue( $result['items_removed'] );
+		$this->assertFalse( metadata_exists( 'user', $this->user_id, RedemptionState::USER_META ) );
 	}
 
 	public function test_order_anonymisation_drops_the_loyalty_phone(): void {
