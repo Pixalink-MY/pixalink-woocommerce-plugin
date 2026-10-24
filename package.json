@@ -1,0 +1,36 @@
+{
+	"name": "pixalink-loyalty-for-woocommerce",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Pixalink loyalty points, vouchers and member accounts for WooCommerce stores.",
+	"license": "GPL-2.0-or-later",
+	"homepage": "https://pixalink.io",
+	"repository": {
+		"type": "git",
+		"url": "git+ssh://git@github.com/Pixalink-MY/pixalink-woocommerce-plugin.git"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [],
+	"scripts": {
+		"build": "wp-scripts build",
+		"start": "wp-scripts start",
+		"lint:js": "wp-scripts lint-js assets/js/src webpack.config.js playwright.config.ts tests/e2e",
+		"format:js": "wp-scripts format assets/js/src webpack.config.js playwright.config.ts tests/e2e",
+		"env": "wp-env",
+		"env:start": "wp-env start",
+		"env:stop": "wp-env stop",
+		"env:destroy": "wp-env destroy",
+		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/pixalink-loyalty-for-woocommerce vendor/bin/phpunit -c phpunit-integration.xml.dist",
+		"test:e2e": "playwright test --config=playwright.config.ts"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.64.1",
+		"@types/node": "^22.20.5",
+		"@woocommerce/dependency-extraction-webpack-plugin": "^5.1.0",
+		"@wordpress/e2e-test-utils-playwright": "^3.1.0",
+		"@wordpress/env": "^12.0.0",
+		"@wordpress/scripts": "^37.0.0"
+	}
+}
