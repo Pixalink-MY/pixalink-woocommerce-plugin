@@ -148,6 +148,8 @@ final class SettingsPageTest extends \WP_UnitTestCase {
 		$fields = array_column( $this->page()->get_settings_for_section( 'checkout' ), null, 'id' );
 		$this->assertSame( 'yes', $fields[ Options::POINTS_REDEMPTION_ENABLED ]['default'] );
 		$this->assertSame( 'optional', $fields[ Options::PHONE_FIELD ]['default'] );
+		$this->assertArrayHasKey( Options::CHECKOUT_CONSENT_TEXT, $fields );
+		$this->assertArrayNotHasKey( Options::CHECKOUT_CONSENT_DEFAULT_VALUE, $fields, 'Consent is never pre-ticked, so there is no setting for it.' );
 
 		$advanced = array_column( $this->page()->get_settings_for_section( 'advanced' ), null, 'id' );
 		$this->assertArrayHasKey( Options::DEBUG_LOGGING, $advanced );

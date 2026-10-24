@@ -83,6 +83,8 @@ final class Installer {
 		$options->seed_defaults();
 		Schema::install();
 		$options->set( Options::DB_VERSION, Schema::VERSION );
+		// The My Account endpoint registers on init; flush its rewrite rules then (Account\LoyaltyEndpoint).
+		$options->set( Options::FLUSH_REWRITE_RULES, 'yes' );
 
 		/**
 		 * Fires after the plugin's options and tables are installed or upgraded.

@@ -53,7 +53,19 @@ final class FakeServerResponsesTest extends TestCase {
 
 		$this->assertSame( 400, $samples['exchange invalid']['response']['status'] );
 		$this->assertSame( 201, $samples['create new']['response']['status'] );
+		$this->assertSame( 404, $samples['lookup miss']['response']['status'] );
+		$this->assertFalse( $samples['create existing']['response']['body']['customer']['verified'], 'Only a ticket proves the phone.' );
+		$this->assertTrue( $samples['sso member']['response']['body']['customer']['verified'] );
+		$this->assertNull( $samples['sso no email']['response']['body']['customer']['email'] );
+		$this->assertSame( 410, $samples['sso unknown']['response']['status'] );
+		$this->assertSame( 410, $samples['sso replayed']['response']['status'], 'Tickets are single use.' );
+		$this->assertSame( 'ticket_invalid', $samples['sso replayed']['response']['body']['code'] );
+		$this->assertSame( 'sms', $samples['otp sms']['response']['body']['sent_via'] );
 		$this->assertSame( 422, $samples['otp verify wrong']['response']['status'] );
+		$this->assertSame( 'otp_invalid', $samples['otp verify wrong']['response']['body']['code'] );
+		$this->assertSame( 'otp_expired', $samples['otp verify expired']['response']['body']['code'] );
+		$this->assertSame( 'otp_attempts_exceeded', $samples['otp verify exhausted']['response']['body']['code'] );
+		$this->assertSame( 404, $samples['summary missing']['response']['status'] );
 		$this->assertSame( 409, $samples['hold too many points']['response']['status'] );
 		$this->assertSame( Responses::POINTS_AVAILABLE, $samples['hold too many points']['response']['body']['available'] );
 		$this->assertSame( 'duplicate', $samples['event duplicate']['response']['body']['status'] );

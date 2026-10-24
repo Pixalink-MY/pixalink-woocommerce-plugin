@@ -96,6 +96,7 @@ final class Plugin {
 
 		$plugin->register_hooks();
 		$plugin->events()->register();
+		$plugin->identity()->register();
 
 		/**
 		 * Fires once the plugin has booted and its requirements are met.
@@ -155,7 +156,7 @@ final class Plugin {
 	 * @return Logger
 	 */
 	public function logger(): Logger {
-		return $this->service( Logger::class, static fn (): Logger => new Logger() );
+		return $this->service( Logger::class, fn (): Logger => new Logger( fn (): bool => $this->options()->get_bool( Options::DEBUG_LOGGING ) ) );
 	}
 
 	/**
@@ -228,6 +229,29 @@ final class Plugin {
 			Events\Module::class,
 			fn (): Events\Module => new Events\Module( $this->client(), $this->credentials(), $this->options(), $this->logger() )
 		);
+	}
+
+	/**
+	 * Phone and consent fields, phone verification, My Account › Loyalty, the inbound webhook and privacy tools.
+	 *
+	 * @return Identity\Module
+	 */
+	public function identity(): Identity\Module {
+		return $this->service(
+			Identity\Module::class,
+			fn (): Identity\Module => new Identity\Module( $this->client(), $this->credentials(), $this->options(), $this->logger(), $this->events()->queue() )
+		);
+	}
+
+	/**
+	 * Who the current shopper is for loyalty purposes (guest, unlinked or verified, and the verified customer id).
+	 *
+	 * Resolved on every call (the current user can change during a request, for example at login).
+	 *
+	 * @return Identity\ShopperContextInterface
+	 */
+	public function shopper(): Identity\ShopperContextInterface {
+		return $this->identity()->shopper();
 	}
 
 	/**

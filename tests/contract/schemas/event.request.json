@@ -35,10 +35,24 @@
 		},
 		{
 			"if": { "properties": { "type": { "const": "customer.upserted" } } },
-			"then": { "properties": { "data": { "type": "object", "required": [ "customer" ], "properties": { "customer": { "$ref": "#/$defs/customer" } } } } }
+			"then": { "properties": { "data": { "$ref": "#/$defs/customer_upserted_data" } } }
 		}
 	],
 	"$defs": {
+		"customer_upserted_data": {
+			"description": "customer.upserted: a logged-in shopper changed the phone number or marketing consent (My Account, registration, checkout), linked the account to Pixalink, or a guest placed an order with new consent. Random v4 id, sequence 0. Pixalink resolves the customer by pixalink_customer_id, then wp_user_id, then phone_e164; marketing_consent null leaves the status alone.",
+			"type": "object",
+			"required": [ "customer" ],
+			"properties": {
+				"customer": {
+					"allOf": [ { "$ref": "#/$defs/customer" } ],
+					"anyOf": [
+						{ "properties": { "wp_user_id": { "type": "integer" } } },
+						{ "properties": { "phone_e164": { "$ref": "common.json#/$defs/e164" } } }
+					]
+				}
+			}
+		},
 		"customer": {
 			"type": "object",
 			"required": [ "wp_user_id", "is_guest", "phone_e164", "phone_country", "email", "first_name", "last_name", "marketing_consent" ],
@@ -289,6 +303,18 @@
 			"data": {
 				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz" },
 				"reason": "trashed"
+			}
+		},
+		{
+			"id": "3f1c2b4a-6d8e-4f0a-9b1c-2d3e4f5a6b7c",
+			"type": "customer.upserted",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 0,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"customer": { "pixalink_customer_id": null, "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": { "value": false, "source": "my_account", "captured_at": "2026-10-25T10:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } }
 			}
 		}
 	]

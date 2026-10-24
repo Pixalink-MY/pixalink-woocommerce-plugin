@@ -152,6 +152,47 @@ final class SchemasTest extends TestCase {
 		}
 	}
 
+	public function test_plugin_routes_reference_existing_schemas_and_are_signed_with_the_event_id(): void {
+		$manifest = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/endpoints.json' ), true );
+		$plugin   = $manifest['plugin'] ?? array();
+
+		$this->assertSame( array( 'pixalink-loyalty/v1/webhook' ), array_column( $plugin, 'path' ) );
+		foreach ( $plugin as $route ) {
+			$this->assertSame( 'event_id', $route['nonce'] );
+			$this->assertSame( 'signature', $route['auth'] );
+			$this->assertFileExists( ContractValidator::schema_dir() . '/' . $route['request'] );
+			$this->assertFileExists( ContractValidator::schema_dir() . '/' . $route['response'] );
+		}
+	}
+
+	public function test_customer_create_requires_a_phone_unless_it_redeems_a_ticket(): void {
+		$this->assertNotSame( array(), ContractValidator::validate( 'customers-create.request.json', array( 'verified_via' => 'none' ) ), 'No phone.' );
+		$this->assertNotSame( array(), ContractValidator::validate( 'customers-create.request.json', array( 'verified_via' => 'sso_ticket' ) ), 'No ticket.' );
+		$this->assertNotSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'phone'         => '+60123456789',
+					'phone_country' => 'MY',
+					'verified_via'  => 'none',
+					'sso_ticket'    => 'fake-sso-member-0000',
+				)
+			),
+			'A ticket only travels with verified_via sso_ticket.'
+		);
+		$this->assertSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'verified_via' => 'sso_ticket',
+					'sso_ticket'   => 'fake-sso-member-0000',
+				)
+			)
+		);
+	}
+
 	public function test_bodiless_endpoints_declare_their_status(): void {
 		foreach ( ContractValidator::endpoints() as $endpoint ) {
 			if ( null === $endpoint['response'] ) {

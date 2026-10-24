@@ -1,0 +1,12 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/webhook.response.json",
+	"title": "Store answer to a webhook (200)",
+	"description": "processed: acted on; duplicate: the event id was already processed (safe to stop retrying); ignored: unknown type or a customer this store has no link for. Errors use the error envelope: 400 invalid_payload, 401 signature_invalid or timestamp_skew (with server_time), 503 not_connected.",
+	"type": "object",
+	"required": [ "status" ],
+	"properties": {
+		"status": { "enum": [ "processed", "duplicate", "ignored" ] }
+	},
+	"examples": [ { "status": "processed" }, { "status": "duplicate" }, { "status": "ignored" } ]
+}
