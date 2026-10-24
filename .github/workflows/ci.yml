@@ -247,6 +247,8 @@ jobs:
         env: ${{ fromJSON(needs.versions.outputs.matrix) }}
         hpos: ['1', '0']
     steps:
+      - name: Runner has Docker Compose v2 (wp-env needs it)
+        run: docker compose version || { echo "::error::$RUNNER_NAME has no Docker Compose v2 plugin, which wp-env needs. Re-run the job so it lands on another light runner."; exit 1; }
       - name: Pre-checkout cleanup (root-owned leftovers included)
         run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine sh -c 'rm -rf /w/* /w/.[!.]* 2>/dev/null || true'
       - uses: actions/checkout@v7
@@ -407,6 +409,8 @@ jobs:
     runs-on: [self-hosted, light]
     timeout-minutes: 30
     steps:
+      - name: Runner has Docker Compose v2 (wp-env needs it)
+        run: docker compose version || { echo "::error::$RUNNER_NAME has no Docker Compose v2 plugin, which wp-env needs. Re-run the job so it lands on another light runner."; exit 1; }
       - name: Pre-checkout cleanup (root-owned leftovers included)
         run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine sh -c 'rm -rf /w/* /w/.[!.]* 2>/dev/null || true'
       - uses: actions/download-artifact@v8
