@@ -1,0 +1,214 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COMPOSER_NO_INTERACTION: 1
+
+jobs:
+  # Pushes cover branches in this repository; pull_request only adds runs for forks (no duplicate matrices).
+  gate:
+    name: Gate
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Running CI for ${{ github.event_name }} on ${{ github.ref }}"
+
+  phpcs:
+    name: PHPCS
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2, cs2pr
+      - uses: ramsey/composer-install@v4
+      - name: PHPCS (WordPress-Extra + WooCommerce-Core + PHPCompatibilityWP 8.1-)
+        run: vendor/bin/phpcs -q --report-full --report-checkstyle=./phpcs-report.xml
+      - name: Annotate pull request
+        if: failure()
+        run: cs2pr ./phpcs-report.xml
+
+  phpstan:
+    name: PHPStan (level 8)
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@v4
+      - run: composer analyse -- --no-progress --error-format=github
+
+  js:
+    name: JS lint + build
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:js
+      - run: npm run build
+      - name: Every entry emitted a bundle and an asset file
+        run: |
+          for entry in blocks classic-checkout classic-phone account admin; do
+            test -f "build/$entry.js" && test -f "build/$entry.asset.php" || { echo "::error::build/$entry missing"; exit 1; }
+          done
+
+  unit:
+    name: Unit + contract (PHP ${{ matrix.php }})
+    needs: gate
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4']
+        experimental: [false]
+        include:
+          - php: '8.5'
+            experimental: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: sodium
+          tools: composer:v2
+      - uses: ramsey/composer-install@v4
+        with:
+          composer-options: ${{ matrix.experimental && '--ignore-platform-req=php+' || '' }}
+      - run: composer test:unit
+      - run: composer test:contract
+
+  versions:
+    name: Resolve WordPress / WooCommerce versions
+    needs: gate
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - id: resolve
+        run: |
+          node bin/ci/resolve-versions.mjs --pretty
+          node bin/ci/resolve-versions.mjs >> "$GITHUB_OUTPUT"
+
+  integration:
+    name: Integration (${{ matrix.env.name }} · HPOS ${{ matrix.hpos == '1' && 'on' || 'off' }})
+    needs: versions
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.env.experimental }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ fromJSON(needs.versions.outputs.matrix) }}
+        hpos: ['1', '0']
+    steps:
+      - uses: actions/checkout@v7
+      # Host PHP only installs Composer packages; the tests run inside the wp-env container's PHP.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.env.php }}
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Write .wp-env.override.json
+        env:
+          WP_ZIP: ${{ matrix.env.wp_zip }}
+          WC_ZIP: ${{ matrix.env.wc_zip }}
+          PHP_VERSION: ${{ matrix.env.php }}
+        run: |
+          node -e '
+            const fs = require( "fs" );
+            fs.writeFileSync( ".wp-env.override.json", JSON.stringify( {
+              core: process.env.WP_ZIP,
+              phpVersion: process.env.PHP_VERSION,
+              plugins: [ process.env.WC_ZIP ],
+            }, null, 2 ) + "\n" );
+          '
+          cat .wp-env.override.json
+      - name: Start wp-env
+        run: |
+          for attempt in 1 2 3; do
+            npx wp-env start && exit 0
+            echo "wp-env start failed (attempt $attempt); retrying"
+            npx wp-env stop || true
+            sleep 15
+          done
+          exit 1
+      - name: Versions under test
+        run: |
+          npx wp-env run cli wp core version
+          npx wp-env run cli wp plugin list --fields=name,status,version
+          npx wp-env run cli php -- --version
+      - name: PHPUnit integration suite
+        run: >-
+          npx wp-env run cli --env-cwd=wp-content/plugins/pixalink-loyalty-for-woocommerce --
+          env WORDPRESS_TABLE_PREFIX=wptests_ PIXALINK_LOYALTY_HPOS=${{ matrix.hpos }}
+          vendor/bin/phpunit -c phpunit-integration.xml.dist
+
+  plugin-check:
+    name: Plugin Check (wporg zip)
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build the WordPress.org zip
+        run: bin/build-zip.sh wporg
+      - name: Unpack for Plugin Check
+        run: |
+          # The action merges into ./.wp-env.json; ours maps the source tree, so remove it here.
+          rm -f .wp-env.json
+          mkdir -p plugin-check
+          unzip -q dist/pixalink-loyalty-for-woocommerce-*-wporg.zip -d plugin-check
+      - uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: plugin-check/pixalink-loyalty-for-woocommerce
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: pixalink-loyalty-for-woocommerce-wporg
+          path: dist/*.zip
+          if-no-files-found: ignore

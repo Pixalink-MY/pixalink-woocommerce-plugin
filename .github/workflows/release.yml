@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    env:
+      SLUG: pixalink-loyalty-for-woocommerce
+      UPDATES_BASE_URL: https://updates.pixalink.io/wp/pixalink-loyalty-for-woocommerce
+      # Cloudflare R2 (S3 API) bucket behind updates.pixalink.io; the upload step is skipped until all are set.
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Tag must match the plugin version
+        id: version
+        run: |
+          VERSION="$(sed -n 's/^[[:space:]]*\*[[:space:]]*Version:[[:space:]]*//p' "$SLUG.php" | head -n 1 | tr -d '[:space:]')"
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match plugin Version $VERSION (run bin/bump-version.sh)."
+            exit 1
+          fi
+          grep -q "^Stable tag: $VERSION$" readme.txt || { echo "::error::readme.txt Stable tag is not $VERSION."; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
+
+      - name: Build zips
+        run: |
+          bin/build-zip.sh selfhosted
+          SKIP_JS_BUILD=1 SKIP_POT=1 bin/build-zip.sh wporg
+
+      - name: Update metadata (info.json)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          node bin/ci/update-info.mjs "dist/$SLUG-$VERSION-selfhosted.zip" "$UPDATES_BASE_URL" > dist/info.json
+          cat dist/info.json
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/pixalink-loyalty-for-woocommerce-*-selfhosted.zip
+            dist/pixalink-loyalty-for-woocommerce-*-selfhosted.zip.sha256
+            dist/pixalink-loyalty-for-woocommerce-*-wporg.zip
+            dist/pixalink-loyalty-for-woocommerce-*-wporg.zip.sha256
+            dist/info.json
+
+      # Stable tags publish info.json (what installed sites poll); pre-releases publish beta/info.json only,
+      # which a site opts into with the pixalink_loyalty_update_metadata_url filter.
+      - name: Upload to updates.pixalink.io (R2)
+        if: env.R2_ACCOUNT_ID != '' && env.R2_ACCESS_KEY_ID != '' && env.R2_SECRET_ACCESS_KEY != '' && env.R2_BUCKET != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          ENDPOINT="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
+          PREFIX="s3://$R2_BUCKET/wp/$SLUG"
+          ZIP="$SLUG-$VERSION-selfhosted.zip"
+          aws s3 cp "dist/$ZIP" "$PREFIX/$ZIP" --endpoint-url "$ENDPOINT" --content-type application/zip
+          aws s3 cp "dist/$ZIP.sha256" "$PREFIX/$ZIP.sha256" --endpoint-url "$ENDPOINT" --content-type text/plain
+          if [ "$PRERELEASE" = "true" ]; then
+            TARGET="$PREFIX/beta/info.json"
+          else
+            TARGET="$PREFIX/info.json"
+          fi
+          aws s3 cp dist/info.json "$TARGET" --endpoint-url "$ENDPOINT" --content-type application/json --cache-control "max-age=300"
+
+      - name: R2 upload skipped
+        if: env.R2_ACCOUNT_ID == '' || env.R2_ACCESS_KEY_ID == '' || env.R2_SECRET_ACCESS_KEY == '' || env.R2_BUCKET == ''
+        run: echo "::warning::R2_* secrets are not configured; zips are on the GitHub Release only."

@@ -5,6 +5,7 @@
 # Build output
 /build/
 /dist/
+/plugin-check/
 /build-info.php
 
 # Local environment
