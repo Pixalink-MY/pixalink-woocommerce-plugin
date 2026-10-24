@@ -86,22 +86,30 @@
 			"pattern": "^[A-Za-z0-9_-]{16,255}$"
 		},
 		"error": {
+			"description": "Every non-2xx answer. Which codes an endpoint returns, and which of the fields below each one carries, is listed per endpoint in endpoints.json (errors, common_errors).",
 			"type": "object",
 			"required": [ "message", "code" ],
 			"properties": {
 				"message": { "type": "string" },
 				"code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
 				"errors": {
+					"description": "validation_failed: messages per request field.",
 					"type": "object",
 					"additionalProperties": {
 						"type": "array",
 						"items": { "type": "string" }
 					}
 				},
-				"server_time": { "$ref": "#/$defs/unix_time" },
-				"available": { "type": "integer", "minimum": 0 },
-				"available_cents": { "type": "integer", "minimum": 0 }
-			}
+				"server_time": { "description": "timestamp_skew: the server clock, so the store can re-sign once.", "$ref": "#/$defs/unix_time" },
+				"available": { "description": "points_insufficient: the points the member can spend now.", "type": "integer", "minimum": 0 },
+				"available_cents": { "description": "credits_insufficient: the credits the member can spend now, in cents.", "type": "integer", "minimum": 0 }
+			},
+			"allOf": [
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "timestamp_skew" } } }, "then": { "required": [ "server_time" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "points_insufficient" } } }, "then": { "required": [ "available" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "credits_insufficient" } } }, "then": { "required": [ "available_cents" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "validation_failed" } } }, "then": { "required": [ "errors" ] } }
+			]
 		},
 		"outlet": {
 			"type": "object",

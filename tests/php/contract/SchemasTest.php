@@ -202,6 +202,56 @@ final class SchemasTest extends TestCase {
 		);
 	}
 
+	public function test_every_route_lists_its_errors_and_each_error_carries_what_the_envelope_requires(): void {
+		$manifest = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/endpoints.json' ), true );
+		foreach ( array_merge( $manifest['endpoints'], $manifest['plugin'] ) as $route ) {
+			$this->assertIsArray( $route['errors'] ?? null, $route['method'] . ' ' . $route['path'] . ' must list its errors (empty when none).' );
+		}
+
+		$envelope_fields = array( 'server_time', 'available', 'available_cents', 'errors' );
+		$values          = array(
+			'server_time'     => 1761300000,
+			'available'       => 120,
+			'available_cents' => 2500,
+			'errors'          => array( 'phone' => array( 'The phone field is required.' ) ),
+		);
+		foreach ( ContractValidator::documented_errors() as $error ) {
+			$label = $error['status'] . ' ' . $error['code'];
+			$this->assertGreaterThanOrEqual( 400, $error['status'], $label );
+			$this->assertLessThan( 600, $error['status'], $label );
+			$this->assertMatchesRegularExpression( '/^[a-z][a-z0-9_]*$/', $error['code'], $label );
+
+			$carries = $error['carries'] ?? array();
+			$this->assertSame( array(), array_diff( $carries, $envelope_fields ), $label );
+
+			$body = array(
+				'message' => 'x',
+				'code'    => $error['code'],
+			);
+			$this->assertSame( array(), ContractValidator::validate( 'error.response.json', $body + array_intersect_key( $values, array_flip( $carries ) ) ), $label );
+			if ( array() !== $carries ) {
+				$this->assertNotSame( array(), ContractValidator::validate( 'error.response.json', $body ), $label . ' without ' . implode( ', ', $carries ) );
+			}
+		}
+	}
+
+	public function test_every_error_the_fake_server_answers_is_documented_with_the_same_status(): void {
+		$documented = array();
+		foreach ( ContractValidator::documented_errors() as $error ) {
+			$documented[ $error['code'] ][] = $error['status'];
+		}
+
+		foreach ( Responses::samples( 1761300000 ) as $name => $sample ) {
+			if ( 'error.response.json' !== $sample['schema'] ) {
+				continue;
+			}
+
+			$code = $sample['response']['body']['code'];
+			$this->assertArrayHasKey( $code, $documented, $name . ': ' . $code . ' is not in endpoints.json.' );
+			$this->assertContains( $sample['response']['status'], $documented[ $code ], $name );
+		}
+	}
+
 	public function test_bodiless_endpoints_declare_their_status(): void {
 		foreach ( ContractValidator::endpoints() as $endpoint ) {
 			if ( null === $endpoint['response'] ) {
