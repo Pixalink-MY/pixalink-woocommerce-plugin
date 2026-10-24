@@ -76,9 +76,14 @@
 			"type": "string",
 			"pattern": "^CH-[A-Za-z0-9]+$"
 		},
-		"linked_via": {
-			"description": "How the shopper proved the phone number; balances and redemption require otp or sso_ticket.",
-			"enum": [ "otp", "sso_ticket", "none", null ]
+		"verified_via": {
+			"description": "How the shopper proved the phone number: a one-time code, a Pixalink portal sign-in ticket (pixalink_sso), or not at all. Balances and redemption require otp or sso_ticket.",
+			"enum": [ "sso_ticket", "otp", "none" ]
+		},
+		"sso_ticket": {
+			"description": "The pixalink_sso query parameter the Pixalink portal appends to the store URL when a member taps Order. Single use and short-lived; any ticket presented is used up.",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{16,255}$"
 		},
 		"error": {
 			"type": "object",
@@ -127,17 +132,18 @@
 				"text_hash": { "$ref": "#/$defs/sha256_hex" }
 			}
 		},
-		"customer_ref": {
+		"customer": {
+			"description": "A Pixalink customer as the store sees it. verified is true when this request proved the phone number (a valid sso_ticket) or the outlet already holds a verified link to the customer; the plugin still asks for an OTP before it trusts a link it did not prove itself.",
 			"type": "object",
-			"required": [ "id", "linked_via" ],
+			"required": [ "id", "phone", "verified" ],
 			"properties": {
 				"id": { "$ref": "#/$defs/id" },
-				"first_name": { "type": [ "string", "null" ] },
-				"last_name": { "type": [ "string", "null" ] },
-				"phone_e164": { "oneOf": [ { "$ref": "#/$defs/e164" }, { "type": "null" } ] },
+				"phone": { "$ref": "#/$defs/e164" },
+				"verified": { "type": "boolean" },
+				"phone_country": { "oneOf": [ { "$ref": "#/$defs/country_code" }, { "type": "null" } ] },
 				"email": { "oneOf": [ { "$ref": "#/$defs/email" }, { "type": "null" } ] },
-				"woocommerce_id": { "type": [ "string", "null" ] },
-				"linked_via": { "$ref": "#/$defs/linked_via" }
+				"first_name": { "type": [ "string", "null" ] },
+				"last_name": { "type": [ "string", "null" ] }
 			}
 		},
 		"woo_coupon": {

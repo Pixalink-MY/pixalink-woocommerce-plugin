@@ -82,6 +82,23 @@ final class Signature {
 	}
 
 	/**
+	 * Headers Pixalink sends with a server-to-store webhook (no bearer: the signature is the credential).
+	 *
+	 * @param string $api_key  Outlet API key the store holds.
+	 * @param string $event_id Event id (the signature nonce).
+	 * @param string $raw_body Raw JSON body.
+	 * @param int    $now      Server unix time.
+	 * @return array<string,string>
+	 */
+	public static function webhook_headers( string $api_key, string $event_id, string $raw_body, int $now ): array {
+		return array(
+			'x-pixalink-timestamp' => (string) $now,
+			'x-pixalink-event-id'  => $event_id,
+			'x-pixalink-signature' => 'v1=' . hash_hmac( 'sha256', $now . '.' . $event_id . '.' . $raw_body, self::signing_key( $api_key ) ),
+		);
+	}
+
+	/**
 	 * Nonce for a request, or null when the required header is missing or malformed.
 	 *
 	 * @param string               $method  Upper-case HTTP method.

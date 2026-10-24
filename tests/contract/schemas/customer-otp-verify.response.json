@@ -1,19 +1,12 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customer-otp-verify.response.json",
-	"title": "POST customers/{id}/otp/verify 200 response (wrong code: 422 otp_invalid; too many attempts: 429 otp_throttled)",
+	"title": "POST customers/{id}/otp/verify 200 response",
+	"description": "Failures: 422 with code otp_invalid (wrong code), otp_expired (request a new one) or otp_attempts_exceeded (too many wrong codes; request a new one); 429 otp_throttled with Retry-After.",
 	"type": "object",
-	"required": [ "verified", "customer" ],
+	"required": [ "verified" ],
 	"properties": {
-		"verified": { "const": true },
-		"customer": {
-			"allOf": [
-				{ "$ref": "common.json#/$defs/customer_ref" },
-				{ "properties": { "linked_via": { "const": "otp" } } }
-			]
-		}
+		"verified": { "const": true }
 	},
-	"examples": [
-		{ "verified": true, "customer": { "id": "5001", "first_name": "Aisyah", "last_name": "Rahman", "phone_e164": "+60123456789", "email": "member@example.com", "woocommerce_id": "17", "linked_via": "otp" } }
-	]
+	"examples": [ { "verified": true } ]
 }

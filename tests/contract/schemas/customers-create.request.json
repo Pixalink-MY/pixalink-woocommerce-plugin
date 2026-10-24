@@ -1,31 +1,40 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customers-create.request.json",
-	"title": "POST customers request: resolve or create, link the WooCommerce id, apply consent",
-	"description": "Consent true only lifts Do_Not_Contact; false never touches Blocked. Idempotent per organisation + phone.",
+	"title": "POST customers request: resolve or create, link the WordPress user id, apply consent, or redeem a portal sign-in ticket",
+	"description": "Consent true only lifts Do_Not_Contact; false never touches Blocked; null leaves the status alone. Idempotent per organisation + phone. With verified_via sso_ticket the ticket identifies the customer, so phone and phone_country are omitted; the ticket is used up whatever the outcome (410 ticket_invalid when unknown, expired, used or minted for another outlet).",
 	"type": "object",
-	"required": [ "phone_e164", "phone_country", "verified_via" ],
+	"required": [ "verified_via" ],
 	"additionalProperties": false,
 	"properties": {
-		"phone_e164": { "$ref": "common.json#/$defs/e164" },
+		"external_id": { "description": "WordPress user id as a string; null for guests.", "type": [ "string", "null" ], "pattern": "^[1-9][0-9]*$" },
+		"phone": { "$ref": "common.json#/$defs/e164" },
 		"phone_country": { "$ref": "common.json#/$defs/country_code" },
 		"email": { "oneOf": [ { "$ref": "common.json#/$defs/email" }, { "type": "null" } ] },
 		"first_name": { "type": [ "string", "null" ], "maxLength": 191 },
 		"last_name": { "type": [ "string", "null" ], "maxLength": 191 },
-		"woocommerce_id": { "type": [ "string", "null" ], "pattern": "^[0-9]+$" },
 		"marketing_consent": { "oneOf": [ { "$ref": "common.json#/$defs/marketing_consent" }, { "type": "null" } ] },
-		"verified_via": { "enum": [ "sso_ticket", "otp", "none" ] }
+		"verified_via": { "$ref": "common.json#/$defs/verified_via" },
+		"sso_ticket": { "$ref": "common.json#/$defs/sso_ticket" }
 	},
+	"allOf": [
+		{
+			"if": { "properties": { "verified_via": { "const": "sso_ticket" } } },
+			"then": { "required": [ "sso_ticket" ] },
+			"else": { "required": [ "phone", "phone_country" ], "not": { "required": [ "sso_ticket" ] } }
+		}
+	],
 	"examples": [
 		{
-			"phone_e164": "+60123456789",
+			"external_id": "17",
+			"phone": "+60123456789",
 			"phone_country": "MY",
 			"email": "member@example.com",
 			"first_name": "Aisyah",
 			"last_name": "Rahman",
-			"woocommerce_id": "17",
 			"marketing_consent": { "value": true, "source": "checkout", "captured_at": "2026-10-24T08:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" },
 			"verified_via": "none"
-		}
+		},
+		{ "external_id": null, "verified_via": "sso_ticket", "sso_ticket": "kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ3kL7mN2pQ6rS8tU4vW1xY5zA9bC3dE7f" }
 	]
 }
