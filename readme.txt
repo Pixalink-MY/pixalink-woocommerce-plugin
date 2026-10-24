@@ -54,7 +54,8 @@ What is sent, and when:
 
 * **When you connect the store:** your site URL, the plugin, WordPress and WooCommerce versions, and a one-time authorisation code. You sign in on pixalink.io; your Pixalink password is never entered on your site.
 * **Periodically while connected (heartbeat):** your site URL, plugin and WooCommerce versions, and the number of queued and failed order events.
-* **When a shopper places, pays for, cancels or refunds an order:** the order number and key, totals, currency, line items (product name, SKU, category, quantity, price), coupons, shipping total, and the shopper's name, e-mail address, phone number, WordPress user id (if logged in) and marketing-consent choice with its time and the hash of the consent text shown.
+* **When an order is paid for, completed, cancelled, refunded or (unpaid) deleted:** the order number and key, totals, currency, line items (product name, SKU, category, quantity, price), coupons, shipping total, and the shopper's name, e-mail address, phone number, WordPress user id (if logged in) and marketing-consent choice with its time and the hash of the consent text shown.
+* **When an administrator sends a test ping from the settings:** an empty test event.
 * **When a shopper views My Account › Loyalty or redeems at checkout:** the shopper's phone number or Pixalink customer id and the cart contents needed to price vouchers and points.
 * **When a shopper verifies their phone number:** the phone number, so Pixalink can send a one-time code by WhatsApp or SMS, and the code the shopper enters.
 
