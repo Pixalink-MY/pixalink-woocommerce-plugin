@@ -132,6 +132,7 @@ final class Spike {
 		$this->coupons->register();
 		$this->holds->register();
 		ClassicPanel::register();
+		SpikeDebug::register();
 
 		/*
 		 * woocommerce_blocks_loaded fires inside plugins_loaded:10 (Automattic\WooCommerce\Packages::on_init). Whether it

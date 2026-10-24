@@ -55,10 +55,8 @@ final class ClassicPanel {
 				array(
 					'endpoint'  => rest_url( 'wc/store/v1/cart/extensions' ),
 					'namespace' => Spike::STORE_API_NAMESPACE,
-					// Store API CSRF nonce (header "Nonce").
+					// Store API CSRF nonce (header "Nonce"); no X-WP-Nonce needed (Store API Authentication keeps cookie auth).
 					'nonce'     => wp_create_nonce( 'wc_store_api' ),
-					// Without X-WP-Nonce a logged-in shopper's REST request runs as user 0 and WC_Session_Handler destroys the session.
-					'restNonce' => wp_create_nonce( 'wp_rest' ),
 				)
 			) . ';',
 			'before'

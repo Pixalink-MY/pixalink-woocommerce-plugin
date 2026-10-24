@@ -231,7 +231,7 @@ test.describe( 'P02 spike: classic checkout', () => {
 		} );
 	} );
 
-	test( 'pitfall: a Store API call without X-WP-Nonce destroys a logged-in shopper session', async ( {
+	test( 'the Store API Nonce header alone keeps the logged-in shopper session (no X-WP-Nonce)', async ( {
 		page,
 		requestUtils,
 	} ) => {
@@ -268,14 +268,12 @@ test.describe( 'P02 spike: classic checkout', () => {
 			return { status: response.status, body: await response.json() };
 		} );
 
-		// The REST request ran as user 0; WC_Session_Handler found a user session cookie and destroyed that session.
-		expect( bare.status ).toBe( 403 );
+		// Store API Authentication returns true on rest_authentication_errors (priority 10), so WordPress's
+		// cookie check (priority 100, which would demote a nonce-less request to user 0) never runs.
+		expect( bare.status ).toBe( 200 );
 		await page.goto( '/classic-checkout/' );
 		await expect(
-			page
-				.getByTestId( 'pixalink-loyalty-spike-classic' )
-				.getByRole( 'button', { name: 'Link Pixalink (spike)' } )
-		).toBeVisible();
-		await expect( page.locator( 'tr.cart-discount' ) ).toHaveCount( 0 );
+			page.locator( 'tr.cart-discount', { hasText: 'Points (500 pts)' } )
+		).toBeVisible( { timeout: 15000 } );
 	} );
 } );

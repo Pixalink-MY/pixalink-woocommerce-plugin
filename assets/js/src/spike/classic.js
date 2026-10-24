@@ -10,11 +10,8 @@ const send = async ( data ) => {
 	const response = await window.fetch( config.endpoint, {
 		method: 'POST',
 		credentials: 'same-origin',
-		headers: {
-			'Content-Type': 'application/json',
-			Nonce: config.nonce,
-			'X-WP-Nonce': config.restNonce,
-		},
+		// The Store API's own CSRF nonce is enough: its rest_authentication_errors callback keeps cookie auth without X-WP-Nonce.
+		headers: { 'Content-Type': 'application/json', Nonce: config.nonce },
 		body: JSON.stringify( { namespace: config.namespace, data } ),
 	} );
 	config.nonce = response.headers.get( 'Nonce' ) || config.nonce;

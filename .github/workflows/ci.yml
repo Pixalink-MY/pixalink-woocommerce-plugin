@@ -246,7 +246,9 @@ jobs:
         run: npx playwright test --config=playwright.config.ts tests/e2e/specs/spike-checkout.spec.ts
       - name: WordPress debug log
         if: always()
-        run: npx wp-env run cli bash -c 'cat wp-content/debug.log 2>/dev/null | tail -n 200' || true
+        run: |
+          npx wp-env run cli bash -c 'grep -v "pxl-spike" wp-content/debug.log 2>/dev/null | tail -n 60' || true
+          npx wp-env run cli bash -c 'grep "pxl-spike" wp-content/debug.log 2>/dev/null | tail -n 300' || true
       - uses: actions/upload-artifact@v7
         if: always()
         with:
