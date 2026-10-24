@@ -95,6 +95,7 @@ final class Plugin {
 		}
 
 		$plugin->register_hooks();
+		$plugin->events()->register();
 
 		/**
 		 * Fires once the plugin has booted and its requirements are met.
@@ -214,6 +215,18 @@ final class Plugin {
 		return $this->service(
 			Heartbeat::class,
 			fn (): Heartbeat => new Heartbeat( $this->connect(), $this->credentials(), $this->connection(), $this->clock(), $this->logger(), PIXALINK_LOYALTY_VERSION )
+		);
+	}
+
+	/**
+	 * Event outbox, order events and their admin screens.
+	 *
+	 * @return Events\Module
+	 */
+	public function events(): Events\Module {
+		return $this->service(
+			Events\Module::class,
+			fn (): Events\Module => new Events\Module( $this->client(), $this->credentials(), $this->options(), $this->logger() )
 		);
 	}
 

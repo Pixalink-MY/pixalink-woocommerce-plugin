@@ -18,8 +18,12 @@
 	},
 	"allOf": [
 		{
-			"if": { "properties": { "type": { "enum": [ "order.paid", "order.completed", "order.cancelled" ] } } },
+			"if": { "properties": { "type": { "enum": [ "order.paid", "order.completed" ] } } },
 			"then": { "properties": { "data": { "$ref": "#/$defs/order_data" } } }
+		},
+		{
+			"if": { "properties": { "type": { "const": "order.cancelled" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/cancel_data" } } }
 		},
 		{
 			"if": { "properties": { "type": { "const": "order.refunded" } } },
@@ -125,7 +129,16 @@
 				"customer": { "$ref": "#/$defs/customer" }
 			}
 		},
+		"cancel_data": {
+			"description": "order.cancelled: the full order payload plus whether it had been paid (holds and earn to reverse) and the status it was cancelled from.",
+			"allOf": [ { "$ref": "#/$defs/order_data" } ],
+			"properties": {
+				"was_paid": { "type": "boolean" },
+				"previous_status": { "type": "string" }
+			}
+		},
 		"refund_data": {
+			"description": "One order.refunded per WooCommerce refund id. Refund figures are unsigned amounts refunded (WooCommerce stores them negative); line_items is empty for an amount-only refund.",
 			"type": "object",
 			"required": [ "order", "customer", "refund" ],
 			"properties": {
@@ -157,6 +170,7 @@
 			}
 		},
 		"order_reference_data": {
+			"description": "order.refund_deleted carries refund_id; order.redemptions_released carries reason (trashed | deleted) for an unpaid order removed by the merchant.",
 			"type": "object",
 			"required": [ "order" ],
 			"properties": {
@@ -219,6 +233,62 @@
 					"last_name": "Rahman",
 					"marketing_consent": { "value": true, "source": "checkout", "captured_at": "2026-10-24T07:58:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" }
 				}
+			}
+		},
+		{
+			"id": "9b1f3c5e-7a2d-5c4b-8e6f-1a3c5e7b9d2f",
+			"type": "order.cancelled",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 2,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "cancelled", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
+				"was_paid": true,
+				"previous_status": "processing"
+			}
+		},
+		{
+			"id": "4d6f8a1c-3e5b-5a7d-9c2e-6b8d0f2a4c6e",
+			"type": "order.refunded",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 3,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "processing", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
+				"refund": { "id": 77, "amount": "10.80", "reason": "Damaged cup", "created_at": "2026-10-25T10:00:00Z", "shipping_total": "0.00", "line_items": [ { "line_item_id": 11, "quantity": 1, "total": "10.80" } ] }
+			}
+		},
+		{
+			"id": "2c4e6a8b-1d3f-5e5a-8b7c-9d1f3a5c7e9b",
+			"type": "order.refund_deleted",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 4,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz" },
+				"refund_id": 77,
+				"reason": null
+			}
+		},
+		{
+			"id": "8e0a2c4d-6f8b-5d1e-a3c5-7e9b1d3f5a7c",
+			"type": "order.redemptions_released",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 1,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz" },
+				"reason": "trashed"
 			}
 		}
 	]

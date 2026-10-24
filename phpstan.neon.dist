@@ -13,6 +13,8 @@ parameters:
 		- tests/phpstan/bootstrap.php
 	scanFiles:
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+		# Action Scheduler (as_* functions, ActionScheduler_Store) ships in the packages stubs.
+		- vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
 	dynamicConstantNames:
 		- PIXALINK_LOYALTY_DISTRIBUTION
 		- PIXALINK_LOYALTY_VERSION

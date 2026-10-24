@@ -37,6 +37,12 @@
 		<exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
 	</rule>
 
+	<!-- PHPCompatibility 9 predates PHP 8.1 enums and reports $this inside enum methods as a plain function. -->
+	<rule ref="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext">
+		<exclude-pattern>src/Events/EventType.php</exclude-pattern>
+		<exclude-pattern>src/Events/EventStatus.php</exclude-pattern>
+	</rule>
+
 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<property name="text_domain" type="array">

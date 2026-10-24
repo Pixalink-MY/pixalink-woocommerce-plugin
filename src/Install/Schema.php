@@ -15,15 +15,22 @@ defined( 'ABSPATH' ) || exit;
  * Owns the plugin's custom tables and their dbDelta() definitions.
  *
  * Bump {@see Schema::VERSION} whenever a definition changes; {@see Installer::maybe_upgrade()} re-runs
- * dbDelta() when the stored `pixalink_loyalty_db_version` is lower. The outbox table
- * `{prefix}pixalink_events` is added by work unit P05.
+ * dbDelta() when the stored `pixalink_loyalty_db_version` is lower.
+ *
+ * Tables:
+ * - `{prefix}pixalink_events`: the event outbox (see {@see \Pixalink\Loyalty\Events\EventRepository}). Times are UTC.
  */
 final class Schema {
 
 	/**
 	 * Current schema version.
 	 */
-	public const VERSION = 1;
+	public const VERSION = 2;
+
+	/**
+	 * Unprefixed name of the event outbox table.
+	 */
+	public const EVENTS_TABLE = 'pixalink_events';
 
 	/**
 	 * Unprefixed names of every custom table.
@@ -74,6 +81,34 @@ final class Schema {
 	 * @return array<string,string>
 	 */
 	private static function definitions(): array {
-		return array();
+		return array(
+			self::EVENTS_TABLE => implode(
+				"\n",
+				array(
+					'id bigint(20) unsigned NOT NULL AUTO_INCREMENT,',
+					'uuid char(36) NOT NULL,',
+					'type varchar(64) NOT NULL,',
+					"object_type varchar(20) NOT NULL DEFAULT '',",
+					'object_id bigint(20) unsigned NOT NULL DEFAULT 0,',
+					'sequence int(10) unsigned NOT NULL DEFAULT 0,',
+					'payload longtext NOT NULL,',
+					"status varchar(20) NOT NULL DEFAULT 'pending',",
+					'attempts smallint(5) unsigned NOT NULL DEFAULT 0,',
+					'next_attempt_at datetime NULL DEFAULT NULL,',
+					'locked_at datetime NULL DEFAULT NULL,',
+					'last_http_status smallint(5) unsigned NULL DEFAULT NULL,',
+					'last_error text NULL,',
+					'response longtext NULL,',
+					'created_at datetime NOT NULL,',
+					'delivered_at datetime NULL DEFAULT NULL,',
+					'PRIMARY KEY  (id),',
+					'UNIQUE KEY uuid (uuid),',
+					'KEY object_sequence (object_type,object_id,sequence),',
+					'KEY status_next_attempt (status,next_attempt_at),',
+					'KEY status_created (status,created_at),',
+					'KEY status_delivered (status,delivered_at)',
+				)
+			),
+		);
 	}
 }

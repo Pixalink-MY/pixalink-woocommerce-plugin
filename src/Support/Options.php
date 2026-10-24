@@ -26,6 +26,7 @@ final class Options {
 	public const API_BASE                 = 'pixalink_loyalty_api_base';
 	public const CLOCK_OFFSET             = 'pixalink_loyalty_clock_offset';
 	public const DELETE_DATA_ON_UNINSTALL = 'pixalink_loyalty_delete_data_on_uninstall';
+	public const DELIVERY_PAUSED          = 'pixalink_loyalty_delivery_paused';
 
 	/**
 	 * Connection record `{status, organisation, outlet, connected_at, connected_by, method, api_base_url, dashboard_url, ...}`.
@@ -105,6 +106,12 @@ final class Options {
 			),
 			self::MARKETING_CONSENT        => array(
 				'default'  => array(),
+				'autoload' => false,
+				'seed'     => false,
+			),
+			// Why event delivery is paused ("auth_failed" | "not_connected"); empty while delivering.
+			self::DELIVERY_PAUSED          => array(
+				'default'  => '',
 				'autoload' => false,
 				'seed'     => false,
 			),
