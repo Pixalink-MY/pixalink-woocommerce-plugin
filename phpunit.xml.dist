@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+	Unit (Brain Monkey, no WordPress) and contract (JSON Schema) suites.
+	The WordPress integration suite lives in phpunit-integration.xml.dist and runs inside wp-env.
+-->
+<phpunit
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+	bootstrap="tests/php/unit/bootstrap.php"
+	colors="true"
+	beStrictAboutOutputDuringTests="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	failOnRisky="true"
+	failOnWarning="true"
+	cacheResultFile=".phpunit.cache/unit.result.cache"
+>
+	<testsuites>
+		<testsuite name="unit">
+			<directory suffix="Test.php">tests/php/unit</directory>
+		</testsuite>
+		<testsuite name="contract">
+			<directory suffix="Test.php">tests/php/contract</directory>
+		</testsuite>
+	</testsuites>
+
+	<coverage includeUncoveredFiles="true">
+		<include>
+			<directory suffix=".php">src</directory>
+		</include>
+	</coverage>
+</phpunit>
