@@ -83,6 +83,8 @@ final class Plugin {
 			Updates\UpdateChecker::register( PIXALINK_LOYALTY_FILE );
 		}
 
+		$plugin->events()->register();
+
 		/**
 		 * Fires once the plugin has booted and its requirements are met.
 		 *
@@ -166,6 +168,18 @@ final class Plugin {
 	 */
 	public function connect(): Connect {
 		return $this->service( Connect::class, fn (): Connect => new Connect( $this->client() ) );
+	}
+
+	/**
+	 * Event outbox, order events and their admin screens.
+	 *
+	 * @return Events\Module
+	 */
+	public function events(): Events\Module {
+		return $this->service(
+			Events\Module::class,
+			fn (): Events\Module => new Events\Module( $this->client(), $this->credentials(), $this->options(), $this->logger() )
+		);
 	}
 
 	/**
