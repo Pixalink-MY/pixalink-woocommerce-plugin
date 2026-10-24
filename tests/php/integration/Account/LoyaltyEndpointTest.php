@@ -95,6 +95,26 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		$this->assertFalse( ( new Options() )->get_bool( Options::FLUSH_REWRITE_RULES ), 'Flushed once, then the flag is gone.' );
 	}
 
+	public function test_the_checkout_verify_link_opens_the_tab_for_logged_in_shoppers_only(): void {
+		$this->assertSame( '', apply_filters( 'pixalink_loyalty_verify_url', '' ), 'Guests keep the prompt without a link.' );
+
+		wp_set_current_user( $this->make_user() );
+		$this->assertSame( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), apply_filters( 'pixalink_loyalty_verify_url', '' ) );
+
+		update_option( Options::ACCOUNT_TAB_ENABLED, 'no' );
+		$this->assertSame( '', apply_filters( 'pixalink_loyalty_verify_url', '' ), 'No tab, no link.' );
+	}
+
+	public function test_a_verify_link_set_by_another_callback_is_kept(): void {
+		wp_set_current_user( $this->make_user() );
+		$custom = static fn (): string => 'https://shop.example.test/verify-phone/';
+		add_filter( 'pixalink_loyalty_verify_url', $custom, 1 );
+
+		$this->assertSame( 'https://shop.example.test/verify-phone/', apply_filters( 'pixalink_loyalty_verify_url', '' ) );
+
+		remove_filter( 'pixalink_loyalty_verify_url', $custom, 1 );
+	}
+
 	public function test_a_logged_out_visitor_is_asked_to_log_in_by_the_shortcode(): void {
 		$html = do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' );
 

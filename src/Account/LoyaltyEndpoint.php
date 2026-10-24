@@ -63,6 +63,7 @@ final class LoyaltyEndpoint {
 		add_filter( 'woocommerce_account_menu_items', array( $this, 'menu_items' ), 20, 1 );
 		add_action( 'woocommerce_account_' . self::ENDPOINT . '_endpoint', array( $this, 'render' ) );
 		add_filter( 'woocommerce_endpoint_' . self::ENDPOINT . '_title', array( $this, 'title' ), 10, 1 );
+		add_filter( 'pixalink_loyalty_verify_url', array( $this, 'verify_url' ), 5, 1 );
 
 		add_shortcode( self::SUMMARY_SHORTCODE, array( $this, 'summary_shortcode' ) );
 		add_shortcode( self::QR_SHORTCODE, array( $this, 'qr_shortcode' ) );
@@ -161,6 +162,23 @@ final class LoyaltyEndpoint {
 		unset( $title );
 
 		return $this->tab_title();
+	}
+
+	/**
+	 * `pixalink_loyalty_verify_url` callback: the checkout panel's "Verify now" link opens this tab.
+	 *
+	 * Only for logged-in shoppers while the tab is on: the tab verifies an account, and a guest sent to My Account would
+	 * land on the login form with their checkout behind them (guests keep the prompt alone).
+	 *
+	 * @param mixed $url URL set by an earlier callback ('' for none).
+	 * @return mixed
+	 */
+	public function verify_url( $url ) {
+		if ( ( is_string( $url ) && '' !== $url ) || ! is_user_logged_in() || ! $this->options->get_bool( Options::ACCOUNT_TAB_ENABLED ) ) {
+			return $url;
+		}
+
+		return wc_get_account_endpoint_url( self::ENDPOINT );
 	}
 
 	/**

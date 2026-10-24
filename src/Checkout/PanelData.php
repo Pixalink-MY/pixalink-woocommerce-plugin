@@ -289,7 +289,8 @@ final class PanelData {
 	}
 
 	/**
-	 * Where a shopper verifies their phone (filled in by the identity unit).
+	 * Where a shopper verifies their phone: My Account › Loyalty for logged-in shoppers
+	 * ({@see \Pixalink\Loyalty\Account\LoyaltyEndpoint::verify_url()}), nothing for guests.
 	 *
 	 * @return string
 	 */
