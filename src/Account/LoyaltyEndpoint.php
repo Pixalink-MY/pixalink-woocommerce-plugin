@@ -94,17 +94,41 @@ final class LoyaltyEndpoint {
 	}
 
 	/**
-	 * Flush rewrite rules once after activation (the endpoint is registered by then).
+	 * Flush rewrite rules once after activation (the endpoint is registered by then), or from wp-admin when the stored
+	 * rules lack the endpoint (a site that ran an earlier build, or another plugin flushed before ours loaded).
 	 *
 	 * @return void
 	 */
 	public function maybe_flush_rewrite_rules(): void {
-		if ( ! $this->options->get_bool( Options::FLUSH_REWRITE_RULES ) ) {
+		$flagged = $this->options->get_bool( Options::FLUSH_REWRITE_RULES );
+		if ( ! $flagged && ( ! is_admin() || self::rules_have_endpoint() ) ) {
 			return;
 		}
 
-		$this->options->delete( Options::FLUSH_REWRITE_RULES );
+		if ( $flagged ) {
+			$this->options->delete( Options::FLUSH_REWRITE_RULES );
+		}
 		flush_rewrite_rules( false );
+	}
+
+	/**
+	 * Whether the stored rewrite rules include the endpoint (always true with plain permalinks, which have none).
+	 *
+	 * @return bool
+	 */
+	private static function rules_have_endpoint(): bool {
+		$rules = get_option( 'rewrite_rules' );
+		if ( ! is_array( $rules ) || array() === $rules ) {
+			return true;
+		}
+
+		foreach ( array_keys( $rules ) as $pattern ) {
+			if ( false !== strpos( (string) $pattern, self::ENDPOINT ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
