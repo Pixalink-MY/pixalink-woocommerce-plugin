@@ -58,7 +58,7 @@ final class ContractValidator {
 	/**
 	 * Endpoint manifest.
 	 *
-	 * @return list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string,query?:string}>
+	 * @return list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}>
 	 */
 	public static function endpoints(): array {
 		if ( null === self::$manifest ) {
@@ -70,7 +70,7 @@ final class ContractValidator {
 		/**
 		 * Endpoint list.
 		 *
-		 * @var list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string,query?:string}> $endpoints
+		 * @var list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}> $endpoints
 		 */
 		$endpoints = self::$manifest['endpoints'] ?? array();
 
@@ -78,11 +78,29 @@ final class ContractValidator {
 	}
 
 	/**
+	 * Hosted browser pages on the Pixalink web base (connect/woocommerce).
+	 *
+	 * @return list<array{method:string,path:string,query:string,lead?:string,callback?:string}>
+	 */
+	public static function hosted(): array {
+		self::endpoints();
+
+		/**
+		 * Hosted page list.
+		 *
+		 * @var list<array{method:string,path:string,query:string,lead?:string,callback?:string}> $hosted
+		 */
+		$hosted = self::$manifest['hosted'] ?? array();
+
+		return $hosted;
+	}
+
+	/**
 	 * Manifest entry for a method + route template.
 	 *
 	 * @param string $method HTTP method.
 	 * @param string $route  Route template, e.g. "customers/{id}".
-	 * @return array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string,query?:string}|null
+	 * @return array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}|null
 	 */
 	public static function endpoint( string $method, string $route ): ?array {
 		foreach ( self::endpoints() as $endpoint ) {

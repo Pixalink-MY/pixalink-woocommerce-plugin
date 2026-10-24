@@ -15,15 +15,26 @@ use Pixalink\Loyalty\Api\Client;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * `POST connect/exchange` (PKCE code → outlet API key) and `POST connection/heartbeat`.
+ * Connect endpoints: `POST connect/exchange` (PKCE code → outlet API key), `POST connection/heartbeat`,
+ * `POST connection/disconnect` and `GET outlet` (connection test), plus the hosted authorize page query.
  *
- * The static `*_payload()` builders are the single source of the request bodies and are validated against
- * `tests/contract/schemas/*.request.json` by the contract suite. The Connect wizard itself arrives in P04.
+ * The static builders are the single source of the request bodies and query strings and are validated against
+ * `tests/contract/schemas/*.json` by the contract suite. The wizard itself lives in {@see \Pixalink\Loyalty\Connect\ConnectService}.
  */
 final class Connect {
 
-	public const EXCHANGE_PATH  = 'connect/exchange';
-	public const HEARTBEAT_PATH = 'connection/heartbeat';
+	public const EXCHANGE_PATH   = 'connect/exchange';
+	public const HEARTBEAT_PATH  = 'connection/heartbeat';
+	public const DISCONNECT_PATH = 'connection/disconnect';
+	public const OUTLET_PATH     = 'outlet';
+
+	/**
+	 * Path of the hosted connect page, relative to the Pixalink web base (not the API base).
+	 */
+	public const AUTHORIZE_PATH = 'connect/woocommerce';
+
+	public const INTENT_CONNECT        = 'connect';
+	public const INTENT_REQUEST_ACCESS = 'request_access';
 
 	/**
 	 * API client.
@@ -55,6 +66,63 @@ final class Connect {
 			'code_verifier' => $code_verifier,
 			'site'          => rtrim( $site, '/' ),
 		);
+	}
+
+	/**
+	 * Query string for the hosted page `GET {pixalink}/connect/woocommerce`.
+	 *
+	 * @param string                   $site           Store URL (home URL).
+	 * @param string                   $return_url     Callback URL on this site (admin settings tab).
+	 * @param string                   $state          Anti-CSRF state bound to the admin user.
+	 * @param string                   $code_challenge PKCE S256 challenge.
+	 * @param string                   $plugin_version Plugin version.
+	 * @param string                   $wc_version     WooCommerce version.
+	 * @param string                   $intent         INTENT_CONNECT or INTENT_REQUEST_ACCESS.
+	 * @param array<string,mixed>|null $lead           Lead prefill from {@see \Pixalink\Loyalty\Connect\LeadPayload} (request access only).
+	 * @return array<string,string>
+	 */
+	public static function authorize_query( string $site, string $return_url, string $state, string $code_challenge, string $plugin_version, string $wc_version, string $intent = self::INTENT_CONNECT, ?array $lead = null ): array {
+		$query = array(
+			'site'                  => rtrim( $site, '/' ),
+			'return'                => $return_url,
+			'state'                 => $state,
+			'code_challenge'        => $code_challenge,
+			'code_challenge_method' => 'S256',
+			'plugin_version'        => $plugin_version,
+			'wc_version'            => $wc_version,
+		);
+
+		if ( self::INTENT_REQUEST_ACCESS === $intent ) {
+			$query['intent'] = self::INTENT_REQUEST_ACCESS;
+			if ( null !== $lead ) {
+				$query['lead'] = self::encode_lead( $lead );
+			}
+		}
+
+		return $query;
+	}
+
+	/**
+	 * Lead prefill as unpadded base64url JSON (one opaque query parameter keeps types intact).
+	 *
+	 * @param array<string,mixed> $lead Lead payload.
+	 * @return string
+	 */
+	public static function encode_lead( array $lead ): string {
+		$json = wp_json_encode( $lead, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- URL-safe transport encoding of a JSON query parameter, not obfuscation.
+		return rtrim( strtr( base64_encode( false === $json ? '{}' : $json ), '+/', '-_' ), '=' );
+	}
+
+	/**
+	 * Body for POST connection/disconnect.
+	 *
+	 * @param string $reason Machine reason, e.g. "merchant_request".
+	 * @return array{reason:string}
+	 */
+	public static function disconnect_payload( string $reason ): array {
+		return array( 'reason' => $reason );
 	}
 
 	/**
@@ -108,5 +176,35 @@ final class Connect {
 	 */
 	public function heartbeat( array $payload ): array {
 		return $this->client->post( self::HEARTBEAT_PATH, $payload, array( 'endpoint_class' => Client::ENDPOINT_CONNECT ) )->data;
+	}
+
+	/**
+	 * Tell Pixalink the merchant disconnected (the server revokes the key; 204 No Content).
+	 *
+	 * @param string $reason Machine reason.
+	 * @return void
+	 * @throws ApiException On failure.
+	 */
+	public function disconnect( string $reason ): void {
+		$this->client->post( self::DISCONNECT_PATH, self::disconnect_payload( $reason ), array( 'endpoint_class' => Client::ENDPOINT_CONNECT ) );
+	}
+
+	/**
+	 * Connection test: the outlet and organisation the key belongs to.
+	 *
+	 * @return array<mixed> `{outlet{id,uuid,name,...}, organisation{id,name}}`.
+	 * @throws ApiException On failure.
+	 */
+	public function outlet(): array {
+		return $this->client->get( self::OUTLET_PATH )->data;
+	}
+
+	/**
+	 * The underlying API client (base URL lookups).
+	 *
+	 * @return Client
+	 */
+	public function client(): Client {
+		return $this->client;
 	}
 }

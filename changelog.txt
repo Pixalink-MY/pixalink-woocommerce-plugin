@@ -5,4 +5,8 @@
 * Add - Install lifecycle: activation seeds options, deactivation unschedules work, opt-in data removal on uninstall.
 * Add - Support layer: encrypted credentials (sodium secretbox), masked WooCommerce logging, RFC 4122 UUIDs, money helpers, server-aligned clock.
 * Add - Signed Pixalink Commerce API client with timestamp-skew recovery and the Connect resource.
+* Add - WooCommerce › Settings › Pixalink Loyalty: connect an existing Pixalink account (hosted sign-in with PKCE) or paste an outlet API key, request access, test and disconnect.
+* Add - Six-hourly connection heartbeat with remote feature switches, clock alignment and a "reconnect" state when Pixalink rejects the key.
+* Add - Detects old Pixalink WooCommerce webhooks and offers to pause them when connecting.
+* Add - Admin notices for a missing connection, a rejected key, an outdated plugin, an inactive Pixalink account and disabled coupons.
 * Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check) and release pipeline.

@@ -139,6 +139,43 @@ final class SchemasTest extends TestCase {
 		$this->assertEqualsCanonicalizing( Responses::ROUTES, array_values( array_unique( $routes ) ) );
 	}
 
+	public function test_hosted_pages_reference_existing_schemas(): void {
+		$hosted = ContractValidator::hosted();
+
+		$this->assertSame( array( 'connect/woocommerce' ), array_column( $hosted, 'path' ) );
+		foreach ( $hosted as $page ) {
+			foreach ( array( 'query', 'lead', 'callback' ) as $field ) {
+				if ( isset( $page[ $field ] ) ) {
+					$this->assertFileExists( ContractValidator::schema_dir() . '/' . $page[ $field ] );
+				}
+			}
+		}
+	}
+
+	public function test_bodiless_endpoints_declare_their_status(): void {
+		foreach ( ContractValidator::endpoints() as $endpoint ) {
+			if ( null === $endpoint['response'] ) {
+				$this->assertSame( 204, $endpoint['status'] ?? null, $endpoint['path'] );
+			}
+		}
+	}
+
+	public function test_callback_schema_tells_success_from_failure(): void {
+		$this->assertNotSame( array(), ContractValidator::validate( 'connect-callback.query.json', array( 'state' => 'x' ) ), 'Neither code nor error.' );
+		$this->assertNotSame(
+			array(),
+			ContractValidator::validate(
+				'connect-callback.query.json',
+				array(
+					'code'  => 'pxlc_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJ',
+					'error' => 'access_denied',
+					'state' => 'x',
+				)
+			),
+			'Both code and error.'
+		);
+	}
+
 	public function test_manifest_nonce_rule_matches_the_signer(): void {
 		$manifest = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/endpoints.json' ), true );
 

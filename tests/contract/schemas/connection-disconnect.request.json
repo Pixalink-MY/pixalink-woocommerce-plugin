@@ -1,0 +1,15 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connection-disconnect.request.json",
+	"title": "POST connection/disconnect request (signed); 204 No Content",
+	"description": "Sent when the merchant disconnects in WooCommerce. The server revokes the outlet key, unsets woocommerce.connection and stamps disconnected_at/by (keeps host). The plugin removes its stored key whatever the outcome.",
+	"type": "object",
+	"required": [ "reason" ],
+	"additionalProperties": false,
+	"properties": {
+		"reason": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 64 }
+	},
+	"examples": [
+		{ "reason": "merchant_request" }
+	]
+}

@@ -1,0 +1,31 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connect-callback.query.json",
+	"title": "Query Pixalink appends to the `return` URL of the hosted connect page",
+	"description": "Success: `code` (one-time, 48 chars, TTL 600 s, bound to site + code_challenge) and `state`. Failure: `error` = access_denied (vendor cancelled, or a guest submitted the request-access form: reason=lead_submitted) or invalid_request (bad parameters; state echoed when it could be read). The `return` URL's own parameters (page, tab, pixalink_connect) stay in place.",
+	"type": "object",
+	"oneOf": [
+		{
+			"required": [ "code", "state" ],
+			"not": { "required": [ "error" ] },
+			"properties": {
+				"code": { "type": "string", "minLength": 16, "maxLength": 128 },
+				"state": { "type": "string", "minLength": 1 }
+			}
+		},
+		{
+			"required": [ "error" ],
+			"not": { "required": [ "code" ] },
+			"properties": {
+				"error": { "enum": [ "access_denied", "invalid_request" ] },
+				"state": { "type": "string" },
+				"reason": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+			}
+		}
+	],
+	"examples": [
+		{ "page": "wc-settings", "tab": "pixalink_loyalty", "pixalink_connect": "callback", "code": "pxlc_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", "state": "q2Vh0bT8y3c9oXr1mJk4ZpN6wLs7AeDfGuIiHtYvBxC" },
+		{ "page": "wc-settings", "tab": "pixalink_loyalty", "pixalink_connect": "callback", "error": "access_denied", "reason": "lead_submitted", "state": "q2Vh0bT8y3c9oXr1mJk4ZpN6wLs7AeDfGuIiHtYvBxC" },
+		{ "page": "wc-settings", "tab": "pixalink_loyalty", "pixalink_connect": "callback", "error": "invalid_request", "state": "" }
+	]
+}

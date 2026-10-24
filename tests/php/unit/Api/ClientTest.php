@@ -325,6 +325,27 @@ final class ClientTest extends TestCase {
 		}
 	}
 
+	public function test_oauth_style_error_bodies_use_the_error_field_as_code(): void {
+		$this->respond( 400, array( 'error' => 'invalid_grant' ) );
+
+		try {
+			$this->client()->post( 'connect/exchange', array( 'code' => 'x' ), array( 'authenticated' => false ) );
+			$this->fail( 'Expected ApiException.' );
+		} catch ( ApiException $exception ) {
+			$this->assertSame( 'invalid_grant', $exception->error_code() );
+			$this->assertArrayNotHasKey( 'error', $exception->details() );
+		}
+	}
+
+	public function test_no_content_responses_have_an_empty_body(): void {
+		$this->respond( 204, '' );
+
+		$response = $this->client()->post( 'connection/disconnect', array( 'reason' => 'merchant_request' ) );
+
+		$this->assertSame( 204, $response->status );
+		$this->assertSame( array(), $response->data );
+	}
+
 	public function test_non_json_success_body_is_rejected(): void {
 		$this->respond( 200, 'OK' );
 

@@ -34,4 +34,16 @@ bin/bump-version.sh 1.0.0 --wc-tested=11.3 --wp-tested=7.2   # then tag v1.0.0 t
 CI resolves the WordPress/WooCommerce test matrix at run time (`node bin/ci/resolve-versions.mjs --pretty`).
 
 The local `wp-env` site talks to a fake Pixalink API (`tests/e2e/mu-plugins/fake-pixalink.php`) instead of production;
-see `tests/contract/schemas/` for the request/response contract shared with the Pixalink server.
+see `tests/contract/schemas/` for the request/response contract shared with the Pixalink server (`endpoints.json` lists the
+API calls and, under `hosted`, the browser-facing connect page).
+
+Connecting locally: **WooCommerce › Settings › Pixalink Loyalty › Connect existing Pixalink account** goes to the fake hosted
+page (`PIXALINK_LOYALTY_CONNECT_URL` in `.wp-env.json`), which redirects straight back with a PKCE-bound code. Make it answer
+differently with `POST /wp-json/fake-pixalink/v1/hosted {"outcome":"lead"|"deny"|"invalid"}`; paste
+`1|abcdefghijklmnopqrstuvwxyz0123456789ABCD` to try the API-key path.
+
+| Constant (wp-config.php)        | Effect                                                                 |
+|---------------------------------|------------------------------------------------------------------------|
+| `PIXALINK_LOYALTY_API_KEY`      | Outlet key; overrides the key stored by the Connect screen             |
+| `PIXALINK_LOYALTY_API_BASE`     | Commerce API base (default `https://explore.pixalink.io/api/commerce/v1`) |
+| `PIXALINK_LOYALTY_CONNECT_URL`  | Hosted connect page (default: API base host + `/connect/woocommerce`)  |

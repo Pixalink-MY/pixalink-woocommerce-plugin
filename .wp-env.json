@@ -14,6 +14,7 @@
 		"SCRIPT_DEBUG": true,
 		"WP_ENVIRONMENT_TYPE": "local",
 		"PIXALINK_LOYALTY_API_BASE": "https://fake-pixalink.test/api/commerce/v1",
+		"PIXALINK_LOYALTY_CONNECT_URL": "http://localhost:8888/?rest_route=/fake-pixalink/v1/connect/woocommerce",
 		"PIXALINK_FAKE_SERVER": true
 	},
 	"lifecycleScripts": {

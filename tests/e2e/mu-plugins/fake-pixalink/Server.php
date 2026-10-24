@@ -13,7 +13,9 @@ namespace Pixalink\Loyalty\Tests\FakeServer;
  * Serves /api/commerce/v1 from WP REST routes for local, e2e and integration tests.
  *
  * - API routes:      /wp-json/fake-pixalink/api/commerce/v1/*  (signature-checked like production).
- * - Control routes:  /wp-json/fake-pixalink/v1/{requests,script,clock}  (manage_options only).
+ * - Hosted page:     /wp-json/fake-pixalink/v1/connect/woocommerce  (stands in for {pixalink}/connect/woocommerce:
+ *                    redirects back at once with a PKCE-bound code; point PIXALINK_LOYALTY_CONNECT_URL here).
+ * - Control routes:  /wp-json/fake-pixalink/v1/{requests,script,clock,hosted}  (manage_options only).
  * - Outgoing calls from the plugin to https://fake-pixalink.test/api/commerce/v1/* are dispatched in-process
  *   via pre_http_request, so no loopback networking is needed inside containers.
  */
@@ -28,7 +30,20 @@ final class Server {
 	private const SCRIPT_TRANSIENT   = 'pixalink_loyalty_fake_script';
 	private const CLOCK_TRANSIENT    = 'pixalink_loyalty_fake_clock_offset';
 	private const EVENTS_TRANSIENT   = 'pixalink_loyalty_fake_seen_events';
+	private const SITE_TRANSIENT     = 'pixalink_loyalty_fake_connected_site';
+	private const CODES_TRANSIENT    = 'pixalink_loyalty_fake_connect_codes';
+	private const OUTCOME_TRANSIENT  = 'pixalink_loyalty_fake_hosted_outcome';
 	private const MAX_RECORDED       = 200;
+
+	/**
+	 * Outcomes the fake hosted page can be told to produce (POST /fake-pixalink/v1/hosted {outcome}).
+	 */
+	public const HOSTED_OUTCOMES = array( 'approve', 'lead', 'deny', 'invalid' );
+
+	/**
+	 * Prefix of codes minted by the fake hosted page (48 characters in total, like production).
+	 */
+	public const MINTED_CODE_PREFIX = 'fake-code-';
 
 	/**
 	 * Route registrations: [regex, methods, route template, authenticated].
@@ -36,6 +51,7 @@ final class Server {
 	private const API_ROUTES = array(
 		array( 'connect/exchange', 'POST', 'connect/exchange', false ),
 		array( 'connection/heartbeat', 'POST', 'connection/heartbeat', true ),
+		array( 'connection/disconnect', 'POST', 'connection/disconnect', true ),
 		array( 'outlet', 'GET', 'outlet', true ),
 		array( 'customers', 'GET', 'customers', true ),
 		array( 'customers', 'POST', 'customers', true ),
@@ -111,6 +127,33 @@ final class Server {
 			array(
 				'methods'             => 'POST',
 				'callback'            => array( self::class, 'add_script' ),
+				'permission_callback' => $admin_only,
+			)
+		);
+
+		register_rest_route(
+			self::CONTROL_NAMESPACE,
+			'/connect/woocommerce',
+			array(
+				'methods'             => 'GET',
+				'callback'            => array( self::class, 'hosted_connect' ),
+				'permission_callback' => array( self::class, 'allow_unauthenticated' ),
+			)
+		);
+
+		register_rest_route(
+			self::CONTROL_NAMESPACE,
+			'/hosted',
+			array(
+				'methods'             => 'POST',
+				'callback'            => static function ( \WP_REST_Request $request ): \WP_REST_Response {
+					$outcome = (string) $request->get_param( 'outcome' );
+					if ( ! in_array( $outcome, self::HOSTED_OUTCOMES, true ) ) {
+						return new \WP_REST_Response( array( 'outcomes' => self::HOSTED_OUTCOMES ), 400 );
+					}
+					set_transient( self::OUTCOME_TRANSIENT, $outcome, HOUR_IN_SECONDS );
+					return new \WP_REST_Response( array( 'outcome' => $outcome ) );
+				},
 				'permission_callback' => $admin_only,
 			)
 		);
@@ -195,11 +238,14 @@ final class Server {
 			$violations = self::contract_violations( $method, $route, $request->get_body(), $query );
 			if ( array() !== $violations ) {
 				$result = Responses::error( 422, 'contract_violation', 'Request does not match the contract schema.', array( 'errors' => array( 'body' => $violations ) ) );
+			} elseif ( 'connect/exchange' === $route && ! self::redeem_minted_code( $body ) ) {
+				$result = Responses::error( 400, 'invalid_grant', 'The authorisation code is invalid or expired.' );
 			} else {
 				$context = array(
-					'now'        => self::now(),
-					'api_key'    => self::api_key(),
-					'event_seen' => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
+					'now'            => self::now(),
+					'api_key'        => self::api_key(),
+					'event_seen'     => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
+					'connected_site' => (string) get_transient( self::SITE_TRANSIENT ),
 				);
 				$result  = Responses::respond( $method, $route, $request->get_url_params(), $query, $body, $context );
 			}
@@ -207,6 +253,14 @@ final class Server {
 
 		if ( 'events' === $route && $result['status'] < 300 ) {
 			self::remember_event( (string) ( $body['id'] ?? '' ) );
+		}
+
+		// The exchange binds the site; a heartbeat with a pasted key adopts it while unconnected; disconnect frees it.
+		if ( in_array( $route, array( 'connect/exchange', 'connection/heartbeat' ), true ) && $result['status'] < 300 && isset( $body['site'] ) && is_string( $body['site'] ) ) {
+			set_transient( self::SITE_TRANSIENT, rtrim( $body['site'], '/' ), DAY_IN_SECONDS );
+		}
+		if ( 'connection/disconnect' === $route && $result['status'] < 300 ) {
+			delete_transient( self::SITE_TRANSIENT );
 		}
 
 		self::record( $request, $path, $result['status'], null );
@@ -309,6 +363,137 @@ final class Server {
 	}
 
 	/**
+	 * Fake hosted connect page: validate the query like Pixalink, then redirect back to `return`.
+	 *
+	 * Outcome (POST /fake-pixalink/v1/hosted): approve (default; mints a PKCE-bound code), lead (a guest submitted
+	 * the request-access form), deny (the vendor cancelled), invalid (invalid_request).
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return \WP_REST_Response
+	 */
+	public static function hosted_connect( \WP_REST_Request $request ): \WP_REST_Response {
+		$query = $request->get_query_params();
+		unset( $query['rest_route'] ); // Present when the page is reached through ?rest_route= (plain permalinks).
+		$return = isset( $query['return'] ) && is_string( $query['return'] ) ? $query['return'] : '';
+		$site   = isset( $query['site'] ) && is_string( $query['site'] ) ? rtrim( $query['site'], '/' ) : '';
+		$state  = isset( $query['state'] ) && is_string( $query['state'] ) ? $query['state'] : '';
+
+		self::record( $request, 'hosted:connect/woocommerce', 302, null );
+
+		if ( ! self::is_return_under_site( $return, $site ) ) {
+			return new \WP_REST_Response(
+				array(
+					'message' => 'The return URL must be on the connecting site.',
+					'code'    => 'invalid_return',
+				),
+				400
+			);
+		}
+
+		$outcome = (string) get_transient( self::OUTCOME_TRANSIENT );
+		$outcome = in_array( $outcome, self::HOSTED_OUTCOMES, true ) ? $outcome : 'approve';
+		$valid   = ! ContractValidator::is_available() || array() === ContractValidator::validate( 'connect-authorize.query.json', (object) $query );
+
+		if ( ! $valid || 'invalid' === $outcome ) {
+			$args = array(
+				'error' => 'invalid_request',
+				'state' => $state,
+			);
+		} elseif ( 'lead' === $outcome || 'deny' === $outcome ) {
+			$args = array(
+				'error'  => 'access_denied',
+				'reason' => 'lead' === $outcome ? 'lead_submitted' : 'user_denied',
+				'state'  => $state,
+			);
+		} else {
+			$args = array(
+				'code'  => self::mint_code( (string) ( $query['code_challenge'] ?? '' ), $site ),
+				'state' => $state,
+			);
+		}
+
+		$response = new \WP_REST_Response( null, 302 );
+		$response->header( 'Location', $return . ( false === strpos( $return, '?' ) ? '?' : '&' ) . http_build_query( $args, '', '&', PHP_QUERY_RFC3986 ) );
+
+		return $response;
+	}
+
+	/**
+	 * Mint a one-time code bound to a PKCE challenge and site (10-minute TTL, like production).
+	 *
+	 * @param string $challenge S256 challenge.
+	 * @param string $site      Site URL.
+	 * @return string
+	 */
+	public static function mint_code( string $challenge, string $site ): string {
+		$code  = self::MINTED_CODE_PREFIX . wp_generate_password( 48 - strlen( self::MINTED_CODE_PREFIX ), false );
+		$codes = get_transient( self::CODES_TRANSIENT );
+		$codes = is_array( $codes ) ? $codes : array();
+
+		$codes[ hash( 'sha256', $code ) ] = array(
+			'challenge' => $challenge,
+			'site'      => rtrim( $site, '/' ),
+			'exp'       => self::now() + 600,
+		);
+		set_transient( self::CODES_TRANSIENT, $codes, HOUR_IN_SECONDS );
+
+		return $code;
+	}
+
+	/**
+	 * Burn a code minted by the hosted page and check its PKCE verifier and site.
+	 *
+	 * Literal codes the hosted page never minted fall through to the canned (prefix-based) behaviour, so tests can
+	 * still exchange fixed codes; a minted-shaped code that is unknown (replayed or expired) fails.
+	 *
+	 * @param array<mixed> $body Exchange body.
+	 * @return bool
+	 */
+	private static function redeem_minted_code( array $body ): bool {
+		$code  = isset( $body['code'] ) && is_string( $body['code'] ) ? $body['code'] : '';
+		$codes = get_transient( self::CODES_TRANSIENT );
+		$codes = is_array( $codes ) ? $codes : array();
+		$hash  = hash( 'sha256', $code );
+
+		if ( ! isset( $codes[ $hash ] ) || ! is_array( $codes[ $hash ] ) ) {
+			return 1 !== preg_match( '/^' . preg_quote( self::MINTED_CODE_PREFIX, '/' ) . '[A-Za-z0-9]{38}$/', $code );
+		}
+
+		$minted = $codes[ $hash ];
+		unset( $codes[ $hash ] );
+		set_transient( self::CODES_TRANSIENT, $codes, HOUR_IN_SECONDS );
+
+		$verifier  = isset( $body['code_verifier'] ) && is_string( $body['code_verifier'] ) ? $body['code_verifier'] : '';
+		$challenge = rtrim( strtr( base64_encode( hash( 'sha256', $verifier, true ) ), '+/', '-_' ), '=' ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- RFC 7636 S256.
+		$site      = isset( $body['site'] ) && is_string( $body['site'] ) ? rtrim( $body['site'], '/' ) : '';
+
+		return (int) ( $minted['exp'] ?? 0 ) >= self::now()
+			&& hash_equals( (string) ( $minted['challenge'] ?? '' ), $challenge )
+			&& ( $minted['site'] ?? null ) === $site;
+	}
+
+	/**
+	 * Whether `return` is same-origin with `site` and its path lies under the site's path.
+	 *
+	 * @param string $return_url Return URL.
+	 * @param string $site       Site URL.
+	 * @return bool
+	 */
+	private static function is_return_under_site( string $return_url, string $site ): bool {
+		$return_parts = wp_parse_url( $return_url );
+		$site_parts   = wp_parse_url( $site );
+		if ( ! is_array( $return_parts ) || ! is_array( $site_parts ) || ! isset( $return_parts['host'], $site_parts['host'] ) ) {
+			return false;
+		}
+
+		$same_origin = strtolower( $return_parts['scheme'] ?? '' ) === strtolower( $site_parts['scheme'] ?? '' )
+			&& strtolower( $return_parts['host'] ) === strtolower( $site_parts['host'] )
+			&& ( $return_parts['port'] ?? null ) === ( $site_parts['port'] ?? null );
+
+		return $same_origin && 0 === strpos( $return_parts['path'] ?? '/', rtrim( $site_parts['path'] ?? '', '/' ) . '/' );
+	}
+
+	/**
 	 * Queue a scripted response: {method, path (fnmatch pattern), status, body, headers?, times?}.
 	 *
 	 * @param \WP_REST_Request $request Control request.
@@ -353,6 +538,9 @@ final class Server {
 		delete_transient( self::SCRIPT_TRANSIENT );
 		delete_transient( self::CLOCK_TRANSIENT );
 		delete_transient( self::EVENTS_TRANSIENT );
+		delete_transient( self::SITE_TRANSIENT );
+		delete_transient( self::CODES_TRANSIENT );
+		delete_transient( self::OUTCOME_TRANSIENT );
 	}
 
 	/**
@@ -393,7 +581,7 @@ final class Server {
 
 		return array(
 			'headers'  => class_exists( '\WpOrg\Requests\Utility\CaseInsensitiveDictionary' ) ? new \WpOrg\Requests\Utility\CaseInsensitiveDictionary( $headers ) : $headers,
-			'body'     => (string) wp_json_encode( $data ),
+			'body'     => 204 === $status ? '' : (string) wp_json_encode( $data ),
 			'response' => array(
 				'code'    => $status,
 				'message' => get_status_header_desc( $status ),
@@ -549,7 +737,7 @@ final class Server {
 		}
 		$kept['authorization'] = isset( $headers['authorization'] ) ? 'Bearer ****' . substr( $headers['authorization'], -4 ) : null;
 
-		$decoded = json_decode( $request->get_body(), true );
+		$decoded = json_decode( (string) $request->get_body(), true );
 
 		$recorded   = self::recorded();
 		$recorded[] = array(
@@ -557,7 +745,7 @@ final class Server {
 			'path'       => $path,
 			'query'      => $request->get_query_params(),
 			'headers'    => $kept,
-			'body'       => null === $decoded ? $request->get_body() : $decoded,
+			'body'       => null === $decoded ? (string) $request->get_body() : $decoded,
 			'status'     => $status,
 			'auth_error' => $auth_error,
 			'at'         => gmdate( 'Y-m-d\TH:i:s\Z', self::now() ),
