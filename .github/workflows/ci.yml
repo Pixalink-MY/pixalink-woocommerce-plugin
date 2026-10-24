@@ -20,14 +20,14 @@ jobs:
   gate:
     name: Gate
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     steps:
       - run: echo "Running CI for ${{ github.event_name }} on ${{ github.ref }}"
 
   phpcs:
     name: PHPCS
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -45,7 +45,7 @@ jobs:
   phpstan:
     name: PHPStan (level 8)
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -59,7 +59,7 @@ jobs:
   js:
     name: JS lint + build
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -78,7 +78,7 @@ jobs:
   unit:
     name: Unit + contract (PHP ${{ matrix.php }})
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
@@ -105,7 +105,7 @@ jobs:
   versions:
     name: Resolve WordPress / WooCommerce versions
     needs: gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, light]
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
