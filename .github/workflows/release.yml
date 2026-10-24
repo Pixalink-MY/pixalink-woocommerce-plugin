@@ -14,7 +14,7 @@ permissions:
 jobs:
   release:
     name: Build and publish
-    runs-on: [self-hosted, heavy]
+    runs-on: ubuntu-latest
     env:
       SLUG: pixalink-loyalty-for-woocommerce
       UPDATES_BASE_URL: https://updates.pixalink.io/wp/pixalink-loyalty-for-woocommerce

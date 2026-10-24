@@ -1,5 +1,13 @@
 name: CI
 
+# Runner policy: every job here runs on GitHub-hosted `ubuntu-latest`. Nothing in this repo
+# needs the Pixalink LAN, and the org's self-hosted runners (Pixalink-MY Default group) are
+# shared machines: `shivammathur/setup-php` installs PHP system-wide on them and stays
+# behind, and a bare `self-hosted` label would take the `heavy` runners that
+# Pixalink-Explore's Pest shards depend on. If a job ever must run on the LAN, use
+# `runs-on: [self-hosted, light]` (never `heavy` / `andromeda`) inside a `container:` so
+# the host stays untouched, and use `services:` networking rather than fixed host ports.
+
 on:
   push:
   pull_request:
@@ -20,14 +28,14 @@ jobs:
   gate:
     name: Gate
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     steps:
       - run: echo "Running CI for ${{ github.event_name }} on ${{ github.ref }}"
 
   phpcs:
     name: PHPCS
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -45,7 +53,7 @@ jobs:
   phpstan:
     name: PHPStan (level 8)
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: shivammathur/setup-php@v2
@@ -59,7 +67,7 @@ jobs:
   js:
     name: JS lint + build
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -78,7 +86,7 @@ jobs:
   unit:
     name: Unit + contract (PHP ${{ matrix.php }})
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
@@ -105,7 +113,7 @@ jobs:
   versions:
     name: Resolve WordPress / WooCommerce versions
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
@@ -121,7 +129,7 @@ jobs:
   integration:
     name: Integration (${{ matrix.env.name }} · HPOS ${{ matrix.hpos == '1' && 'on' || 'off' }})
     needs: versions
-    runs-on: [self-hosted, heavy]
+    runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.env.experimental }}
     timeout-minutes: 30
     strategy:
@@ -181,7 +189,7 @@ jobs:
   plugin-check:
     name: Plugin Check (wporg zip)
     needs: gate
-    runs-on: [self-hosted, heavy]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
