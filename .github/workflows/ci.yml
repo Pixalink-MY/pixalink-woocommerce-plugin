@@ -178,6 +178,75 @@ jobs:
           env WORDPRESS_TABLE_PREFIX=wptests_ PIXALINK_LOYALTY_HPOS=${{ matrix.hpos }}
           vendor/bin/phpunit -c phpunit-integration.xml.dist
 
+  # Vouchers and points in the Checkout block and the classic checkout, in Chromium against wp-env. Playwright runs
+  # from Microsoft's image at the locked @playwright/test version, so nothing is installed on the runner host.
+  e2e:
+    name: E2E checkout (WC ${{ matrix.wc }})
+    needs: gate
+    runs-on: [self-hosted, heavy]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        wc: ['11.0.1', 'latest-stable']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+      - uses: ramsey/composer-install@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Write .wp-env.override.json
+        env:
+          WC: ${{ matrix.wc }}
+        run: |
+          node -e '
+            const fs = require( "fs" );
+            fs.writeFileSync( ".wp-env.override.json", JSON.stringify( {
+              plugins: [ `https://downloads.wordpress.org/plugin/woocommerce.${ process.env.WC }.zip` ],
+              testsEnvironment: false,
+            }, null, 2 ) + "\n" );
+          '
+          cat .wp-env.override.json
+      - name: Start wp-env
+        run: |
+          for attempt in 1 2 3; do
+            npx wp-env start && exit 0
+            echo "wp-env start failed (attempt $attempt); retrying"
+            npx wp-env stop || true
+            sleep 15
+          done
+          exit 1
+      - name: Store setup (products, pages, verified member, heartbeat)
+        run: npx wp-env run cli wp eval-file wp-content/plugins/pixalink-loyalty-for-woocommerce/tests/e2e/bin/setup-checkout.php
+      - name: Playwright
+        # @wordpress/e2e-test-utils-playwright defaults WP_BASE_URL to :8889 (the wp-env tests site) for REST discovery.
+        run: >-
+          docker run --rm --network host --ipc host
+          -u "$(id -u):$(id -g)" -e HOME=/tmp -e CI=true -e WP_BASE_URL=http://localhost:8888
+          -v "$PWD":/work -w /work
+          "mcr.microsoft.com/playwright:v$(node -p 'require("./package-lock.json").packages["node_modules/@playwright/test"].version')-noble"
+          npx playwright test --config=playwright.config.ts
+      - name: WordPress debug log
+        if: always()
+        run: npx wp-env run cli bash -c 'tail -n 80 wp-content/debug.log 2>/dev/null' || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-wc-${{ matrix.wc }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+      - name: Stop wp-env
+        if: always()
+        run: npx wp-env stop || true
+
   plugin-check:
     name: Plugin Check (wporg zip)
     needs: gate

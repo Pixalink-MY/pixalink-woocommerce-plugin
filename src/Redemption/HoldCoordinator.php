@@ -244,7 +244,11 @@ final class HoldCoordinator {
 			);
 
 			if ( $exception->http_status() >= 400 && $exception->http_status() < 500 ) {
+				// Re-quote and recalculate, so the cart the Store API returns with the 409 shows the new total.
 				$this->quotes->refresh( true );
+				if ( function_exists( 'WC' ) && WC()->cart instanceof \WC_Cart ) {
+					WC()->cart->calculate_totals();
+				}
 			}
 
 			throw new HoldRefusedException( $exception->error_code(), Labels::hold_refused( $exception->error_code() ), $exception ); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Internal; escaped where it is shown.

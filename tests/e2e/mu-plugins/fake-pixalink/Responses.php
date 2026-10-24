@@ -469,7 +469,7 @@ final class Responses {
 				'earn'              => true,
 				'vouchers'          => true,
 				'points_redemption' => true,
-				'credits'           => false,
+				'credits'           => true,
 				'otp_channels'      => array( 'whatsapp', 'sms' ),
 			),
 			'redemption_rules'   => array(
