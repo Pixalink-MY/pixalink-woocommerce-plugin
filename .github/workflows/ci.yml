@@ -348,6 +348,128 @@ jobs:
         if: always()
         run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine chown -R "$(id -u):$(id -g)" /w 2>/dev/null || true
 
+  # Vouchers and points in the Checkout block and the classic checkout, in Chromium against wp-env. Like integration
+  # it needs the host's Docker socket; npm runs in node:22 and Playwright in Microsoft's image at the locked
+  # @playwright/test version (both as the runner user), so nothing is installed on the host.
+  e2e:
+    name: E2E checkout (WC ${{ matrix.wc }})
+    needs: gate
+    runs-on: [self-hosted, light]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        wc: ['11.0.1', 'latest-stable']
+    steps:
+      - name: Runner has Docker Compose v2 (wp-env needs it)
+        run: docker compose version || { echo "::error::$RUNNER_NAME has no Docker Compose v2 plugin, which wp-env needs. Re-run the job so it lands on another light runner."; exit 1; }
+      - name: Pre-checkout cleanup (root-owned leftovers included)
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine sh -c 'rm -rf /w/* /w/.[!.]* 2>/dev/null || true'
+      - uses: actions/checkout@v7
+        with:
+          clean: true
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Choose the npm cache
+        run: |
+          # The shared cache is also written by root job containers; npm fails on files it cannot write.
+          SHARED=/opt/ci-cache/npm
+          if [ "$(id -u)" = 0 ] || { [ -w "$SHARED" ] && [ -z "$(find "$SHARED" ! -user "$(id -u)" -print -quit 2>/dev/null)" ]; }; then
+            echo "npm_config_cache=$SHARED" >> "$GITHUB_ENV"
+          else
+            echo "::notice::$SHARED is not writable by $(id -un); using a job-local npm cache."
+            echo "npm_config_cache=$RUNNER_TEMP/npm-cache" >> "$GITHUB_ENV"
+          fi
+      - name: Pin wp-env and Playwright to the locked versions
+        run: |
+          echo "WP_ENV_VERSION=$(node -p 'require("./package-lock.json").packages["node_modules/@wordpress/env"].version')" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_VERSION=$(node -p 'require("./package-lock.json").packages["node_modules/@playwright/test"].version')" >> "$GITHUB_ENV"
+      - name: Composer install (composer:2 container)
+        run: >-
+          docker run --rm -u "$(id -u):$(id -g)"
+          -e COMPOSER_CACHE_DIR=/cc -e COMPOSER_HOME=/tmp/composer-home -e COMPOSER_NO_INTERACTION=1 -e COMPOSER_AUTH
+          -v /opt/ci-cache/composer:/cc -v "$PWD":/app -w /app
+          composer:2 install --prefer-dist --no-progress --ignore-platform-req=php
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+      - name: npm ci + build (node:22 container)
+        run: >-
+          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/npm-cache
+          -v "$PWD":/app -w /app node:22 sh -c 'npm ci --no-audit --no-fund && npm run build'
+      - name: Remove a wp-env left behind on this runner
+        run: npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force || true
+      - name: Write .wp-env.override.json
+        env:
+          WC: ${{ matrix.wc }}
+        run: |
+          node -e '
+            const fs = require( "fs" );
+            fs.writeFileSync( ".wp-env.override.json", JSON.stringify( {
+              plugins: [ `https://downloads.wordpress.org/plugin/woocommerce.${ process.env.WC }.zip` ],
+              testsEnvironment: false,
+            }, null, 2 ) + "\n" );
+          '
+          cat .wp-env.override.json
+      - name: Start wp-env
+        run: |
+          # First free host port from 8888 up (another job on this host may hold 8888), re-picked on every attempt.
+          free_port() {
+            node -e '
+              const net = require( "net" );
+              const isFree = ( port ) => new Promise( ( done ) => {
+                const server = net.createServer().once( "error", () => done( false ) );
+                server.listen( port, "0.0.0.0", () => server.close( () => done( true ) ) );
+              } );
+              ( async () => {
+                let port = 8888;
+                while ( ! ( await isFree( port ) ) ) {
+                  port++;
+                }
+                console.log( port );
+              } )();
+            '
+          }
+          for attempt in 1 2 3; do
+            WP_ENV_PORT="$(free_port)"
+            export WP_ENV_PORT
+            echo "Starting wp-env on host port $WP_ENV_PORT (attempt $attempt)"
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" start && echo "WP_ENV_PORT=$WP_ENV_PORT" >> "$GITHUB_ENV" && exit 0
+            echo "wp-env start failed (attempt $attempt); retrying"
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" stop || true
+            sleep 15
+          done
+          exit 1
+      - name: Store setup (products, pages, verified member, heartbeat)
+        run: npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli wp eval-file wp-content/plugins/pixalink-loyalty-for-woocommerce/tests/e2e/bin/setup-checkout.php
+      - name: Playwright (mcr.microsoft.com/playwright container)
+        # @wordpress/e2e-test-utils-playwright defaults WP_BASE_URL to :8889 (the wp-env tests site) for REST discovery.
+        run: >-
+          docker run --rm --network host --ipc host -u "$(id -u):$(id -g)"
+          -e HOME=/tmp -e CI=true -e WP_BASE_URL="http://localhost:$WP_ENV_PORT"
+          -v "$PWD":/work -w /work
+          "mcr.microsoft.com/playwright:v$PLAYWRIGHT_VERSION-noble"
+          npx playwright test --config=playwright.config.ts
+      - name: WordPress debug log
+        if: always()
+        run: npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli bash -c 'tail -n 80 wp-content/debug.log 2>/dev/null' || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: e2e-wc-${{ matrix.wc }}
+          path: artifacts/test-results
+          if-no-files-found: ignore
+      - name: Destroy wp-env
+        if: always()
+        run: |
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
+            || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
+            || true
+      - name: Post-job cleanup
+        if: always()
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine chown -R "$(id -u):$(id -g)" /w 2>/dev/null || true
+
   # Plugin Check needs PHP, Composer, Node, zip and rsync to build the zip, but Docker for its wp-env:
   # build in a container here, check on the host below.
   build-zip:

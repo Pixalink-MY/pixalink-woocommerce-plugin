@@ -99,9 +99,29 @@
 						"pixalink_kind": { "oneOf": [ { "$ref": "common.json#/$defs/redemption_kind" }, { "type": "null" } ] },
 						"pixalink_redemption_id": { "oneOf": [ { "$ref": "common.json#/$defs/hold_ref" }, { "type": "null" } ] },
 						"pixalink_voucher_id": { "oneOf": [ { "$ref": "common.json#/$defs/id" }, { "type": "null" } ] },
-						"pixalink_points": { "type": [ "integer", "null" ], "minimum": 1 }
+						"pixalink_points": { "type": [ "integer", "null" ], "minimum": 1 },
+						"pixalink_amount_cents": { "description": "Value the store took off for this redemption, in cents: the discount, plus its tax share when prices include tax (for credits, the credits spent). Null for store coupons.", "type": [ "integer", "null" ], "minimum": 0 },
+						"pixalink_coupon": { "oneOf": [ { "$ref": "#/$defs/coupon_snapshot" }, { "type": "null" } ] }
 					}
 				}
+			}
+		},
+		"coupon_snapshot": {
+			"description": "The resolved virtual coupon (_pixalink_coupon on the line): what WooCommerce applied, with local product and category ids.",
+			"type": "object",
+			"required": [ "discount_type", "amount" ],
+			"properties": {
+				"discount_type": { "enum": [ "fixed_cart", "percent", "fixed_product" ] },
+				"amount": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"product_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"excluded_product_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"product_categories": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"excluded_product_categories": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"limit_usage_to_x_items": { "type": [ "integer", "null" ], "minimum": 1 },
+				"exclude_sale_items": { "type": "boolean" },
+				"minimum_amount": { "type": "string" },
+				"maximum_amount": { "type": "string" },
+				"individual_use": { "type": "boolean" }
 			}
 		},
 		"order": {
@@ -184,13 +204,14 @@
 			}
 		},
 		"order_reference_data": {
-			"description": "order.refund_deleted carries refund_id; order.redemptions_released carries reason (trashed | deleted) for an unpaid order removed by the merchant.",
+			"description": "order.refund_deleted carries refund_id; order.redemptions_released carries reason: trashed | deleted (an unpaid order removed by the merchant; release every hold of the order) or payment_failed (with redemption_ids: release only those holds, so a release still in the outbox never undoes a hold placed on the same order since).",
 			"type": "object",
 			"required": [ "order" ],
 			"properties": {
 				"order": { "$ref": "#/$defs/order_reference" },
 				"refund_id": { "type": "integer", "minimum": 1 },
-				"reason": { "type": [ "string", "null" ] }
+				"reason": { "type": [ "string", "null" ] },
+				"redemption_ids": { "type": "array", "items": { "$ref": "common.json#/$defs/hold_ref" }, "minItems": 1, "uniqueItems": true }
 			}
 		}
 	},
@@ -233,7 +254,7 @@
 						{ "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" }
 					],
 					"coupon_lines": [
-						{ "id": 12, "code": "pxl-points", "discount": "5.00", "discount_tax": "0.00", "meta": { "pixalink_kind": "points", "pixalink_redemption_id": "CH-01JABCDEG", "pixalink_voucher_id": null, "pixalink_points": 500 } }
+						{ "id": 12, "code": "pxl-points", "discount": "5.00", "discount_tax": "0.00", "meta": { "pixalink_kind": "points", "pixalink_redemption_id": "CH-01JABCDEG", "pixalink_voucher_id": null, "pixalink_points": 500, "pixalink_amount_cents": 500, "pixalink_coupon": { "discount_type": "fixed_cart", "amount": "5.00", "product_ids": [], "excluded_product_ids": [], "product_categories": [], "excluded_product_categories": [], "limit_usage_to_x_items": null, "exclude_sale_items": false, "minimum_amount": "", "maximum_amount": "", "individual_use": false } } }
 					]
 				},
 				"customer": {
@@ -315,6 +336,20 @@
 			"outlet_id": "101",
 			"data": {
 				"customer": { "pixalink_customer_id": null, "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": { "value": false, "source": "my_account", "captured_at": "2026-10-25T10:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } }
+			}
+		},
+		{
+			"id": "3f5a7c9e-1b2d-5f4a-9c8e-0a2b4c6d8e1f",
+			"type": "order.redemptions_released",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:05:00Z",
+			"sequence": 2,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1002, "number": "1002", "order_key": "wc_order_DeF456uvw" },
+				"reason": "payment_failed",
+				"redemption_ids": [ "CH-01JABCDEG" ]
 			}
 		}
 	]

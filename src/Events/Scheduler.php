@@ -22,6 +22,8 @@ defined( 'ABSPATH' ) || exit;
  * - `pixalink_loyalty_reconcile_events`: daily, enqueue `order.paid` for paid orders of the last 7 days without one.
  * - `pixalink_loyalty_prune_events`: daily, delete delivered rows after 30 days and dead rows after 90 days.
  * - `pixalink_loyalty_resend_orders` (`days`, `page`): one batch of a merchant-requested resend.
+ * - `pixalink_loyalty_sweep_holds`: every 15 minutes, release the checkout holds of abandoned unpaid orders
+ *   ({@see \Pixalink\Loyalty\Redemption\HoldSweeper}).
  */
 final class Scheduler {
 
@@ -32,12 +34,18 @@ final class Scheduler {
 	public const RESEND_HOOK    = 'pixalink_loyalty_resend_orders';
 
 	/**
+	 * Same value as {@see \Pixalink\Loyalty\Redemption\HoldSweeper::HOOK}.
+	 */
+	public const SWEEP_HOLDS_HOOK = 'pixalink_loyalty_sweep_holds';
+
+	/**
 	 * Recurring actions: hook => interval in seconds.
 	 */
 	public const RECURRING = array(
-		self::SWEEP_HOOK     => 600,
-		self::RECONCILE_HOOK => 86400,
-		self::PRUNE_HOOK     => 86400,
+		self::SWEEP_HOOK       => 600,
+		self::RECONCILE_HOOK   => 86400,
+		self::PRUNE_HOOK       => 86400,
+		self::SWEEP_HOLDS_HOOK => 900,
 	);
 
 	/**

@@ -16,6 +16,7 @@ use Pixalink\Loyalty\Admin\SettingsPage;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Api\Resources\Connect;
+use Pixalink\Loyalty\Api\Resources\Redemptions;
 use Pixalink\Loyalty\Connect\ConnectController;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Connect\ConnectService;
@@ -23,7 +24,9 @@ use Pixalink\Loyalty\Connect\Heartbeat;
 use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\LegacyWebhookDetector;
 use Pixalink\Loyalty\Connect\PkceState;
+use Pixalink\Loyalty\Identity\ShopperContextInterface;
 use Pixalink\Loyalty\Install\Installer;
+use Pixalink\Loyalty\Redemption\Features;
 use Pixalink\Loyalty\Support\Clock;
 use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Support\Logger;
@@ -96,7 +99,10 @@ final class Plugin {
 
 		$plugin->register_hooks();
 		$plugin->events()->register();
+		// Identity first: redemption asks it who the shopper is, and its checkout fields save at priority 10 before the
+		// hold at 20 on `woocommerce_checkout_create_order`.
 		$plugin->identity()->register();
+		$plugin->redemption()->register();
 
 		/**
 		 * Fires once the plugin has booted and its requirements are met.
@@ -248,10 +254,43 @@ final class Plugin {
 	 *
 	 * Resolved on every call (the current user can change during a request, for example at login).
 	 *
-	 * @return Identity\ShopperContextInterface
+	 * @return ShopperContextInterface
 	 */
-	public function shopper(): Identity\ShopperContextInterface {
+	public function shopper(): ShopperContextInterface {
 		return $this->identity()->shopper();
+	}
+
+	/**
+	 * Checkout API resource (quote, holds).
+	 *
+	 * @return Redemptions
+	 */
+	public function redemptions_api(): Redemptions {
+		return $this->service( Redemptions::class, fn (): Redemptions => new Redemptions( $this->client() ) );
+	}
+
+	/**
+	 * Redemption kill switches.
+	 *
+	 * @return Features
+	 */
+	public function features(): Features {
+		return $this->service( Features::class, fn (): Features => new Features( $this->connection(), $this->options(), $this->credentials() ) );
+	}
+
+	/**
+	 * Vouchers, points and credits at checkout.
+	 *
+	 * Reads the shopper through {@see Identity\CurrentShopper}, which resolves W2's {@see Identity\ShopperContext} again on
+	 * every question, so long-lived redemption services never keep a stale identity.
+	 *
+	 * @return Redemption\Module
+	 */
+	public function redemption(): Redemption\Module {
+		return $this->service(
+			Redemption\Module::class,
+			fn (): Redemption\Module => new Redemption\Module( $this->redemptions_api(), $this->identity()->current_shopper(), $this->features(), $this->events()->lifecycle(), $this->logger() )
+		);
 	}
 
 	/**

@@ -114,6 +114,20 @@ final class EventPayloadsTest extends TestCase {
 				OrderMeta::COUPON_KIND          => 'points',
 				OrderMeta::COUPON_REDEMPTION_ID => 'CH-01JABCDEG',
 				OrderMeta::COUPON_POINTS        => '500',
+				OrderMeta::COUPON_AMOUNT_CENTS  => '500',
+				OrderMeta::COUPON_SNAPSHOT      => array(
+					'discount_type'               => 'fixed_cart',
+					'amount'                      => '5.00',
+					'product_ids'                 => array(),
+					'excluded_product_ids'        => array(),
+					'product_categories'          => array(),
+					'excluded_product_categories' => array(),
+					'limit_usage_to_x_items'      => null,
+					'exclude_sale_items'          => false,
+					'minimum_amount'              => '',
+					'maximum_amount'              => '',
+					'individual_use'              => false,
+				),
 			)
 		);
 		$store   = $this->double(
@@ -239,6 +253,20 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => 'CH-01JABCDEG',
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => 500,
+				'pixalink_amount_cents'  => 500,
+				'pixalink_coupon'        => array(
+					'discount_type'               => 'fixed_cart',
+					'amount'                      => '5.00',
+					'product_ids'                 => array(),
+					'excluded_product_ids'        => array(),
+					'product_categories'          => array(),
+					'excluded_product_categories' => array(),
+					'limit_usage_to_x_items'      => null,
+					'exclude_sale_items'          => false,
+					'minimum_amount'              => '',
+					'maximum_amount'              => '',
+					'individual_use'              => false,
+				),
 			),
 			$order['coupon_lines'][0]['meta']
 		);
@@ -248,6 +276,8 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => null,
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => null,
+				'pixalink_amount_cents'  => null,
+				'pixalink_coupon'        => null,
 			),
 			$order['coupon_lines'][1]['meta'],
 			'A store coupon carries no Pixalink meta.'
@@ -371,6 +401,8 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => null,
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => null,
+				'pixalink_amount_cents'  => null,
+				'pixalink_coupon'        => null,
 			),
 			( new OrderPayloadBuilder() )->coupon_line( $coupon )['meta']
 		);

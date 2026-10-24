@@ -50,6 +50,14 @@ The mobile number entered in the "Mobile number for loyalty points" field at che
 
 No. It starts unticked at checkout and registration, and an unticked box records nothing. Under Account details it shows the shopper's saved choice so they can withdraw at any time. The exact wording shown is recorded (as a hash) with every answer.
 
+= Can I still create my own coupons whose code starts with "PXL-"? =
+
+No. Coupon codes starting with `PXL-` (any case) are reserved for Pixalink: vouchers appear at checkout as `PXL-` coupons, and points and credits as `pxl-points` and `pxl-credits`. A store coupon with such a code is ignored while the plugin is active.
+
+= How do points and credits discounts work with tax? =
+
+Like any WooCommerce fixed cart coupon: in a store whose prices exclude tax, the discount comes off the price before tax, so the order total falls by the discount plus its tax. Credits are applied as a discount, so the part of an order paid with credits does not earn points.
+
 = Does uninstalling delete my data? =
 
 Only if you enable **Delete all data on uninstall** in the plugin settings. Order notes and order meta stay with your orders either way.
@@ -70,7 +78,8 @@ What is sent, and when:
 * **When a member arrives from the Pixalink member portal (the `pixalink_sso` link):** the single-use sign-in ticket in the link and, if they are logged in, their WordPress user id. Pixalink answers with the member's id, phone number, name and e-mail address, which the plugin uses to sign the member in or create their customer account.
 * **When a verified member views My Account › Loyalty or the loyalty shortcodes:** their Pixalink customer id, to show points, credits, tier, vouchers, memberships, recent activity and the member QR code (drawn in the browser; no image service is used).
 * **When a shopper changes their loyalty phone number or marketing choice (checkout, registration, Account details) or links their account:** a customer update with their WordPress user id, Pixalink customer id, phone number and country, e-mail address, name and marketing choice with its time, where it was given and the hash of the wording shown.
-* **When a shopper redeems at checkout:** the shopper's Pixalink customer id and the cart contents needed to price vouchers and points.
+* **When a verified member opens checkout or changes the rewards they use:** their Pixalink customer id and the cart contents needed to price vouchers, points and credits (product names, SKUs, categories, quantities and prices, store discounts, shipping and tax totals).
+* **When a member places an order using vouchers, points or credits:** the order key, the cart contents and the rewards to hold for the order; when payment fails or an unpaid order is abandoned, a request to release them.
 
 Pixalink also calls the store: `POST /wp-json/pixalink-loyalty/v1/webhook` receives signed notifications (a member's details or balance changed, a voucher was issued) so cached balances refresh and a withdrawn marketing consent is recorded. Requests are verified with the same key and rejected unless correctly signed and recent.
 
@@ -91,3 +100,4 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 * Phone number (international format) and a separate, unticked marketing-consent box at checkout (blocks and classic), registration and Account details.
 * My Account › Loyalty: phone verification with a one-time code, points, credits, tier, vouchers, memberships, activity and a member QR code; `[pixalink_loyalty_summary]` and `[pixalink_loyalty_qr]` shortcodes.
 * Sign-in from the Pixalink member portal, signed webhooks from Pixalink, and personal data export and erasure.
+* Checkout: members use Pixalink vouchers, points and credits in the Checkout block and the classic checkout; they are held when the order is placed and released if payment fails or the order is cancelled or abandoned.

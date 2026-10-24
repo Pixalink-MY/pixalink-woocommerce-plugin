@@ -36,6 +36,7 @@ final class Uninstaller {
 		UserMeta::LINKED_AT,
 		UserMeta::LINKED_VIA,
 		'pixalink_loyalty_dismissed_notices',
+		'pixalink_loyalty_redemption',
 	);
 
 	/**

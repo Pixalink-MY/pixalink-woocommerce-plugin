@@ -191,6 +191,15 @@ final class Module {
 	}
 
 	/**
+	 * The shopper context long-lived services hold: resolves {@see Module::shopper()} again on every question.
+	 *
+	 * @return CurrentShopper
+	 */
+	public function current_shopper(): CurrentShopper {
+		return new CurrentShopper( $this->guests );
+	}
+
+	/**
 	 * Linker (OTP and portal tickets).
 	 *
 	 * @return CustomerLinker

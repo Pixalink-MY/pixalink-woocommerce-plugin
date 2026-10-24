@@ -44,6 +44,28 @@ final class Responses {
 	public const SSO_TICKET_NO_EMAIL = 'fake-sso-noemail-';
 
 	/**
+	 * Credits balance of the member, in cents (25.00 credits).
+	 */
+	public const CREDITS_BALANCE_CENTS = 2500;
+
+	/**
+	 * Vouchers the quote offers: id => [code, title, discount_type, amount, product_skus, limit_usage_to_x_items, minimum_amount].
+	 * 93 is listed but only redeemable in store.
+	 */
+	public const QUOTE_VOUCHERS = array(
+		'88' => array( 'PXL-WELCOME-88', 'Welcome 10 off', 'fixed_cart', '10.00', array(), null, '50.00' ),
+		'89' => array( 'PXL-TENPCT-89', '10% off', 'percent', '10', array(), null, null ),
+		'90' => array( 'PXL-SKU5-90', '5 off product A', 'fixed_product', '5.00', array( 'PXL-A' ), null, null ),
+		'91' => array( 'PXL-FREEB-91', 'Free product B', 'percent', '100', array( 'PXL-B' ), 1, null ),
+		'92' => array( 'PXL-GHOST-92', 'Mystery gift', 'fixed_product', '5.00', array( 'NO-SUCH-SKU' ), null, null ),
+	);
+
+	/**
+	 * In-store-only voucher id listed in every quote.
+	 */
+	public const INSTORE_VOUCHER_ID = '93';
+
+	/**
 	 * Codes starting with this prefix make connect/exchange fail with invalid_grant.
 	 */
 	public const INVALID_CODE_PREFIX = 'fake-code-invalid';
@@ -156,10 +178,10 @@ final class Responses {
 				return self::ok( array( 'verified' => true ) );
 
 			case 'POST quote':
-				return self::ok( self::quote() );
+				return self::ok( self::quote( $body, self::points_balance( $context ) ) );
 
 			case 'PUT orders/{order_ref}/redemptions':
-				return self::hold( (string) ( $params['order_ref'] ?? '' ), $body, $now );
+				return self::hold( (string) ( $params['order_ref'] ?? '' ), $body, $now, self::points_balance( $context ) );
 
 			case 'DELETE orders/{order_ref}/redemptions':
 				return self::ok(
@@ -207,25 +229,38 @@ final class Responses {
 			'now'     => $now,
 			'api_key' => Signature::FAKE_API_KEY,
 		);
+		$cart    = self::sample_cart( 6000 );
 		$hold    = array(
 			'customer_id' => self::MEMBER_ID,
-			'currency'    => 'MYR',
+			'cart'        => $cart,
 			'redemptions' => array(
 				array(
-					'kind'         => 'voucher',
-					'voucher_id'   => self::VOUCHER_ID,
-					'coupon_code'  => self::VOUCHER_CODE,
-					'discount'     => '10.00',
-					'discount_tax' => '0.00',
+					'kind'               => 'voucher',
+					'voucher_id'         => self::VOUCHER_ID,
+					'coupon_code'        => strtolower( self::VOUCHER_CODE ),
+					'discount_cents'     => 1000,
+					'discount_tax_cents' => 0,
 				),
 				array(
-					'kind'         => 'points',
-					'points'       => 500,
-					'coupon_code'  => 'pxl-points',
-					'discount'     => '5.00',
-					'discount_tax' => '0.00',
+					'kind'               => 'points',
+					'points'             => 500,
+					'coupon_code'        => 'pxl-points',
+					'discount_cents'     => 500,
+					'discount_tax_cents' => 0,
+				),
+				array(
+					'kind'               => 'credit',
+					'amount_cents'       => 250,
+					'coupon_code'        => 'pxl-credits',
+					'discount_cents'     => 250,
+					'discount_tax_cents' => 0,
 				),
 			),
+		);
+		$entry   = static fn ( array $redemption ): array => array(
+			'customer_id' => self::MEMBER_ID,
+			'cart'        => $cart,
+			'redemptions' => array( $redemption ),
 		);
 		$ping    = array(
 			'id'   => 'a6417789-0a05-5068-bab0-90d991946d97',
@@ -283,21 +318,93 @@ final class Responses {
 			'otp verify exhausted'  => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE_EXHAUSTED ), $context ), 'error.response.json' ),
 			'otp throttled'         => array( self::error( 429, 'otp_throttled', 'Too many codes requested.' ), 'error.response.json' ),
 			'verification required' => array( self::error( 403, 'verification_required', 'Verify the phone number first.' ), 'error.response.json' ),
-			'quote'                 => array( self::respond( 'POST', 'quote', array(), array(), array(), $context ), 'quote.response.json' ),
+			'quote'                 => array(
+				self::respond(
+					'POST',
+					'quote',
+					array(),
+					array(),
+					array(
+						'customer_id' => self::MEMBER_ID,
+						'cart'        => $cart,
+					),
+					$context
+				),
+				'quote.response.json',
+			),
+			'quote empty cart'      => array( self::respond( 'POST', 'quote', array(), array(), array(), $context ), 'quote.response.json' ),
 			'hold'                  => array( self::respond( 'PUT', 'orders/{order_ref}/redemptions', array( 'order_ref' => 'wc_order_AbC123xyz' ), array(), $hold, $context ), 'redemptions.response.json' ),
+			'hold unknown voucher'  => array(
+				self::respond(
+					'PUT',
+					'orders/{order_ref}/redemptions',
+					array( 'order_ref' => 'wc_order_AbC123xyz' ),
+					array(),
+					$entry(
+						array(
+							'kind'               => 'voucher',
+							'voucher_id'         => self::INSTORE_VOUCHER_ID,
+							'coupon_code'        => 'pxl-instore-93',
+							'discount_cents'     => 0,
+							'discount_tax_cents' => 0,
+						)
+					),
+					$context
+				),
+				'error.response.json',
+			),
+			'hold too few credits'  => array(
+				self::respond(
+					'PUT',
+					'orders/{order_ref}/redemptions',
+					array( 'order_ref' => 'wc_order_AbC123xyz' ),
+					array(),
+					$entry(
+						array(
+							'kind'               => 'credit',
+							'amount_cents'       => self::CREDITS_BALANCE_CENTS + 1,
+							'coupon_code'        => 'pxl-credits',
+							'discount_cents'     => self::CREDITS_BALANCE_CENTS + 1,
+							'discount_tax_cents' => 0,
+						)
+					),
+					$context
+				),
+				'error.response.json',
+			),
+			'hold mismatch'         => array(
+				self::respond(
+					'PUT',
+					'orders/{order_ref}/redemptions',
+					array( 'order_ref' => 'wc_order_AbC123xyz' ),
+					array(),
+					$entry(
+						array(
+							'kind'               => 'points',
+							'points'             => 500,
+							'coupon_code'        => 'pxl-points',
+							'discount_cents'     => 900,
+							'discount_tax_cents' => 0,
+						)
+					),
+					$context
+				),
+				'error.response.json',
+			),
 			'hold too many points'  => array(
 				self::respond(
 					'PUT',
 					'orders/{order_ref}/redemptions',
 					array( 'order_ref' => 'wc_order_AbC123xyz' ),
 					array(),
-					array(
-						'redemptions' => array(
-							array(
-								'kind'   => 'points',
-								'points' => self::POINTS_AVAILABLE + 1,
-							),
-						),
+					$entry(
+						array(
+							'kind'               => 'points',
+							'points'             => self::POINTS_AVAILABLE + 100,
+							'coupon_code'        => 'pxl-points',
+							'discount_cents'     => self::POINTS_AVAILABLE + 100,
+							'discount_tax_cents' => 0,
+						)
 					),
 					$context
 				),
@@ -392,7 +499,7 @@ final class Responses {
 				'earn'              => true,
 				'vouchers'          => true,
 				'points_redemption' => true,
-				'credits'           => false,
+				'credits'           => true,
 				'otp_channels'      => array( 'whatsapp', 'sms' ),
 			),
 			'redemption_rules'   => array(
@@ -601,64 +708,162 @@ final class Responses {
 	}
 
 	/**
-	 * Quote body.
+	 * Points the member holds right now (the fake balance control route can lower it between quote and hold).
 	 *
+	 * @param array<string,mixed> $context Context.
+	 * @return int
+	 */
+	private static function points_balance( array $context ): int {
+		return isset( $context['points_balance'] ) && is_int( $context['points_balance'] ) ? max( 0, $context['points_balance'] ) : self::POINTS_AVAILABLE;
+	}
+
+	/**
+	 * A one-line `cart` object for the samples.
+	 *
+	 * @param int $cents Line total.
 	 * @return array<string,mixed>
 	 */
-	private static function quote(): array {
+	private static function sample_cart( int $cents ): array {
 		return array(
-			'currency'     => 'MYR',
-			'vouchers'     => array(
+			'lines'              => array(
 				array(
-					'id'                => self::VOUCHER_ID,
-					'code'              => self::VOUCHER_CODE,
-					'title'             => 'RM10 off',
-					'description'       => 'Welcome voucher',
-					'image_url'         => null,
-					'expires_at'        => null,
-					'redeemable_online' => true,
-					'discount_cents'    => 1000,
-					'eligible'          => true,
-					'ineligible_reason' => null,
-					'woo_coupon'        => array(
-						'discount_type'          => 'fixed_cart',
-						'amount'                 => '10.00',
-						'product_skus'           => array(),
-						'excluded_product_skus'  => array(),
-						'category_slugs'         => array(),
-						'minimum_amount'         => '50.00',
-						'maximum_amount'         => null,
-						'limit_usage_to_x_items' => null,
-						'exclude_sale_items'     => false,
-						'individual_use'         => false,
-					),
+					'line_id'             => 'c4ca4238a0b923820dcc509a6f75849b',
+					'sku'                 => 'LATTE-12',
+					'external_product_id' => '21',
+					'name'                => 'Latte 12oz',
+					'quantity'            => 5,
+					'unit_price_cents'    => intdiv( $cents, 5 ),
+					'line_total_cents'    => $cents,
 				),
 			),
+			'subtotal_cents'     => $cents,
+			'currency'           => 'MYR',
+			'shipping_cents'     => 0,
+			'discount_cents'     => 0,
+			'tax_cents'          => 0,
+			'prices_include_tax' => false,
+			'held_refs'          => array(),
+		);
+	}
+
+	/**
+	 * Quote body: points at 1 cent each (min 100, step 100), 25.00 credits and the {@see Responses::QUOTE_VOUCHERS},
+	 * capped at what the cart can absorb (subtotal less the store's own discounts).
+	 *
+	 * @param array<mixed> $body    Request body.
+	 * @param int          $balance Points balance.
+	 * @return array<string,mixed>
+	 */
+	private static function quote( array $body, int $balance ): array {
+		$cart         = isset( $body['cart'] ) && is_array( $body['cart'] ) ? $body['cart'] : array();
+		$subtotal     = isset( $cart['subtotal_cents'] ) && is_int( $cart['subtotal_cents'] ) ? $cart['subtotal_cents'] : 0;
+		$discount     = isset( $cart['discount_cents'] ) && is_int( $cart['discount_cents'] ) ? $cart['discount_cents'] : 0;
+		$discountable = max( 0, $subtotal - $discount );
+		$currency     = isset( $cart['currency'] ) && is_string( $cart['currency'] ) ? $cart['currency'] : 'MYR';
+
+		$vouchers = array();
+		foreach ( self::QUOTE_VOUCHERS as $id => $definition ) {
+			$vouchers[] = self::quote_voucher( (string) $id, $definition, $discountable );
+		}
+		$vouchers[] = array(
+			'id'                => self::INSTORE_VOUCHER_ID,
+			'code'              => 'PXL-INSTORE-93',
+			'title'             => 'Birthday cake',
+			'description'       => 'Collect at the counter',
+			'image_url'         => null,
+			'expires_at'        => null,
+			'redeemable_online' => false,
+			'discount_cents'    => 0,
+			'eligible'          => false,
+			'ineligible_reason' => 'Only redeemable in store.',
+			'woo_coupon'        => null,
+		);
+
+		$lines = array();
+		foreach ( isset( $cart['lines'] ) && is_array( $cart['lines'] ) ? $cart['lines'] : array() as $line ) {
+			if ( is_array( $line ) && isset( $line['line_id'] ) && is_string( $line['line_id'] ) ) {
+				$lines[] = array(
+					'line_id' => $line['line_id'],
+					'class'   => 'regular',
+				);
+			}
+		}
+
+		return array(
+			'currency'     => $currency,
+			'vouchers'     => $vouchers,
 			'points'       => array(
-				'balance'         => self::POINTS_AVAILABLE,
-				'available'       => self::POINTS_AVAILABLE,
+				'balance'         => $balance,
+				'available'       => $balance,
 				'value_per_point' => '0.01',
 				'min'             => 100,
-				'max_for_cart'    => 1200,
+				'max_for_cart'    => intdiv( min( $balance, $discountable ), 100 ) * 100,
 				'step'            => 100,
 			),
-			'credits'      => null,
-			'lines'        => array(),
-			'earn_preview' => array( 'points' => 150 ),
+			'credits'      => array(
+				'balance_cents'      => self::CREDITS_BALANCE_CENTS,
+				'max_for_cart_cents' => min( self::CREDITS_BALANCE_CENTS, $discountable ),
+				'applies_as'         => 'discount',
+			),
+			'lines'        => $lines,
+			'earn_preview' => array( 'points' => intdiv( $discountable, 100 ) ),
 			'ttl_seconds'  => 300,
 		);
 	}
 
 	/**
-	 * Declarative hold.
+	 * One quote voucher.
+	 *
+	 * @param string            $id           Voucher id.
+	 * @param array<int,mixed>  $definition   {@see Responses::QUOTE_VOUCHERS} entry.
+	 * @param int               $discountable Cents the cart can absorb.
+	 * @return array<string,mixed>
+	 */
+	private static function quote_voucher( string $id, array $definition, int $discountable ): array {
+		list( $code, $title, $type, $amount, $skus, $limit, $minimum ) = $definition;
+
+		$discount = 'fixed_cart' === $type ? min( $discountable, (int) round( (float) $amount * 100 ) ) : 0;
+
+		return array(
+			'id'                => $id,
+			'code'              => $code,
+			'title'             => $title,
+			'description'       => null,
+			'image_url'         => null,
+			'expires_at'        => '2027-12-31T15:59:59Z',
+			'redeemable_online' => true,
+			'discount_cents'    => $discount,
+			'eligible'          => true,
+			'ineligible_reason' => null,
+			'woo_coupon'        => array(
+				'discount_type'          => $type,
+				'amount'                 => $amount,
+				'product_skus'           => $skus,
+				'excluded_product_skus'  => array(),
+				'category_slugs'         => array(),
+				'minimum_amount'         => $minimum,
+				'maximum_amount'         => null,
+				'limit_usage_to_x_items' => $limit,
+				'exclude_sale_items'     => false,
+				'individual_use'         => false,
+			),
+		);
+	}
+
+	/**
+	 * Declarative hold: points at most the balance (1 point = 1 cent), credits at most 25.00, only the quote's
+	 * online vouchers; the value taken off (discount, plus its tax share in a tax-inclusive cart) may not exceed what
+	 * the redemption is worth.
 	 *
 	 * @param string       $order_ref Order key.
 	 * @param array<mixed> $body      Request body.
 	 * @param int          $now       Unix time.
+	 * @param int          $balance   Points balance.
 	 * @return array{status:int,body:mixed}
 	 */
-	private static function hold( string $order_ref, array $body, int $now ): array {
+	private static function hold( string $order_ref, array $body, int $now, int $balance ): array {
 		$redemptions = isset( $body['redemptions'] ) && is_array( $body['redemptions'] ) ? $body['redemptions'] : array();
+		$inclusive   = isset( $body['cart']['prices_include_tax'] ) && true === $body['cart']['prices_include_tax'];
 		$held        = array();
 		$expires_at  = gmdate( 'Y-m-d\TH:i:s\Z', $now + 168 * 3600 );
 
@@ -667,19 +872,40 @@ final class Responses {
 				continue;
 			}
 
-			$kind = isset( $redemption['kind'] ) && is_string( $redemption['kind'] ) ? $redemption['kind'] : 'voucher';
-			if ( 'points' === $kind && (int) ( $redemption['points'] ?? 0 ) > self::POINTS_AVAILABLE ) {
-				return self::error( 409, 'points_insufficient', 'Not enough points.', array( 'available' => self::POINTS_AVAILABLE ) );
+			$kind  = isset( $redemption['kind'] ) && is_string( $redemption['kind'] ) ? $redemption['kind'] : 'voucher';
+			$value = (int) ( $redemption['discount_cents'] ?? 0 ) + ( $inclusive ? (int) ( $redemption['discount_tax_cents'] ?? 0 ) : 0 );
+
+			if ( 'points' === $kind ) {
+				$points = (int) ( $redemption['points'] ?? 0 );
+				if ( $points > $balance ) {
+					return self::error( 409, 'points_insufficient', 'Not enough points.', array( 'available' => $balance ) );
+				}
+				if ( $value > $points ) {
+					return self::error( 422, 'discount_mismatch', 'The discount is worth more than the points held for it.' );
+				}
 			}
-			if ( 'voucher' === $kind && self::VOUCHER_ID !== ( $redemption['voucher_id'] ?? null ) ) {
+
+			if ( 'credit' === $kind ) {
+				$amount = (int) ( $redemption['amount_cents'] ?? 0 );
+				if ( $amount > self::CREDITS_BALANCE_CENTS ) {
+					return self::error( 409, 'credits_insufficient', 'Not enough credits.', array( 'available_cents' => self::CREDITS_BALANCE_CENTS ) );
+				}
+				if ( $value > $amount ) {
+					return self::error( 422, 'discount_mismatch', 'The discount is worth more than the credits held for it.' );
+				}
+			}
+
+			if ( 'voucher' === $kind && ! array_key_exists( (string) ( $redemption['voucher_id'] ?? '' ), self::QUOTE_VOUCHERS ) ) {
 				return self::error( 409, 'voucher_unavailable', 'This voucher cannot be used.' );
 			}
 
 			$entry = array(
-				'redemption_id' => 'CH-FAKE' . strtoupper( substr( md5( $order_ref . '|' . $index . '|' . $kind ), 0, 10 ) ),
-				'kind'          => $kind,
-				'status'        => 'held',
-				'expires_at'    => $expires_at,
+				'redemption_id'  => 'CH-FAKE' . strtoupper( substr( md5( $order_ref . '|' . $index . '|' . $kind ), 0, 10 ) ),
+				'kind'           => $kind,
+				'status'         => 'held',
+				'expires_at'     => $expires_at,
+				'coupon_code'    => (string) ( $redemption['coupon_code'] ?? $kind ),
+				'discount_cents' => max( 0, $value ),
 			);
 			if ( isset( $redemption['voucher_id'] ) ) {
 				$entry['voucher_id'] = (string) $redemption['voucher_id'];
@@ -687,8 +913,8 @@ final class Responses {
 			if ( isset( $redemption['points'] ) ) {
 				$entry['points'] = (int) $redemption['points'];
 			}
-			if ( isset( $redemption['discount'] ) && is_string( $redemption['discount'] ) ) {
-				$entry['discount'] = $redemption['discount'];
+			if ( isset( $redemption['amount_cents'] ) ) {
+				$entry['amount_cents'] = (int) $redemption['amount_cents'];
 			}
 			$held[] = $entry;
 		}

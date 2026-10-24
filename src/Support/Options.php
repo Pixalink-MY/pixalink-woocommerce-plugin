@@ -52,6 +52,7 @@ final class Options {
 	public const CHECKOUT_PANEL_ENABLED    = 'pixalink_loyalty_checkout_panel_enabled';
 	public const VOUCHERS_ENABLED          = 'pixalink_loyalty_vouchers_enabled';
 	public const POINTS_REDEMPTION_ENABLED = 'pixalink_loyalty_points_redemption_enabled';
+	public const CREDITS_ENABLED           = 'pixalink_loyalty_credits_enabled';
 	public const PHONE_FIELD               = 'pixalink_loyalty_phone_field';
 	public const CHECKOUT_CONSENT_ENABLED  = 'pixalink_loyalty_checkout_consent_enabled';
 	public const CHECKOUT_CONSENT_TEXT     = 'pixalink_loyalty_checkout_consent_text';
@@ -155,6 +156,7 @@ final class Options {
 			self::CHECKOUT_PANEL_ENABLED    => $frontend( 'yes' ),
 			self::VOUCHERS_ENABLED          => $frontend( 'yes' ),
 			self::POINTS_REDEMPTION_ENABLED => $frontend( 'yes' ),
+			self::CREDITS_ENABLED           => $frontend( 'yes' ),
 			self::PHONE_FIELD               => $frontend( 'optional' ),
 			self::CHECKOUT_CONSENT_ENABLED  => $frontend( 'yes' ),
 			self::CHECKOUT_CONSENT_TEXT     => $frontend( '' ),

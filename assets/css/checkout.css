@@ -1,0 +1,155 @@
+/**
+ * Pixalink loyalty panel: Checkout block (order summary) and classic checkout.
+ *
+ * Colours inherit from the theme; only spacing, layout and state cues are set here.
+ */
+
+.pixalink-loyalty-panel {
+	--pixalink-loyalty-border: rgba(0, 0, 0, 0.12);
+	--pixalink-loyalty-muted: rgba(0, 0, 0, 0.62);
+	--pixalink-loyalty-applied: #1a7f37;
+	--pixalink-loyalty-error: #b32d2e;
+	margin: 0 0 1.5em;
+}
+
+.pixalink-loyalty-panel.is-busy {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.pixalink-loyalty-panel__title {
+	margin: 0 0 0.5em;
+	font-size: 1em;
+}
+
+.pixalink-loyalty-panel h4 {
+	margin: 0.75em 0 0.5em;
+	font-size: 0.9em;
+}
+
+.pixalink-loyalty-panel__balance,
+.pixalink-loyalty-panel__prompt,
+.pixalink-loyalty-panel__status,
+.pixalink-loyalty-panel__earn,
+.pixalink-loyalty-panel__note {
+	margin: 0 0 0.5em;
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-panel__note,
+.pixalink-loyalty-panel__status,
+.pixalink-loyalty-panel__earn {
+	color: var(--pixalink-loyalty-muted);
+}
+
+.pixalink-loyalty-panel__error {
+	margin: 0.5em 0 0;
+	color: var(--pixalink-loyalty-error);
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-panel__error:empty {
+	display: none;
+}
+
+.pixalink-loyalty-vouchers__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pixalink-loyalty-voucher {
+	display: flex;
+	gap: 0.75em;
+	align-items: center;
+	margin: 0 0 0.5em;
+	padding: 0.6em 0.75em;
+	border: 1px solid var(--pixalink-loyalty-border);
+	border-radius: 6px;
+}
+
+.pixalink-loyalty-voucher.is-applied {
+	border-color: var(--pixalink-loyalty-applied);
+	box-shadow: inset 3px 0 0 var(--pixalink-loyalty-applied);
+}
+
+.pixalink-loyalty-voucher.is-unavailable {
+	opacity: 0.7;
+}
+
+.pixalink-loyalty-voucher__image {
+	flex: 0 0 auto;
+	width: 48px;
+	height: 48px;
+	border-radius: 4px;
+	object-fit: cover;
+}
+
+.pixalink-loyalty-voucher__body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-width: 0;
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-voucher__description,
+.pixalink-loyalty-voucher__expiry,
+.pixalink-loyalty-voucher__reason {
+	color: var(--pixalink-loyalty-muted);
+}
+
+.pixalink-loyalty-voucher .pixalink-loyalty-button {
+	flex: 0 0 auto;
+}
+
+.pixalink-loyalty-points__controls {
+	display: flex;
+	gap: 0.75em;
+	align-items: center;
+	margin: 0.25em 0;
+}
+
+.pixalink-loyalty-points__slider {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.pixalink-loyalty-points__input {
+	flex: 0 0 6.5em;
+	width: 6.5em;
+}
+
+.pixalink-loyalty-credits__input {
+	width: 8em;
+}
+
+.pixalink-loyalty-points__label,
+.pixalink-loyalty-credits__label {
+	display: block;
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-points__preview {
+	margin: 0 0 0.5em;
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-button {
+	margin: 0 0.5em 0.5em 0;
+}
+
+.pixalink-loyalty-rewards-used ul {
+	margin: 0 0 1.5em;
+}
+
+.pixalink-loyalty-rewards-used__amount {
+	white-space: nowrap;
+}
+
+@media (prefers-color-scheme: dark) {
+	.pixalink-loyalty-panel {
+		--pixalink-loyalty-border: rgba(255, 255, 255, 0.2);
+		--pixalink-loyalty-muted: rgba(255, 255, 255, 0.7);
+	}
+}

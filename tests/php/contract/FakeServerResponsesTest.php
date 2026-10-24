@@ -67,11 +67,37 @@ final class FakeServerResponsesTest extends TestCase {
 		$this->assertSame( 'otp_attempts_exceeded', $samples['otp verify exhausted']['response']['body']['code'] );
 		$this->assertSame( 404, $samples['summary missing']['response']['status'] );
 		$this->assertSame( 409, $samples['hold too many points']['response']['status'] );
+		$this->assertSame( 'points_insufficient', $samples['hold too many points']['response']['body']['code'] );
 		$this->assertSame( Responses::POINTS_AVAILABLE, $samples['hold too many points']['response']['body']['available'] );
+		$this->assertSame( 409, $samples['hold unknown voucher']['response']['status'] );
+		$this->assertSame( 'voucher_unavailable', $samples['hold unknown voucher']['response']['body']['code'] );
+		$this->assertSame( 409, $samples['hold too few credits']['response']['status'] );
+		$this->assertSame( Responses::CREDITS_BALANCE_CENTS, $samples['hold too few credits']['response']['body']['available_cents'] );
+		$this->assertSame( 422, $samples['hold mismatch']['response']['status'] );
+		$this->assertSame( 'discount_mismatch', $samples['hold mismatch']['response']['body']['code'] );
 		$this->assertSame( 'duplicate', $samples['event duplicate']['response']['body']['status'] );
 		$this->assertSame( 1761300000, $samples['timestamp skew']['response']['body']['server_time'] );
 		$this->assertSame( 409, $samples['heartbeat other site']['response']['status'] );
 		$this->assertSame( 'site_already_connected', $samples['heartbeat other site']['response']['body']['code'] );
+	}
+
+	public function test_holds_echo_the_coupon_codes_in_request_order(): void {
+		$held = Responses::samples( 1761300000 )['hold']['response']['body']['redemptions'];
+
+		$this->assertSame( array( 'pxl-welcome-88', 'pxl-points', 'pxl-credits' ), array_column( $held, 'coupon_code' ) );
+		$this->assertSame( array( 'voucher', 'points', 'credit' ), array_column( $held, 'kind' ) );
+	}
+
+	public function test_the_quote_caps_points_and_credits_at_what_the_cart_absorbs(): void {
+		$cart  = array(
+			'subtotal_cents' => 1550,
+			'discount_cents' => 500,
+		);
+		$quote = Responses::respond( 'POST', 'quote', array(), array(), array( 'cart' => $cart ), array( 'points_balance' => 5000 ) )['body'];
+
+		$this->assertSame( 1000, $quote['points']['max_for_cart'], '10.50 absorbable at 1 cent a point, on a 100 step' );
+		$this->assertSame( 1050, $quote['credits']['max_for_cart_cents'] );
+		$this->assertSame( 5000, $quote['points']['available'] );
 	}
 
 	public function test_disconnect_answers_no_content(): void {
