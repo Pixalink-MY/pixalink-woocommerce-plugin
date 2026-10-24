@@ -1,5 +1,26 @@
 name: CI
 
+# Runner policy. The Pixalink-MY self-hosted runners are shared with Pixalink-Explore, so:
+# - Every job runs on `[self-hosted, light]`. Never `heavy` or `andromeda` (kept free for
+#   Explore's Pest shards), never a bare `self-hosted` (it matches the heavy runners too),
+#   never GitHub-hosted.
+# - Nothing is installed on the hosts. PHP and Node jobs run inside a job `container:`
+#   (php:<version>-cli, node:22), with the hosts' /opt/ci-cache/{composer,npm} mounted as
+#   download caches. No setup-php and no apt on a host: setup-php installs PHP system-wide
+#   there, and runs with different PHP versions collide.
+# - The two jobs that need the Docker socket (wp-env integration, Plugin Check) cannot run
+#   inside a job container, so they run on the host with nothing installed on it: Composer
+#   comes from `docker run --rm composer:2` and Node from setup-node (the runner's own tool
+#   cache, not a system install).
+# - No fixed host ports. Each wp-env gets the first free port from 8888 (8880 for Plugin
+#   Check) through WP_ENV_PORT; MySQL keeps Docker's random port. (wp-env's own --auto-port
+#   is ignored whenever CI is set, see @wordpress/env lib/config/load-config.js.)
+# - Destroy on exit. Every wp-env is destroyed before it starts (a runner killed mid-job
+#   leaves one behind) and again in an `if: always()` step, so no container, volume or
+#   network outlives its job, failed and cancelled runs included.
+# - Job containers run as root: each job empties its workspace before checkout (root-owned
+#   leftovers included) and hands it back to the runner user afterwards.
+
 on:
   push:
   pull_request:
@@ -28,44 +49,102 @@ jobs:
     name: PHPCS
     needs: gate
     runs-on: [self-hosted, light]
+    container:
+      image: php:8.3-cli
+      volumes:
+        - /opt/ci-cache/composer:/ci-cache/composer
+      env:
+        COMPOSER_CACHE_DIR: /ci-cache/composer
+        COMPOSER_HOME: /tmp/composer-home
+        COMPOSER_NO_INTERACTION: 1
+        COMPOSER_ALLOW_SUPERUSER: 1
+        COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
+      - name: Bootstrap the container (git, unzip, Composer)
+        run: |
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git unzip zip >/dev/null
+          EXPECTED="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+          php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+          ACTUAL="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then echo "::error::Composer installer checksum mismatch"; exit 1; fi
+          php /tmp/composer-setup.php --quiet --2 --install-dir=/usr/local/bin --filename=composer
+          rm -f /tmp/composer-setup.php
+          php --version && composer --version
       - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          coverage: none
-          tools: composer:v2, cs2pr
-      - uses: ramsey/composer-install@v4
+          clean: true
+          # Nothing here pushes; keep the token out of .git/config on a shared host.
+          persist-credentials: false
+      - run: composer install --prefer-dist --no-progress
       - name: PHPCS (WordPress-Extra + WooCommerce-Core + PHPCompatibilityWP 8.1-)
         run: vendor/bin/phpcs -q --report-full --report-checkstyle=./phpcs-report.xml
       - name: Annotate pull request
         if: failure()
-        run: cs2pr ./phpcs-report.xml
+        run: |
+          php -r "copy('https://github.com/staabm/annotate-pull-request-from-checkstyle/releases/latest/download/cs2pr', '/usr/local/bin/cs2pr');"
+          chmod +x /usr/local/bin/cs2pr
+          cs2pr ./phpcs-report.xml
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
   phpstan:
     name: PHPStan (level 8)
     needs: gate
     runs-on: [self-hosted, light]
+    container:
+      image: php:8.3-cli
+      volumes:
+        - /opt/ci-cache/composer:/ci-cache/composer
+      env:
+        COMPOSER_CACHE_DIR: /ci-cache/composer
+        COMPOSER_HOME: /tmp/composer-home
+        COMPOSER_NO_INTERACTION: 1
+        COMPOSER_ALLOW_SUPERUSER: 1
+        COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
+      - name: Bootstrap the container (git, unzip, Composer)
+        run: |
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git unzip zip >/dev/null
+          EXPECTED="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+          php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+          ACTUAL="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then echo "::error::Composer installer checksum mismatch"; exit 1; fi
+          php /tmp/composer-setup.php --quiet --2 --install-dir=/usr/local/bin --filename=composer
+          rm -f /tmp/composer-setup.php
+          php --version && composer --version
       - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          coverage: none
-          tools: composer:v2
-      - uses: ramsey/composer-install@v4
+          clean: true
+          persist-credentials: false
+      - run: composer install --prefer-dist --no-progress
       - run: composer analyse -- --no-progress --error-format=github
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
   js:
     name: JS lint + build
     needs: gate
     runs-on: [self-hosted, light]
+    container:
+      # Keep in step with .nvmrc.
+      image: node:22
+      volumes:
+        - /opt/ci-cache/npm:/ci-cache/npm
+      env:
+        npm_config_cache: /ci-cache/npm
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
-          cache: npm
+          clean: true
+          persist-credentials: false
       - run: npm ci
       - run: npm run lint:js
       - run: npm run build
@@ -74,6 +153,9 @@ jobs:
           for entry in blocks classic-checkout classic-phone account admin; do
             test -f "build/$entry.js" && test -f "build/$entry.asset.php" || { echo "::error::build/$entry missing"; exit 1; }
           done
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
   unit:
     name: Unit + contract (PHP ${{ matrix.php }})
@@ -88,40 +170,75 @@ jobs:
         include:
           - php: '8.5'
             experimental: true
+    container:
+      image: php:${{ matrix.php }}-cli
+      volumes:
+        - /opt/ci-cache/composer:/ci-cache/composer
+      env:
+        COMPOSER_CACHE_DIR: /ci-cache/composer
+        COMPOSER_HOME: /tmp/composer-home
+        COMPOSER_NO_INTERACTION: 1
+        COMPOSER_ALLOW_SUPERUSER: 1
+        COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
+      - name: Bootstrap the container (git, unzip, Composer)
+        run: |
+          apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git unzip zip >/dev/null
+          EXPECTED="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+          php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+          ACTUAL="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then echo "::error::Composer installer checksum mismatch"; exit 1; fi
+          php /tmp/composer-setup.php --quiet --2 --install-dir=/usr/local/bin --filename=composer
+          rm -f /tmp/composer-setup.php
+          php --version && composer --version
+      - name: sodium is available
+        run: php -m | grep -i sodium
       - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
-          coverage: none
-          extensions: sodium
-          tools: composer:v2
-      - uses: ramsey/composer-install@v4
-        with:
-          composer-options: ${{ matrix.experimental && '--ignore-platform-req=php+' || '' }}
+          clean: true
+          persist-credentials: false
+      - run: composer install --prefer-dist --no-progress ${{ matrix.experimental && '--ignore-platform-req=php+' || '' }}
       - run: composer test:unit
       - run: composer test:contract
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
   versions:
     name: Resolve WordPress / WooCommerce versions
     needs: gate
     runs-on: [self-hosted, light]
+    container:
+      # Keep in step with .nvmrc.
+      image: node:22
+      volumes:
+        - /opt/ci-cache/npm:/ci-cache/npm
+      env:
+        npm_config_cache: /ci-cache/npm
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
         with:
-          node-version-file: .nvmrc
+          clean: true
+          persist-credentials: false
       - id: resolve
         run: |
           node bin/ci/resolve-versions.mjs --pretty
           node bin/ci/resolve-versions.mjs >> "$GITHUB_OUTPUT"
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
+  # wp-env needs the host's Docker socket, so this job runs on the host, not in a job container.
   integration:
     name: Integration (${{ matrix.env.name }} · HPOS ${{ matrix.hpos == '1' && 'on' || 'off' }})
     needs: versions
-    runs-on: [self-hosted, heavy]
+    runs-on: [self-hosted, light]
     continue-on-error: ${{ matrix.env.experimental }}
     timeout-minutes: 30
     strategy:
@@ -130,85 +247,225 @@ jobs:
         env: ${{ fromJSON(needs.versions.outputs.matrix) }}
         hpos: ['1', '0']
     steps:
+      - name: Runner has Docker Compose v2 (wp-env needs it)
+        run: docker compose version || { echo "::error::$RUNNER_NAME has no Docker Compose v2 plugin, which wp-env needs. Re-run the job so it lands on another light runner."; exit 1; }
+      - name: Pre-checkout cleanup (root-owned leftovers included)
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine sh -c 'rm -rf /w/* /w/.[!.]* 2>/dev/null || true'
       - uses: actions/checkout@v7
-      # Host PHP only installs Composer packages; the tests run inside the wp-env container's PHP.
-      - uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.env.php }}
-          coverage: none
-          tools: composer:v2
-      - uses: ramsey/composer-install@v4
+          clean: true
+          persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
+      - name: Choose the npm cache
+        run: |
+          # The shared cache is also written by root job containers; npm fails on files it cannot write.
+          SHARED=/opt/ci-cache/npm
+          if [ "$(id -u)" = 0 ] || { [ -w "$SHARED" ] && [ -z "$(find "$SHARED" ! -user "$(id -u)" -print -quit 2>/dev/null)" ]; }; then
+            echo "npm_config_cache=$SHARED" >> "$GITHUB_ENV"
+          else
+            echo "::notice::$SHARED is not writable by $(id -un); using a job-local npm cache."
+            echo "npm_config_cache=$RUNNER_TEMP/npm-cache" >> "$GITHUB_ENV"
+          fi
+      # Only wp-env runs on the host, so fetch just that (at the locked version) instead of every devDependency.
+      - name: Pin wp-env to the locked version
+        run: echo "WP_ENV_VERSION=$(node -p 'require("./package-lock.json").packages["node_modules/@wordpress/env"].version')" >> "$GITHUB_ENV"
+      # Composer runs in a throwaway container as the runner user; the tests run inside the wp-env container's PHP.
+      - name: Composer install (composer:2 container)
+        run: >-
+          docker run --rm -u "$(id -u):$(id -g)"
+          -e COMPOSER_CACHE_DIR=/cc -e COMPOSER_HOME=/tmp/composer-home -e COMPOSER_NO_INTERACTION=1 -e COMPOSER_AUTH
+          -v /opt/ci-cache/composer:/cc -v "$PWD":/app -w /app
+          composer:2 install --prefer-dist --no-progress --ignore-platform-req=php
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+      - name: Remove a wp-env left behind on this runner
+        run: npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force || true
       - name: Write .wp-env.override.json
         env:
           WP_ZIP: ${{ matrix.env.wp_zip }}
           WC_ZIP: ${{ matrix.env.wc_zip }}
           PHP_VERSION: ${{ matrix.env.php }}
         run: |
+          # testsEnvironment: false -- the suite only uses the development environment, so skip the second stack.
           node -e '
             const fs = require( "fs" );
             fs.writeFileSync( ".wp-env.override.json", JSON.stringify( {
               core: process.env.WP_ZIP,
               phpVersion: process.env.PHP_VERSION,
               plugins: [ process.env.WC_ZIP ],
+              testsEnvironment: false,
             }, null, 2 ) + "\n" );
           '
           cat .wp-env.override.json
       - name: Start wp-env
         run: |
+          # First free host port from 8888 up (another job on this host may hold 8888), re-picked on every attempt.
+          free_port() {
+            node -e '
+              const net = require( "net" );
+              const isFree = ( port ) => new Promise( ( done ) => {
+                const server = net.createServer().once( "error", () => done( false ) );
+                server.listen( port, "0.0.0.0", () => server.close( () => done( true ) ) );
+              } );
+              ( async () => {
+                let port = 8888;
+                while ( ! ( await isFree( port ) ) ) {
+                  port++;
+                }
+                console.log( port );
+              } )();
+            '
+          }
           for attempt in 1 2 3; do
-            npx wp-env start && exit 0
+            WP_ENV_PORT="$(free_port)"
+            export WP_ENV_PORT
+            echo "Starting wp-env on host port $WP_ENV_PORT (attempt $attempt)"
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" start && echo "WP_ENV_PORT=$WP_ENV_PORT" >> "$GITHUB_ENV" && exit 0
             echo "wp-env start failed (attempt $attempt); retrying"
-            npx wp-env stop || true
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" stop || true
             sleep 15
           done
           exit 1
       - name: Versions under test
         run: |
-          npx wp-env run cli wp core version
-          npx wp-env run cli wp plugin list --fields=name,status,version
-          npx wp-env run cli php -- --version
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli wp core version
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli wp plugin list --fields=name,status,version
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli php -- --version
       - name: PHPUnit integration suite
         run: >-
-          npx wp-env run cli --env-cwd=wp-content/plugins/pixalink-loyalty-for-woocommerce --
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" run cli --env-cwd=wp-content/plugins/pixalink-loyalty-for-woocommerce --
           env WORDPRESS_TABLE_PREFIX=wptests_ PIXALINK_LOYALTY_HPOS=${{ matrix.hpos }}
           vendor/bin/phpunit -c phpunit-integration.xml.dist
+      - name: Destroy wp-env
+        if: always()
+        run: |
+          npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
+            || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
+            || true
+      - name: Post-job cleanup
+        if: always()
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine chown -R "$(id -u):$(id -g)" /w 2>/dev/null || true
 
-  plugin-check:
-    name: Plugin Check (wporg zip)
+  # Plugin Check needs PHP, Composer, Node, zip and rsync to build the zip, but Docker for its wp-env:
+  # build in a container here, check on the host below.
+  build-zip:
+    name: Build the WordPress.org zip
     needs: gate
-    runs-on: [self-hosted, heavy]
-    timeout-minutes: 30
+    runs-on: [self-hosted, light]
+    container:
+      # Keep in step with .nvmrc. PHP, zip and rsync come from Debian in the bootstrap step.
+      image: node:22
+      volumes:
+        - /opt/ci-cache/composer:/ci-cache/composer
+        - /opt/ci-cache/npm:/ci-cache/npm
+      env:
+        COMPOSER_CACHE_DIR: /ci-cache/composer
+        COMPOSER_HOME: /tmp/composer-home
+        COMPOSER_NO_INTERACTION: 1
+        COMPOSER_ALLOW_SUPERUSER: 1
+        COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        npm_config_cache: /ci-cache/npm
+        # bin/make-pot.sh runs WP-CLI, which refuses root without this.
+        WP_CLI_ALLOW_ROOT: 1
     steps:
+      - name: Pre-checkout cleanup
+        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
+      - name: Bootstrap the container (PHP, zip, rsync, Composer)
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends php-cli php-xml php-mbstring php-zip php-curl zip rsync >/dev/null
+          EXPECTED="$(php -r 'copy("https://composer.github.io/installer.sig", "php://stdout");')"
+          php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+          ACTUAL="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
+          if [ "$EXPECTED" != "$ACTUAL" ]; then echo "::error::Composer installer checksum mismatch"; exit 1; fi
+          php /tmp/composer-setup.php --quiet --2 --install-dir=/usr/local/bin --filename=composer
+          rm -f /tmp/composer-setup.php
+          php --version && composer --version && node --version
       - uses: actions/checkout@v7
-      - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
-          coverage: none
-          tools: composer:v2
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
+          clean: true
+          persist-credentials: false
+      # The workspace directory belongs to the runner user, not root; without this build-info.php records commit "unknown".
+      - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - run: npm ci
       - name: Build the WordPress.org zip
         run: bin/build-zip.sh wporg
-      - name: Unpack for Plugin Check
-        run: |
-          # The action merges into ./.wp-env.json; ours maps the source tree, so remove it here.
-          rm -f .wp-env.json
-          mkdir -p plugin-check
-          unzip -q dist/pixalink-loyalty-for-woocommerce-*-wporg.zip -d plugin-check
-      - uses: wordpress/plugin-check-action@v1
-        with:
-          build-dir: plugin-check/pixalink-loyalty-for-woocommerce
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pixalink-loyalty-for-woocommerce-wporg
           path: dist/*.zip
           if-no-files-found: ignore
+      - name: Post-job cleanup
+        if: always()
+        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
+
+  # Plugin Check starts its own wp-env, so this job runs on the host, not in a job container.
+  plugin-check:
+    name: Plugin Check (wporg zip)
+    needs: build-zip
+    runs-on: [self-hosted, light]
+    timeout-minutes: 30
+    steps:
+      - name: Runner has Docker Compose v2 (wp-env needs it)
+        run: docker compose version || { echo "::error::$RUNNER_NAME has no Docker Compose v2 plugin, which wp-env needs. Re-run the job so it lands on another light runner."; exit 1; }
+      - name: Pre-checkout cleanup (root-owned leftovers included)
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine sh -c 'rm -rf /w/* /w/.[!.]* 2>/dev/null || true'
+      - uses: actions/download-artifact@v8
+        with:
+          name: pixalink-loyalty-for-woocommerce-wporg
+          path: dist
+      # No checkout: the action writes ./.wp-env.json itself, and nothing else may map the source tree.
+      - name: Unpack for Plugin Check
+        run: >-
+          docker run --rm -u "$(id -u):$(id -g)" -v "$GITHUB_WORKSPACE":/w -w /w alpine
+          sh -c 'mkdir -p plugin-check && unzip -q dist/pixalink-loyalty-for-woocommerce-*-wporg.zip -d plugin-check'
+      # Our own Node for the port picker and the wp-env destroy steps; the action sets up its own.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Choose the npm cache
+        run: |
+          # The shared cache is also written by root job containers; npm fails on files it cannot write.
+          SHARED=/opt/ci-cache/npm
+          if [ "$(id -u)" = 0 ] || { [ -w "$SHARED" ] && [ -z "$(find "$SHARED" ! -user "$(id -u)" -print -quit 2>/dev/null)" ]; }; then
+            echo "npm_config_cache=$SHARED" >> "$GITHUB_ENV"
+          else
+            echo "::notice::$SHARED is not writable by $(id -un); using a job-local npm cache."
+            echo "npm_config_cache=$RUNNER_TEMP/npm-cache" >> "$GITHUB_ENV"
+          fi
+      - name: Remove a wp-env left behind on this runner
+        run: npx --yes @wordpress/env@12 destroy --force || true
+      - name: Pick free host ports for the action's wp-env
+        run: |
+          # The action defaults to 8880/8881; WP_ENV_PORT / WP_ENV_TESTS_PORT override any config.
+          node -e '
+            const net = require( "net" );
+            const isFree = ( port ) => new Promise( ( done ) => {
+              const server = net.createServer().once( "error", () => done( false ) );
+              server.listen( port, "0.0.0.0", () => server.close( () => done( true ) ) );
+            } );
+            ( async () => {
+              let port = 8880;
+              for ( const name of [ "WP_ENV_PORT", "WP_ENV_TESTS_PORT" ] ) {
+                while ( ! ( await isFree( port ) ) ) {
+                  port++;
+                }
+                console.log( name + "=" + port++ );
+              }
+            } )();
+          ' | tee -a "$GITHUB_ENV"
+      - uses: wordpress/plugin-check-action@v1
+        with:
+          build-dir: plugin-check/pixalink-loyalty-for-woocommerce
+      - name: Destroy wp-env
+        if: always()
+        run: |
+          # Prefer the wp-env the action installed (same version that started it).
+          if command -v wp-env >/dev/null 2>&1; then WP_ENV=(wp-env); else WP_ENV=(npx --yes @wordpress/env@12); fi
+          "${WP_ENV[@]}" destroy --force || "${WP_ENV[@]}" cleanup --force || true
+      - name: Post-job cleanup
+        if: always()
+        run: docker run --rm -v "$GITHUB_WORKSPACE":/w alpine chown -R "$(id -u):$(id -g)" /w 2>/dev/null || true
