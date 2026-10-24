@@ -369,6 +369,42 @@ final class OrderLifecycle {
 	}
 
 	/**
+	 * Record `order.redemptions_released` for the order's current holds (payment failed, or another reason).
+	 *
+	 * The event names the holds it releases (`redemption_ids`), so a release still in the outbox never undoes a
+	 * newer hold the shopper placed on the same order meanwhile; the discriminator carries the hold generation,
+	 * so an order held again can be released again. The order's redemption state is `released` from here on.
+	 *
+	 * @param \WC_Order $order  Order.
+	 * @param string    $reason Machine reason, e.g. "failed".
+	 * @return bool Whether a new event was recorded.
+	 */
+	public function release_holds( \WC_Order $order, string $reason ): bool {
+		$refs = OrderMeta::hold_refs( $order );
+		if ( ! OrderMeta::is_held( $order ) || array() === $refs || ! $this->is_tracked( $order, EventType::ORDER_REDEMPTIONS_RELEASED ) ) {
+			return false;
+		}
+
+		$generation = max( 1, (int) OrderMeta::get_string( $order, OrderMeta::HOLD_GENERATION ) );
+		$recorded   = $this->enqueue(
+			$order,
+			EventType::ORDER_REDEMPTIONS_RELEASED,
+			$this->orders->reference_data(
+				$order,
+				array(
+					'reason'         => $reason,
+					'redemption_ids' => $refs,
+				)
+			),
+			'released-g' . $generation
+		);
+
+		OrderMeta::update( $order, array( OrderMeta::REDEMPTION_STATE => OrderMeta::REDEMPTION_RELEASED ) );
+
+		return $recorded;
+	}
+
+	/**
 	 * Make sure every event this order should have produced exists, and give failed ones a fresh set of attempts.
 	 *
 	 * Delivered events are not re-sent: their ids are the server's exactly-once key, so Pixalink would only answer
@@ -498,7 +534,11 @@ final class OrderLifecycle {
 				break;
 
 			case EventType::ORDER_REDEMPTIONS_RELEASED:
-				$meta[ OrderMeta::REDEMPTION_STATE ] = OrderMeta::REDEMPTION_RELEASED;
+				// A release naming older holds must not mark holds placed since then as released.
+				$released = isset( $event->payload['redemption_ids'] ) && is_array( $event->payload['redemption_ids'] ) ? $event->payload['redemption_ids'] : null;
+				if ( null === $released || ! OrderMeta::is_held( $order ) || array() !== array_intersect( OrderMeta::hold_refs( $order ), $released ) ) {
+					$meta[ OrderMeta::REDEMPTION_STATE ] = OrderMeta::REDEMPTION_RELEASED;
+				}
 				break;
 
 			default:

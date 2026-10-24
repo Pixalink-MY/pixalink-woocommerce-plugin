@@ -58,7 +58,7 @@ final class ContractValidator {
 	/**
 	 * Endpoint manifest.
 	 *
-	 * @return list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}>
+	 * @return list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int,errors?:list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}>}>
 	 */
 	public static function endpoints(): array {
 		if ( null === self::$manifest ) {
@@ -70,11 +70,41 @@ final class ContractValidator {
 		/**
 		 * Endpoint list.
 		 *
-		 * @var list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}> $endpoints
+		 * @var list<array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int,errors?:list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}>}> $endpoints
 		 */
 		$endpoints = self::$manifest['endpoints'] ?? array();
 
 		return $endpoints;
+	}
+
+	/**
+	 * Every documented error answer: the common ones of signed endpoints, each endpoint's own and the plugin routes'.
+	 *
+	 * @return list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}>
+	 */
+	public static function documented_errors(): array {
+		self::endpoints();
+
+		/**
+		 * Routes the store calls and routes it serves, each with its own errors.
+		 *
+		 * @var list<array{errors?:list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}>}> $routes
+		 */
+		$routes = array_merge( self::$manifest['endpoints'] ?? array(), self::$manifest['plugin'] ?? array() );
+
+		/**
+		 * Errors every signed endpoint may answer.
+		 *
+		 * @var list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}> $errors
+		 */
+		$errors = self::$manifest['common_errors'] ?? array();
+		foreach ( $routes as $route ) {
+			foreach ( $route['errors'] ?? array() as $error ) {
+				$errors[] = $error;
+			}
+		}
+
+		return $errors;
 	}
 
 	/**
@@ -100,7 +130,7 @@ final class ContractValidator {
 	 *
 	 * @param string $method HTTP method.
 	 * @param string $route  Route template, e.g. "customers/{id}".
-	 * @return array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int}|null
+	 * @return array{method:string,path:string,auth:string,nonce:string|null,request:string|null,response:string|null,query?:string,status?:int,errors?:list<array{status:int,code:string,carries?:list<string>,headers?:list<string>}>}|null
 	 */
 	public static function endpoint( string $method, string $route ): ?array {
 		foreach ( self::endpoints() as $endpoint ) {

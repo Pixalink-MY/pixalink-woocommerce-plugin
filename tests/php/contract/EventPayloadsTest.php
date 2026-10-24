@@ -11,6 +11,8 @@ use Brain\Monkey\Functions;
 use Pixalink\Loyalty\Events\Event;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\EventType;
+use Pixalink\Loyalty\Identity\CustomerPayloadBuilder;
+use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Orders\OrderPayloadBuilder;
 use Pixalink\Loyalty\Orders\RefundPayloadBuilder;
@@ -27,6 +29,7 @@ use Pixalink\Loyalty\Tests\Unit\TestCase;
  * @covers \Pixalink\Loyalty\Orders\OrderPayloadBuilder
  * @covers \Pixalink\Loyalty\Orders\RefundPayloadBuilder
  * @covers \Pixalink\Loyalty\Events\Event
+ * @covers \Pixalink\Loyalty\Identity\CustomerPayloadBuilder
  */
 final class EventPayloadsTest extends TestCase {
 
@@ -111,6 +114,20 @@ final class EventPayloadsTest extends TestCase {
 				OrderMeta::COUPON_KIND          => 'points',
 				OrderMeta::COUPON_REDEMPTION_ID => 'CH-01JABCDEG',
 				OrderMeta::COUPON_POINTS        => '500',
+				OrderMeta::COUPON_AMOUNT_CENTS  => '500',
+				OrderMeta::COUPON_SNAPSHOT      => array(
+					'discount_type'               => 'fixed_cart',
+					'amount'                      => '5.00',
+					'product_ids'                 => array(),
+					'excluded_product_ids'        => array(),
+					'product_categories'          => array(),
+					'excluded_product_categories' => array(),
+					'limit_usage_to_x_items'      => null,
+					'exclude_sale_items'          => false,
+					'minimum_amount'              => '',
+					'maximum_amount'              => '',
+					'individual_use'              => false,
+				),
 			)
 		);
 		$store   = $this->double(
@@ -147,7 +164,12 @@ final class EventPayloadsTest extends TestCase {
 
 		$order = $this->double( \WC_Order::class, $getters, $meta );
 		$order->allows( 'get_items' )->with( 'line_item' )->andReturn( array( 11 => $line ) );
-		$order->allows( 'get_items' )->with( 'coupon' )->andReturn( array( 12 => $points, 13 => $store ) );
+		$order->allows( 'get_items' )->with( 'coupon' )->andReturn(
+			array(
+				12 => $points,
+				13 => $store,
+			)
+		);
 
 		return $order;
 	}
@@ -231,6 +253,20 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => 'CH-01JABCDEG',
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => 500,
+				'pixalink_amount_cents'  => 500,
+				'pixalink_coupon'        => array(
+					'discount_type'               => 'fixed_cart',
+					'amount'                      => '5.00',
+					'product_ids'                 => array(),
+					'excluded_product_ids'        => array(),
+					'product_categories'          => array(),
+					'excluded_product_categories' => array(),
+					'limit_usage_to_x_items'      => null,
+					'exclude_sale_items'          => false,
+					'minimum_amount'              => '',
+					'maximum_amount'              => '',
+					'individual_use'              => false,
+				),
 			),
 			$order['coupon_lines'][0]['meta']
 		);
@@ -240,6 +276,8 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => null,
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => null,
+				'pixalink_amount_cents'  => null,
+				'pixalink_coupon'        => null,
 			),
 			$order['coupon_lines'][1]['meta'],
 			'A store coupon carries no Pixalink meta.'
@@ -363,6 +401,8 @@ final class EventPayloadsTest extends TestCase {
 				'pixalink_redemption_id' => null,
 				'pixalink_voucher_id'    => null,
 				'pixalink_points'        => null,
+				'pixalink_amount_cents'  => null,
+				'pixalink_coupon'        => null,
 			),
 			( new OrderPayloadBuilder() )->coupon_line( $coupon )['meta']
 		);
@@ -493,5 +533,112 @@ final class EventPayloadsTest extends TestCase {
 
 		$this->assertSame( 'House', $data['order']['line_items'][0]['brand'] );
 		$this->assert_valid( self::envelope( EventType::ORDER_PAID, $data ) );
+	}
+
+	public function test_customer_upserted_for_a_member_who_changed_their_consent(): void {
+		$this->user_meta[17] = array(
+			'first_name'                => 'Aisyah',
+			'last_name'                 => 'Rahman',
+			UserMeta::CUSTOMER_ID       => '5001',
+			UserMeta::PHONE_E164        => '+60123456789',
+			UserMeta::PHONE_COUNTRY     => 'MY',
+			UserMeta::PHONE_VERIFIED_AT => '2026-10-25T02:00:00Z',
+			UserMeta::CONSENT           => 'no',
+			UserMeta::CONSENT_SOURCE    => 'my_account',
+			UserMeta::CONSENT_AT        => '2026-10-25T03:00:00Z',
+			UserMeta::CONSENT_TEXT_HASH => self::CONSENT_HASH,
+		);
+		$user                = new \WP_User();
+		$user->ID            = 17;
+		$user->user_email    = 'member@example.com';
+
+		$data = ( new CustomerPayloadBuilder( new OrderPayloadBuilder() ) )->for_user( $user );
+
+		$this->assert_valid( self::envelope( EventType::CUSTOMER_UPSERTED, $data ) );
+		$this->assertSame(
+			array(
+				'pixalink_customer_id' => '5001',
+				'wp_user_id'           => 17,
+				'is_guest'             => false,
+				'phone_e164'           => '+60123456789',
+				'phone_country'        => 'MY',
+				'email'                => 'member@example.com',
+				'first_name'           => 'Aisyah',
+				'last_name'            => 'Rahman',
+				'marketing_consent'    => array(
+					'value'       => false,
+					'source'      => 'my_account',
+					'captured_at' => '2026-10-25T03:00:00Z',
+					'text_hash'   => self::CONSENT_HASH,
+				),
+			),
+			$data['customer']
+		);
+	}
+
+	public function test_customer_upserted_for_an_unlinked_user_never_sends_an_unverified_customer_id_or_a_pixalink_withdrawal(): void {
+		$this->user_meta[18] = array(
+			'billing_first_name'        => 'Siti',
+			UserMeta::CUSTOMER_ID       => '5001',
+			UserMeta::PHONE_E164        => '+60199999999',
+			UserMeta::PHONE_COUNTRY     => 'MY',
+			UserMeta::CONSENT           => 'no',
+			UserMeta::CONSENT_SOURCE    => 'pixalink',
+			UserMeta::CONSENT_AT        => '2026-10-25T03:00:00Z',
+			UserMeta::CONSENT_TEXT_HASH => self::CONSENT_HASH,
+		);
+		$user                = new \WP_User();
+		$user->ID            = 18;
+		$user->user_email    = 'not-an-address';
+
+		$data = ( new CustomerPayloadBuilder( new OrderPayloadBuilder() ) )->for_user( $user );
+
+		$this->assert_valid( self::envelope( EventType::CUSTOMER_UPSERTED, $data ) );
+		$this->assertNull( $data['customer']['pixalink_customer_id'], 'No verification time, so no link.' );
+		$this->assertNull( $data['customer']['email'] );
+		$this->assertSame( 'Siti', $data['customer']['first_name'], 'Billing names fill in for empty profile names.' );
+		$this->assertNull( $data['customer']['marketing_consent'], 'A withdrawal Pixalink reported is not echoed back.' );
+	}
+
+	public function test_customer_upserted_for_a_guest_order_with_new_consent(): void {
+		$data = ( new CustomerPayloadBuilder( new OrderPayloadBuilder() ) )->for_order(
+			$this->order(
+				array(
+					OrderMeta::PHONE_E164          => '+60123456789',
+					OrderMeta::PHONE_COUNTRY       => 'MY',
+					OrderMeta::MARKETING_CONSENT   => 'yes',
+					OrderMeta::CONSENT_SOURCE      => 'checkout',
+					OrderMeta::CONSENT_CAPTURED_AT => '2026-10-24T07:58:00Z',
+					OrderMeta::CONSENT_TEXT_HASH   => self::CONSENT_HASH,
+				),
+				array( 'get_customer_id' => 0 )
+			)
+		);
+
+		$this->assert_valid( self::envelope( EventType::CUSTOMER_UPSERTED, $data ) );
+		$this->assertTrue( $data['customer']['is_guest'] );
+		$this->assertNull( $data['customer']['wp_user_id'] );
+		$this->assertTrue( $data['customer']['marketing_consent']['value'] ?? null );
+	}
+
+	public function test_customer_upserted_needs_a_way_to_find_the_customer(): void {
+		$envelope = self::envelope(
+			EventType::CUSTOMER_UPSERTED,
+			array(
+				'customer' => array(
+					'pixalink_customer_id' => null,
+					'wp_user_id'           => null,
+					'is_guest'             => true,
+					'phone_e164'           => null,
+					'phone_country'        => null,
+					'email'                => 'member@example.com',
+					'first_name'           => null,
+					'last_name'            => null,
+					'marketing_consent'    => null,
+				),
+			)
+		);
+
+		$this->assertNotSame( array(), ContractValidator::validate( 'event.request.json', $envelope ), 'Neither a user id nor a phone number.' );
 	}
 }

@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customers-lookup.query.json",
 	"title": "GET customers query string (exactly one of phone, email, external_id)",
-	"description": "Server precedence when resolving a link: woocommerce_id, then phone, then e-mail (single match only).",
+	"description": "Server precedence when resolving a link: external_id (the WordPress user id), then phone, then e-mail (single match only). No match: 404 not_found.",
 	"type": "object",
 	"minProperties": 1,
 	"maxProperties": 1,

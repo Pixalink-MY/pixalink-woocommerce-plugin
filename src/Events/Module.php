@@ -15,6 +15,7 @@ use Pixalink\Loyalty\Admin\SiteHealth;
 use Pixalink\Loyalty\Admin\SystemStatus;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Api\Credentials;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Orders\OrderAdmin;
 use Pixalink\Loyalty\Orders\OrderLifecycle;
 use Pixalink\Loyalty\Orders\OrderPayloadBuilder;
@@ -107,6 +108,13 @@ final class Module {
 	private Credentials $credentials;
 
 	/**
+	 * Connection state (earn timing on the order-received page).
+	 *
+	 * @var Connection
+	 */
+	private Connection $connection;
+
+	/**
 	 * Whether register() already ran.
 	 *
 	 * @var bool
@@ -123,6 +131,7 @@ final class Module {
 	 */
 	public function __construct( Client $client, Credentials $credentials, Options $options, Logger $logger ) {
 		$this->credentials = $credentials;
+		$this->connection  = new Connection( $options );
 		$this->repository  = new EventRepository();
 		$this->scheduler   = new Scheduler();
 		$this->queue       = new EventQueue( $this->repository, $this->scheduler );
@@ -167,7 +176,7 @@ final class Module {
 			add_action( $prefix . Options::CREDENTIALS, array( $this, 'on_credentials_changed' ), 10, 0 );
 		}
 
-		( new ThankYou( $this->credentials ) )->register();
+		( new ThankYou( $this->credentials, $this->connection ) )->register();
 
 		if ( is_admin() ) {
 			( new OrderAdmin( $this->repository, $this->lifecycle ) )->register();

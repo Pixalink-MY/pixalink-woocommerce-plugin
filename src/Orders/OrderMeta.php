@@ -34,6 +34,11 @@ final class OrderMeta {
 	public const REDEMPTION_STATE      = '_pixalink_redemption_state';
 	public const REDEMPTION_EXPIRES_AT = '_pixalink_redemption_expires_at';
 
+	/**
+	 * Successful hold PUTs on this order (separates release events of an order that was held again).
+	 */
+	public const HOLD_GENERATION = '_pixalink_hold_generation';
+
 	// Event delivery and its results (written here).
 	public const EARN_STATE         = '_pixalink_earn_state';
 	public const EARN_OUTCOME       = '_pixalink_earn_outcome';
@@ -46,6 +51,13 @@ final class OrderMeta {
 	public const COUPON_VOUCHER_ID    = '_pixalink_voucher_id';
 	public const COUPON_POINTS        = '_pixalink_points';
 	public const COUPON_REDEMPTION_ID = '_pixalink_redemption_id';
+	public const COUPON_AMOUNT_CENTS  = '_pixalink_amount_cents';
+	public const COUPON_TITLE         = '_pixalink_title';
+
+	/**
+	 * Snapshot of the resolved coupon props, enough to rebuild the coupon without a session or quote.
+	 */
+	public const COUPON_SNAPSHOT = '_pixalink_coupon';
 
 	/**
 	 * `order.paid` was recorded in the outbox.
@@ -62,6 +74,7 @@ final class OrderMeta {
 	 */
 	public const EARN_DEAD = 'dead';
 
+	public const REDEMPTION_HELD     = 'held';
 	public const REDEMPTION_SETTLED  = 'settled';
 	public const REDEMPTION_RELEASED = 'released';
 
@@ -128,6 +141,38 @@ final class OrderMeta {
 	 */
 	public static function is_paid_event_recorded( \WC_Order $order ): bool {
 		return in_array( self::earn_state( $order ), array( self::EARN_QUEUED, self::EARN_DELIVERED ), true );
+	}
+
+	/**
+	 * Redemption ids (`CH-…`) of the order's current holds.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return list<string>
+	 */
+	public static function hold_refs( \WC_Order $order ): array {
+		$held = self::get( $order, self::REDEMPTIONS );
+		if ( ! is_array( $held ) ) {
+			return array();
+		}
+
+		$refs = array();
+		foreach ( $held as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['redemption_id'] ) && is_string( $entry['redemption_id'] ) && 1 === preg_match( '/^CH-[A-Za-z0-9]+$/', $entry['redemption_id'] ) ) {
+				$refs[] = $entry['redemption_id'];
+			}
+		}
+
+		return $refs;
+	}
+
+	/**
+	 * Whether the order's holds are live (placed and neither settled nor released).
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return bool
+	 */
+	public static function is_held( \WC_Order $order ): bool {
+		return self::REDEMPTION_HELD === self::get_string( $order, self::REDEMPTION_STATE );
 	}
 
 	/**

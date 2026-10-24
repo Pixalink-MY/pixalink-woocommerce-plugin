@@ -2,12 +2,20 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/error.response.json",
 	"title": "Error envelope (every non-2xx response)",
-	"description": "404 cross-org, 409 conflict/retryable, 422 business rejection, 429 throttle, 401 timestamp_skew carries server_time, 409 points_insufficient carries available.",
+	"description": "Codes per endpoint are listed in endpoints.json (errors, plus common_errors on every signed endpoint). Status classes: 400 bad grant, 401 authentication (timestamp_skew carries server_time), 403 not allowed for this shopper or account (verification_required: the customer's phone is not verified for this outlet), 404 unknown or cross-organisation id, 409 conflict (points_insufficient carries available, credits_insufficient carries available_cents, voucher_unavailable), 410 spent or unknown sso_ticket (ticket_invalid), 422 business rejection (otp_invalid, otp_expired, otp_attempts_exceeded, discount_mismatch; validation_failed carries errors), 429 throttled with Retry-After (otp_throttled).",
 	"$ref": "common.json#/$defs/error",
 	"examples": [
 		{ "message": "The request timestamp is outside the allowed window.", "code": "timestamp_skew", "server_time": 1761300000 },
 		{ "message": "Not enough points.", "code": "points_insufficient", "available": 120 },
-		{ "message": "The given data was invalid.", "code": "validation_failed", "errors": { "phone_e164": [ "The phone e164 field is required." ] } },
+		{ "message": "Not enough credits.", "code": "credits_insufficient", "available_cents": 2500 },
+		{ "message": "This voucher cannot be used.", "code": "voucher_unavailable" },
+		{ "message": "The discount is worth more than the redemption.", "code": "discount_mismatch" },
+		{ "message": "Verify the phone number first.", "code": "verification_required" },
+		{ "message": "The code is incorrect.", "code": "otp_invalid" },
+		{ "message": "Too many codes requested.", "code": "otp_throttled" },
+		{ "message": "This sign-in link was already used or has expired.", "code": "ticket_invalid" },
+		{ "message": "No customer matches.", "code": "not_found" },
+		{ "message": "The given data was invalid.", "code": "validation_failed", "errors": { "phone": [ "The phone field is required." ] } },
 		{ "message": "The authorisation code is invalid or expired.", "code": "invalid_grant" }
 	]
 }

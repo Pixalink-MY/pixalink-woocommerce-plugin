@@ -6,8 +6,7 @@
 	"required": [ "code" ],
 	"additionalProperties": false,
 	"properties": {
-		"code": { "type": "string", "pattern": "^[0-9]{4,8}$" },
-		"woocommerce_id": { "type": [ "string", "null" ], "pattern": "^[0-9]+$" }
+		"code": { "type": "string", "pattern": "^[0-9]{4,8}$" }
 	},
-	"examples": [ { "code": "123456", "woocommerce_id": "17" } ]
+	"examples": [ { "code": "123456" } ]
 }

@@ -5,6 +5,8 @@
 	<file>./pixalink-loyalty-for-woocommerce.php</file>
 	<file>./uninstall.php</file>
 	<file>./src</file>
+	<file>./data</file>
+	<file>./templates</file>
 	<file>./tests/e2e/mu-plugins</file>
 
 	<exclude-pattern>*/vendor/*</exclude-pattern>
@@ -52,6 +54,8 @@
 	</rule>
 
 	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<!-- Templates read the variables wc_get_template() extracts for them; they do not define globals. -->
+		<exclude-pattern>templates/*</exclude-pattern>
 		<properties>
 			<property name="prefixes" type="array">
 				<element value="pixalink_loyalty"/>

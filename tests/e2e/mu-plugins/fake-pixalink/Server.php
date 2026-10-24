@@ -15,7 +15,9 @@ namespace Pixalink\Loyalty\Tests\FakeServer;
  * - API routes:      /wp-json/fake-pixalink/api/commerce/v1/*  (signature-checked like production).
  * - Hosted page:     /wp-json/fake-pixalink/v1/connect/woocommerce  (stands in for {pixalink}/connect/woocommerce:
  *                    redirects back at once with a PKCE-bound code; point PIXALINK_LOYALTY_CONNECT_URL here).
- * - Control routes:  /wp-json/fake-pixalink/v1/{requests,script,clock,hosted}  (manage_options only).
+ * - Control routes:  /wp-json/fake-pixalink/v1/{requests,script,clock,hosted,balance,webhook}  (manage_options only);
+ *                    `balance` sets the member's points balance, `webhook` signs a server-to-store notification and
+ *                    delivers it to the plugin in-process.
  * - Outgoing calls from the plugin to https://fake-pixalink.test/api/commerce/v1/* are dispatched in-process
  *   via pre_http_request, so no loopback networking is needed inside containers.
  */
@@ -30,9 +32,11 @@ final class Server {
 	private const SCRIPT_TRANSIENT   = 'pixalink_loyalty_fake_script';
 	private const CLOCK_TRANSIENT    = 'pixalink_loyalty_fake_clock_offset';
 	private const EVENTS_TRANSIENT   = 'pixalink_loyalty_fake_seen_events';
+	private const TICKETS_TRANSIENT  = 'pixalink_loyalty_fake_used_tickets';
 	private const SITE_TRANSIENT     = 'pixalink_loyalty_fake_connected_site';
 	private const CODES_TRANSIENT    = 'pixalink_loyalty_fake_connect_codes';
 	private const OUTCOME_TRANSIENT  = 'pixalink_loyalty_fake_hosted_outcome';
+	private const BALANCE_TRANSIENT  = 'pixalink_loyalty_fake_points_balance';
 	private const MAX_RECORDED       = 200;
 
 	/**
@@ -160,6 +164,35 @@ final class Server {
 
 		register_rest_route(
 			self::CONTROL_NAMESPACE,
+			'/webhook',
+			array(
+				'methods'             => 'POST',
+				'callback'            => static function ( \WP_REST_Request $request ): \WP_REST_Response {
+					$params = $request->get_json_params();
+					$params = is_array( $params ) ? $params : array();
+					$data   = isset( $params['data'] ) && is_array( $params['data'] ) ? $params['data'] : array();
+
+					return self::send_webhook( (string) ( $params['type'] ?? '' ), $data, isset( $params['id'] ) ? (string) $params['id'] : null );
+				},
+				'permission_callback' => $admin_only,
+			)
+		);
+
+		register_rest_route(
+			self::CONTROL_NAMESPACE,
+			'/balance',
+			array(
+				'methods'             => 'POST',
+				'callback'            => static function ( \WP_REST_Request $request ): \WP_REST_Response {
+					self::set_points_balance( (int) $request->get_param( 'points' ) );
+					return new \WP_REST_Response( array( 'points' => self::points_balance() ) );
+				},
+				'permission_callback' => $admin_only,
+			)
+		);
+
+		register_rest_route(
+			self::CONTROL_NAMESPACE,
 			'/clock',
 			array(
 				'methods'             => 'POST',
@@ -243,8 +276,10 @@ final class Server {
 			} else {
 				$context = array(
 					'now'            => self::now(),
+					'points_balance' => self::points_balance(),
 					'api_key'        => self::api_key(),
 					'event_seen'     => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
+					'ticket_used'    => 'customers' === $route && self::ticket_used( $body ),
 					'connected_site' => (string) get_transient( self::SITE_TRANSIENT ),
 				);
 				$result  = Responses::respond( $method, $route, $request->get_url_params(), $query, $body, $context );
@@ -253,6 +288,11 @@ final class Server {
 
 		if ( 'events' === $route && $result['status'] < 300 ) {
 			self::remember_event( (string) ( $body['id'] ?? '' ) );
+		}
+
+		// Portal sign-in tickets are single use: any ticket presented is used up, whatever the outcome.
+		if ( 'customers' === $route && 'POST' === $method ) {
+			self::remember_ticket( $body );
 		}
 
 		// The exchange binds the site; a heartbeat with a pasted key adopts it while unconnected; disconnect frees it.
@@ -538,9 +578,32 @@ final class Server {
 		delete_transient( self::SCRIPT_TRANSIENT );
 		delete_transient( self::CLOCK_TRANSIENT );
 		delete_transient( self::EVENTS_TRANSIENT );
+		delete_transient( self::TICKETS_TRANSIENT );
 		delete_transient( self::SITE_TRANSIENT );
 		delete_transient( self::CODES_TRANSIENT );
 		delete_transient( self::OUTCOME_TRANSIENT );
+		delete_transient( self::BALANCE_TRANSIENT );
+	}
+
+	/**
+	 * The member's points balance (quote and hold both read it; lower it to simulate spending elsewhere).
+	 *
+	 * @return int
+	 */
+	public static function points_balance(): int {
+		$balance = get_transient( self::BALANCE_TRANSIENT );
+
+		return is_numeric( $balance ) ? max( 0, (int) $balance ) : Responses::POINTS_AVAILABLE;
+	}
+
+	/**
+	 * Set the member's points balance.
+	 *
+	 * @param int $points Points.
+	 * @return void
+	 */
+	public static function set_points_balance( int $points ): void {
+		set_transient( self::BALANCE_TRANSIENT, max( 0, $points ), HOUR_IN_SECONDS );
 	}
 
 	/**
@@ -716,6 +779,70 @@ final class Server {
 		$seen   = is_array( $seen ) ? $seen : array();
 		$seen[] = $event_id;
 		set_transient( self::EVENTS_TRANSIENT, array_slice( array_values( array_unique( $seen ) ), -1000 ), HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Whether a POST customers body presents a ticket the server already saw.
+	 *
+	 * @param array<mixed> $body Request body.
+	 * @return bool
+	 */
+	private static function ticket_used( array $body ): bool {
+		$ticket = isset( $body['sso_ticket'] ) && is_string( $body['sso_ticket'] ) ? $body['sso_ticket'] : '';
+		$used   = get_transient( self::TICKETS_TRANSIENT );
+
+		return '' !== $ticket && is_array( $used ) && in_array( hash( 'sha256', $ticket ), $used, true );
+	}
+
+	/**
+	 * Burn the ticket a POST customers body presents.
+	 *
+	 * @param array<mixed> $body Request body.
+	 * @return void
+	 */
+	private static function remember_ticket( array $body ): void {
+		$ticket = isset( $body['sso_ticket'] ) && is_string( $body['sso_ticket'] ) ? $body['sso_ticket'] : '';
+		if ( '' === $ticket ) {
+			return;
+		}
+
+		$used   = get_transient( self::TICKETS_TRANSIENT );
+		$used   = is_array( $used ) ? $used : array();
+		$used[] = hash( 'sha256', $ticket );
+		set_transient( self::TICKETS_TRANSIENT, array_slice( array_values( array_unique( $used ) ), -1000 ), HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Sign a webhook like Pixalink and deliver it to the plugin's route in-process.
+	 *
+	 * @param string       $type     Webhook type, e.g. "customer.updated".
+	 * @param array<mixed> $data     Webhook data.
+	 * @param string|null  $event_id Event id (random when null).
+	 * @return \WP_REST_Response The plugin's response.
+	 */
+	public static function send_webhook( string $type, array $data, ?string $event_id = null ): \WP_REST_Response {
+		$event_id = $event_id ?? wp_generate_uuid4();
+		$raw_body = (string) wp_json_encode(
+			array(
+				'id'          => $event_id,
+				'type'        => $type,
+				'occurred_at' => gmdate( 'Y-m-d\TH:i:s\Z', self::now() ),
+				'data'        => array() === $data ? new \stdClass() : $data,
+			),
+			JSON_UNESCAPED_SLASHES
+		);
+
+		$request = new \WP_REST_Request( 'POST', '/pixalink-loyalty/v1/webhook' );
+		$request->set_header( 'content-type', 'application/json' );
+		foreach ( Signature::webhook_headers( self::api_key(), $event_id, $raw_body, self::now() ) as $name => $value ) {
+			$request->set_header( $name, $value );
+		}
+		$request->set_body( $raw_body );
+
+		$response = rest_do_request( $request );
+		self::record( $request, 'webhook:' . $type, $response->get_status(), null );
+
+		return $response;
 	}
 
 	/**

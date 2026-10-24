@@ -29,6 +29,11 @@ final class Options {
 	public const DELIVERY_PAUSED          = 'pixalink_loyalty_delivery_paused';
 
 	/**
+	 * "yes" while rewrite rules must be flushed once the My Account endpoint is registered (set on install/upgrade).
+	 */
+	public const FLUSH_REWRITE_RULES = 'pixalink_loyalty_flush_rewrite_rules';
+
+	/**
 	 * Connection record `{status, organisation, outlet, connected_at, connected_by, method, api_base_url, dashboard_url, ...}`.
 	 */
 	public const CONNECTION = 'pixalink_loyalty_connection';
@@ -44,12 +49,17 @@ final class Options {
 	public const MARKETING_CONSENT = 'pixalink_loyalty_marketing_consent';
 
 	// Checkout section.
-	public const CHECKOUT_PANEL_ENABLED         = 'pixalink_loyalty_checkout_panel_enabled';
-	public const VOUCHERS_ENABLED               = 'pixalink_loyalty_vouchers_enabled';
-	public const POINTS_REDEMPTION_ENABLED      = 'pixalink_loyalty_points_redemption_enabled';
-	public const PHONE_FIELD                    = 'pixalink_loyalty_phone_field';
-	public const CHECKOUT_CONSENT_ENABLED       = 'pixalink_loyalty_checkout_consent_enabled';
-	public const CHECKOUT_CONSENT_TEXT          = 'pixalink_loyalty_checkout_consent_text';
+	public const CHECKOUT_PANEL_ENABLED    = 'pixalink_loyalty_checkout_panel_enabled';
+	public const VOUCHERS_ENABLED          = 'pixalink_loyalty_vouchers_enabled';
+	public const POINTS_REDEMPTION_ENABLED = 'pixalink_loyalty_points_redemption_enabled';
+	public const CREDITS_ENABLED           = 'pixalink_loyalty_credits_enabled';
+	public const PHONE_FIELD               = 'pixalink_loyalty_phone_field';
+	public const CHECKOUT_CONSENT_ENABLED  = 'pixalink_loyalty_checkout_consent_enabled';
+	public const CHECKOUT_CONSENT_TEXT     = 'pixalink_loyalty_checkout_consent_text';
+
+	/**
+	 * Retired: consent is never pre-ticked. Still registered so uninstall removes a value saved by an early build.
+	 */
 	public const CHECKOUT_CONSENT_DEFAULT_VALUE = 'pixalink_loyalty_checkout_consent_default';
 
 	// My Account section.
@@ -69,49 +79,59 @@ final class Options {
 	 */
 	public static function registry(): array {
 		return array(
-			self::DB_VERSION               => array(
+			self::DB_VERSION                     => array(
 				'default'  => 0,
 				'autoload' => true,
 				'seed'     => false,
 			),
-			self::CREDENTIALS              => array(
+			self::CREDENTIALS                    => array(
 				'default'  => '',
 				'autoload' => false,
 				'seed'     => false,
 			),
-			self::API_BASE                 => array(
+			self::API_BASE                       => array(
 				'default'  => '',
 				'autoload' => true,
 				'seed'     => false,
 			),
-			self::CLOCK_OFFSET             => array(
+			self::CLOCK_OFFSET                   => array(
 				'default'  => 0,
 				'autoload' => true,
 				'seed'     => true,
 			),
-			self::DELETE_DATA_ON_UNINSTALL => array(
+			self::DELETE_DATA_ON_UNINSTALL       => array(
 				'default'  => 'no',
 				'autoload' => false,
 				'seed'     => true,
 			),
-			self::CONNECTION               => array(
+			self::CONNECTION                     => array(
 				'default'  => array(),
 				'autoload' => true,
 				'seed'     => false,
 			),
-			self::REMOTE_STATUS            => array(
+			self::REMOTE_STATUS                  => array(
 				'default'  => array(),
 				'autoload' => true,
 				'seed'     => false,
 			),
-			self::MARKETING_CONSENT        => array(
+			self::MARKETING_CONSENT              => array(
 				'default'  => array(),
 				'autoload' => false,
 				'seed'     => false,
 			),
 			// Why event delivery is paused ("auth_failed" | "not_connected"); empty while delivering.
-			self::DELIVERY_PAUSED          => array(
+			self::DELIVERY_PAUSED                => array(
 				'default'  => '',
+				'autoload' => false,
+				'seed'     => false,
+			),
+			self::FLUSH_REWRITE_RULES            => array(
+				'default'  => 'no',
+				'autoload' => true,
+				'seed'     => false,
+			),
+			self::CHECKOUT_CONSENT_DEFAULT_VALUE => array(
+				'default'  => 'no',
 				'autoload' => false,
 				'seed'     => false,
 			),
@@ -133,17 +153,17 @@ final class Options {
 		);
 
 		return array(
-			self::CHECKOUT_PANEL_ENABLED         => $frontend( 'yes' ),
-			self::VOUCHERS_ENABLED               => $frontend( 'yes' ),
-			self::POINTS_REDEMPTION_ENABLED      => $frontend( 'yes' ),
-			self::PHONE_FIELD                    => $frontend( 'optional' ),
-			self::CHECKOUT_CONSENT_ENABLED       => $frontend( 'yes' ),
-			self::CHECKOUT_CONSENT_TEXT          => $frontend( '' ),
-			self::CHECKOUT_CONSENT_DEFAULT_VALUE => $frontend( 'no' ),
-			self::ACCOUNT_TAB_ENABLED            => $frontend( 'yes' ),
-			self::ACCOUNT_TAB_TITLE              => $frontend( '' ),
-			self::ACCOUNT_SHOW_QR                => $frontend( 'yes' ),
-			self::DEBUG_LOGGING                  => array(
+			self::CHECKOUT_PANEL_ENABLED    => $frontend( 'yes' ),
+			self::VOUCHERS_ENABLED          => $frontend( 'yes' ),
+			self::POINTS_REDEMPTION_ENABLED => $frontend( 'yes' ),
+			self::CREDITS_ENABLED           => $frontend( 'yes' ),
+			self::PHONE_FIELD               => $frontend( 'optional' ),
+			self::CHECKOUT_CONSENT_ENABLED  => $frontend( 'yes' ),
+			self::CHECKOUT_CONSENT_TEXT     => $frontend( '' ),
+			self::ACCOUNT_TAB_ENABLED       => $frontend( 'yes' ),
+			self::ACCOUNT_TAB_TITLE         => $frontend( '' ),
+			self::ACCOUNT_SHOW_QR           => $frontend( 'yes' ),
+			self::DEBUG_LOGGING             => array(
 				'default'  => 'no',
 				'autoload' => true,
 				'seed'     => false,

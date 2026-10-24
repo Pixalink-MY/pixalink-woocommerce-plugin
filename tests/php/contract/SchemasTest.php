@@ -72,20 +72,29 @@ final class SchemasTest extends TestCase {
 			'redemptions-put.request.json',
 			array(
 				'customer_id' => '5001',
-				'currency'    => 'myr',
+				'cart'        => array(
+					'lines'              => array(),
+					'subtotal_cents'     => 0,
+					'currency'           => 'myr',
+					'shipping_cents'     => 0,
+					'discount_cents'     => 0,
+					'tax_cents'          => 0,
+					'prices_include_tax' => false,
+					'held_refs'          => array(),
+				),
 				'redemptions' => array(
 					array(
-						'kind'         => 'points',
-						'coupon_code'  => 'pxl-points',
-						'discount'     => '5',
-						'discount_tax' => '0',
+						'kind'               => 'points',
+						'coupon_code'        => 'pxl-points',
+						'discount_cents'     => 500,
+						'discount_tax_cents' => 0,
 					),
 				),
 			)
 		);
 
 		$this->assertNotEmpty( $violations );
-		$this->assertStringContainsString( '/currency', implode( "\n", $violations ) );
+		$this->assertStringContainsString( '/cart/currency', implode( "\n", $violations ) );
 		$this->assertStringContainsString( '/redemptions/0', implode( "\n", $violations ), 'Points redemptions must carry points.' );
 
 		// Cross-file $ref (common.json#/$defs/outlet) is resolved and enforced.
@@ -149,6 +158,97 @@ final class SchemasTest extends TestCase {
 					$this->assertFileExists( ContractValidator::schema_dir() . '/' . $page[ $field ] );
 				}
 			}
+		}
+	}
+
+	public function test_plugin_routes_reference_existing_schemas_and_are_signed_with_the_event_id(): void {
+		$manifest = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/endpoints.json' ), true );
+		$plugin   = $manifest['plugin'] ?? array();
+
+		$this->assertSame( array( 'pixalink-loyalty/v1/webhook' ), array_column( $plugin, 'path' ) );
+		foreach ( $plugin as $route ) {
+			$this->assertSame( 'event_id', $route['nonce'] );
+			$this->assertSame( 'signature', $route['auth'] );
+			$this->assertFileExists( ContractValidator::schema_dir() . '/' . $route['request'] );
+			$this->assertFileExists( ContractValidator::schema_dir() . '/' . $route['response'] );
+		}
+	}
+
+	public function test_customer_create_requires_a_phone_unless_it_redeems_a_ticket(): void {
+		$this->assertNotSame( array(), ContractValidator::validate( 'customers-create.request.json', array( 'verified_via' => 'none' ) ), 'No phone.' );
+		$this->assertNotSame( array(), ContractValidator::validate( 'customers-create.request.json', array( 'verified_via' => 'sso_ticket' ) ), 'No ticket.' );
+		$this->assertNotSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'phone'         => '+60123456789',
+					'phone_country' => 'MY',
+					'verified_via'  => 'none',
+					'sso_ticket'    => 'fake-sso-member-0000',
+				)
+			),
+			'A ticket only travels with verified_via sso_ticket.'
+		);
+		$this->assertSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'verified_via' => 'sso_ticket',
+					'sso_ticket'   => 'fake-sso-member-0000',
+				)
+			)
+		);
+	}
+
+	public function test_every_route_lists_its_errors_and_each_error_carries_what_the_envelope_requires(): void {
+		$manifest = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/endpoints.json' ), true );
+		foreach ( array_merge( $manifest['endpoints'], $manifest['plugin'] ) as $route ) {
+			$this->assertIsArray( $route['errors'] ?? null, $route['method'] . ' ' . $route['path'] . ' must list its errors (empty when none).' );
+		}
+
+		$envelope_fields = array( 'server_time', 'available', 'available_cents', 'errors' );
+		$values          = array(
+			'server_time'     => 1761300000,
+			'available'       => 120,
+			'available_cents' => 2500,
+			'errors'          => array( 'phone' => array( 'The phone field is required.' ) ),
+		);
+		foreach ( ContractValidator::documented_errors() as $error ) {
+			$label = $error['status'] . ' ' . $error['code'];
+			$this->assertGreaterThanOrEqual( 400, $error['status'], $label );
+			$this->assertLessThan( 600, $error['status'], $label );
+			$this->assertMatchesRegularExpression( '/^[a-z][a-z0-9_]*$/', $error['code'], $label );
+
+			$carries = $error['carries'] ?? array();
+			$this->assertSame( array(), array_diff( $carries, $envelope_fields ), $label );
+
+			$body = array(
+				'message' => 'x',
+				'code'    => $error['code'],
+			);
+			$this->assertSame( array(), ContractValidator::validate( 'error.response.json', $body + array_intersect_key( $values, array_flip( $carries ) ) ), $label );
+			if ( array() !== $carries ) {
+				$this->assertNotSame( array(), ContractValidator::validate( 'error.response.json', $body ), $label . ' without ' . implode( ', ', $carries ) );
+			}
+		}
+	}
+
+	public function test_every_error_the_fake_server_answers_is_documented_with_the_same_status(): void {
+		$documented = array();
+		foreach ( ContractValidator::documented_errors() as $error ) {
+			$documented[ $error['code'] ][] = $error['status'];
+		}
+
+		foreach ( Responses::samples( 1761300000 ) as $name => $sample ) {
+			if ( 'error.response.json' !== $sample['schema'] ) {
+				continue;
+			}
+
+			$code = $sample['response']['body']['code'];
+			$this->assertArrayHasKey( $code, $documented, $name . ': ' . $code . ' is not in endpoints.json.' );
+			$this->assertContains( $sample['response']['status'], $documented[ $code ], $name );
 		}
 	}
 

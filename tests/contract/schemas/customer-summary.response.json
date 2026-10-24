@@ -1,34 +1,65 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customer-summary.response.json",
-	"title": "GET customers/{id} 200 response (My Account summary; 403 verification_required unless linked via otp/sso_ticket)",
+	"title": "GET customers/{id} 200 response (My Account summary; 403 verification_required unless the store's link is verified)",
+	"description": "Credits are a closed-loop wallet: balance_cents is shown as credits, never as money. tier.progress counts the tier's qualifying unit: current so far, next = the next tier's threshold (null on the highest tier), remaining = next - current.",
 	"type": "object",
-	"required": [ "id", "linked_via", "balances", "tier", "vouchers", "memberships", "recent_activity", "qr", "portal_url" ],
+	"required": [ "points", "credits", "tier", "vouchers", "memberships", "recent_activity", "qr", "portal_url" ],
 	"properties": {
 		"id": { "$ref": "common.json#/$defs/id" },
-		"first_name": { "type": [ "string", "null" ] },
-		"last_name": { "type": [ "string", "null" ] },
-		"linked_via": { "$ref": "common.json#/$defs/linked_via" },
-		"balances": {
+		"points": {
 			"type": "object",
-			"required": [ "points", "credits", "currency" ],
+			"required": [ "balance", "expiring_soon" ],
 			"properties": {
-				"points": { "type": "integer", "minimum": 0 },
-				"credits": { "$ref": "common.json#/$defs/non_negative_decimal" },
-				"currency": { "$ref": "common.json#/$defs/currency" }
+				"balance": { "type": "integer", "minimum": 0 },
+				"expiring_soon": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [ "points", "expires_at" ],
+						"properties": {
+							"points": { "type": "integer", "minimum": 1 },
+							"expires_at": { "$ref": "common.json#/$defs/datetime" }
+						}
+					}
+				}
 			}
+		},
+		"credits": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"required": [ "balance_cents" ],
+					"properties": {
+						"balance_cents": { "$ref": "common.json#/$defs/cents" }
+					}
+				}
+			]
 		},
 		"tier": {
 			"oneOf": [
 				{ "type": "null" },
 				{
 					"type": "object",
-					"required": [ "name", "next_tier_name", "progress_percent" ],
+					"required": [ "name", "progress" ],
 					"properties": {
-						"name": { "type": "string" },
-						"next_tier_name": { "type": [ "string", "null" ] },
-						"progress_percent": { "type": [ "integer", "null" ], "minimum": 0, "maximum": 100 },
-						"spend_to_next": { "oneOf": [ { "$ref": "common.json#/$defs/non_negative_decimal" }, { "type": "null" } ] }
+						"name": { "type": "string", "minLength": 1 },
+						"progress": {
+							"oneOf": [
+								{ "type": "null" },
+								{
+									"type": "object",
+									"required": [ "current", "next", "remaining" ],
+									"properties": {
+										"current": { "type": "integer", "minimum": 0 },
+										"next": { "type": [ "integer", "null" ], "minimum": 0 },
+										"remaining": { "type": [ "integer", "null" ], "minimum": 0 },
+										"next_tier_name": { "type": [ "string", "null" ] }
+									}
+								}
+							]
+						}
 					}
 				}
 			]
@@ -37,15 +68,15 @@
 			"type": "array",
 			"items": {
 				"type": "object",
-				"required": [ "id", "code", "title", "expires_at" ],
+				"required": [ "id", "code", "title", "description", "image_url", "expires_at", "redeemable_here" ],
 				"properties": {
 					"id": { "$ref": "common.json#/$defs/id" },
-					"code": { "type": "string" },
+					"code": { "type": "string", "minLength": 1 },
 					"title": { "type": "string" },
 					"description": { "type": [ "string", "null" ] },
 					"image_url": { "oneOf": [ { "$ref": "common.json#/$defs/url" }, { "type": "null" } ] },
 					"expires_at": { "$ref": "common.json#/$defs/nullable_datetime" },
-					"redeemable_online": { "type": "boolean" }
+					"redeemable_here": { "description": "False while the voucher is restricted to other outlets or not active yet: shown, not offered.", "type": "boolean" }
 				}
 			}
 		},
@@ -53,7 +84,7 @@
 			"type": "array",
 			"items": {
 				"type": "object",
-				"required": [ "id", "name", "status", "expires_at" ],
+				"required": [ "id", "name", "expires_at" ],
 				"properties": {
 					"id": { "$ref": "common.json#/$defs/id" },
 					"name": { "type": "string" },
@@ -69,10 +100,9 @@
 				"type": "object",
 				"required": [ "type", "description", "occurred_at" ],
 				"properties": {
-					"type": { "enum": [ "points_earned", "points_redeemed", "points_expired", "points_adjusted", "voucher_issued", "voucher_used", "credit_topup", "credit_spent" ] },
+					"type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
 					"description": { "type": "string" },
 					"points": { "type": [ "integer", "null" ] },
-					"amount": { "oneOf": [ { "$ref": "common.json#/$defs/decimal" }, { "type": "null" } ] },
 					"occurred_at": { "$ref": "common.json#/$defs/datetime" }
 				}
 			}
@@ -82,7 +112,7 @@
 			"required": [ "type", "value" ],
 			"properties": {
 				"type": { "const": "phone" },
-				"value": { "type": "string", "minLength": 1 }
+				"value": { "type": "string", "minLength": 1, "maxLength": 64 }
 			}
 		},
 		"portal_url": { "$ref": "common.json#/$defs/url" }
@@ -90,15 +120,23 @@
 	"examples": [
 		{
 			"id": "5001",
-			"first_name": "Aisyah",
-			"last_name": "Rahman",
-			"linked_via": "otp",
-			"balances": { "points": 1250, "credits": "0.00", "currency": "MYR" },
-			"tier": { "name": "Silver", "next_tier_name": "Gold", "progress_percent": 40, "spend_to_next": "300.00" },
-			"vouchers": [ { "id": "88", "code": "PXL-WELCOME-88", "title": "RM10 off", "description": "Welcome voucher", "image_url": null, "expires_at": "2026-12-31T15:59:59Z", "redeemable_online": true } ],
+			"points": { "balance": 1250, "expiring_soon": [ { "points": 200, "expires_at": "2026-11-30T15:59:59Z" } ] },
+			"credits": { "balance_cents": 1500 },
+			"tier": { "name": "Silver", "progress": { "current": 700, "next": 1000, "remaining": 300, "next_tier_name": "Gold" } },
+			"vouchers": [ { "id": "88", "code": "PXL-WELCOME-88", "title": "RM10 off", "description": "Welcome voucher", "image_url": null, "expires_at": "2026-12-31T15:59:59Z", "redeemable_here": true } ],
+			"memberships": [ { "id": "7", "name": "Coffee Club", "status": "active", "expires_at": null } ],
+			"recent_activity": [ { "type": "points_earned", "description": "Order #1001", "points": 120, "occurred_at": "2026-10-20T04:00:00Z" } ],
+			"qr": { "type": "phone", "value": "+60123456789" },
+			"portal_url": "https://demo.pixalink.io/loyalty"
+		},
+		{
+			"points": { "balance": 0, "expiring_soon": [] },
+			"credits": null,
+			"tier": null,
+			"vouchers": [],
 			"memberships": [],
-			"recent_activity": [ { "type": "points_earned", "description": "Order #1001", "points": 120, "amount": "120.00", "occurred_at": "2026-10-20T04:00:00Z" } ],
-			"qr": { "type": "phone", "value": "60123456789" },
+			"recent_activity": [],
+			"qr": { "type": "phone", "value": "+60199999999" },
 			"portal_url": "https://demo.pixalink.io/loyalty"
 		}
 	]

@@ -2,9 +2,9 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/quote.response.json",
 	"title": "POST quote 200 response",
-	"description": "points/credits are null when the feature is off or the shopper is not verified (linked_via otp|sso_ticket).",
+	"description": "points / credits are null when the feature is off for the outlet. max_for_cart (points) and max_for_cart_cents (credits) are already narrowed to the balance, the merchant's cap and what the cart can absorb (subtotal less non-goods lines and store discounts). Credits apply as a discount coupon in v1 (applies_as: discount), so credit-paid spend does not earn. The plugin treats the quote as fresh for ttl_seconds.",
 	"type": "object",
-	"required": [ "currency", "vouchers", "points", "earn_preview", "ttl_seconds" ],
+	"required": [ "vouchers", "points", "credits", "lines", "earn_preview", "ttl_seconds" ],
 	"properties": {
 		"currency": { "$ref": "common.json#/$defs/currency" },
 		"vouchers": { "type": "array", "items": { "$ref": "common.json#/$defs/quote_voucher" } },
@@ -30,10 +30,11 @@
 				{ "type": "null" },
 				{
 					"type": "object",
-					"required": [ "balance", "currency" ],
+					"required": [ "balance_cents", "max_for_cart_cents", "applies_as" ],
 					"properties": {
-						"balance": { "$ref": "common.json#/$defs/non_negative_decimal" },
-						"currency": { "$ref": "common.json#/$defs/currency" }
+						"balance_cents": { "$ref": "common.json#/$defs/cents" },
+						"max_for_cart_cents": { "$ref": "common.json#/$defs/cents" },
+						"applies_as": { "const": "discount" }
 					}
 				}
 			]
@@ -72,12 +73,46 @@
 					"eligible": true,
 					"ineligible_reason": null,
 					"woo_coupon": { "discount_type": "fixed_cart", "amount": "10.00", "product_skus": [], "excluded_product_skus": [], "category_slugs": [], "minimum_amount": "50.00", "maximum_amount": null, "limit_usage_to_x_items": null, "exclude_sale_items": false, "individual_use": false }
+				},
+				{
+					"id": "91",
+					"code": "FREE-LATTE",
+					"title": "Free latte",
+					"description": null,
+					"image_url": "https://explore.pixalink.io/storage/rewards/latte.png",
+					"expires_at": null,
+					"redeemable_online": true,
+					"discount_cents": 1200,
+					"eligible": true,
+					"ineligible_reason": null,
+					"woo_coupon": { "discount_type": "percent", "amount": "100", "product_skus": [ "LATTE-12" ], "excluded_product_skus": [], "category_slugs": [], "minimum_amount": null, "maximum_amount": null, "limit_usage_to_x_items": 1, "exclude_sale_items": false, "individual_use": false }
+				},
+				{
+					"id": "93",
+					"code": "INSTORE-93",
+					"title": "Birthday cake",
+					"description": "Collect at the counter",
+					"image_url": null,
+					"expires_at": "2026-11-30T15:59:59Z",
+					"redeemable_online": false,
+					"discount_cents": 0,
+					"eligible": false,
+					"ineligible_reason": "Only redeemable in store.",
+					"woo_coupon": null
 				}
 			],
 			"points": { "balance": 1250, "available": 1250, "value_per_point": "0.01", "min": 100, "max_for_cart": 1200, "step": 100 },
-			"credits": null,
+			"credits": { "balance_cents": 2500, "max_for_cart_cents": 2500, "applies_as": "discount" },
 			"lines": [ { "line_id": "c4ca4238a0b923820dcc509a6f75849b", "class": "regular" } ],
 			"earn_preview": { "points": 150 },
+			"ttl_seconds": 300
+		},
+		{
+			"vouchers": [],
+			"points": null,
+			"credits": null,
+			"lines": [],
+			"earn_preview": { "points": 0 },
 			"ttl_seconds": 300
 		}
 	]

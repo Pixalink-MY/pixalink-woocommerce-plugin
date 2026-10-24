@@ -76,26 +76,40 @@
 			"type": "string",
 			"pattern": "^CH-[A-Za-z0-9]+$"
 		},
-		"linked_via": {
-			"description": "How the shopper proved the phone number; balances and redemption require otp or sso_ticket.",
-			"enum": [ "otp", "sso_ticket", "none", null ]
+		"verified_via": {
+			"description": "How the shopper proved the phone number: a one-time code, a Pixalink portal sign-in ticket (pixalink_sso), or not at all. Balances and redemption require otp or sso_ticket.",
+			"enum": [ "sso_ticket", "otp", "none" ]
+		},
+		"sso_ticket": {
+			"description": "The pixalink_sso query parameter the Pixalink portal appends to the store URL when a member taps Order. Single use and short-lived; any ticket presented is used up.",
+			"type": "string",
+			"pattern": "^[A-Za-z0-9_-]{16,255}$"
 		},
 		"error": {
+			"description": "Every non-2xx answer. Which codes an endpoint returns, and which of the fields below each one carries, is listed per endpoint in endpoints.json (errors, common_errors).",
 			"type": "object",
 			"required": [ "message", "code" ],
 			"properties": {
 				"message": { "type": "string" },
 				"code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
 				"errors": {
+					"description": "validation_failed: messages per request field.",
 					"type": "object",
 					"additionalProperties": {
 						"type": "array",
 						"items": { "type": "string" }
 					}
 				},
-				"server_time": { "$ref": "#/$defs/unix_time" },
-				"available": { "type": "integer", "minimum": 0 }
-			}
+				"server_time": { "description": "timestamp_skew: the server clock, so the store can re-sign once.", "$ref": "#/$defs/unix_time" },
+				"available": { "description": "points_insufficient: the points the member can spend now.", "type": "integer", "minimum": 0 },
+				"available_cents": { "description": "credits_insufficient: the credits the member can spend now, in cents.", "type": "integer", "minimum": 0 }
+			},
+			"allOf": [
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "timestamp_skew" } } }, "then": { "required": [ "server_time" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "points_insufficient" } } }, "then": { "required": [ "available" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "credits_insufficient" } } }, "then": { "required": [ "available_cents" ] } },
+				{ "if": { "required": [ "code" ], "properties": { "code": { "const": "validation_failed" } } }, "then": { "required": [ "errors" ] } }
+			]
 		},
 		"outlet": {
 			"type": "object",
@@ -127,17 +141,18 @@
 				"text_hash": { "$ref": "#/$defs/sha256_hex" }
 			}
 		},
-		"customer_ref": {
+		"customer": {
+			"description": "A Pixalink customer as the store sees it. verified is true when this request proved the phone number (a valid sso_ticket) or the outlet already holds a verified link to the customer; the plugin still asks for an OTP before it trusts a link it did not prove itself.",
 			"type": "object",
-			"required": [ "id", "linked_via" ],
+			"required": [ "id", "phone", "verified" ],
 			"properties": {
 				"id": { "$ref": "#/$defs/id" },
-				"first_name": { "type": [ "string", "null" ] },
-				"last_name": { "type": [ "string", "null" ] },
-				"phone_e164": { "oneOf": [ { "$ref": "#/$defs/e164" }, { "type": "null" } ] },
+				"phone": { "$ref": "#/$defs/e164" },
+				"verified": { "type": "boolean" },
+				"phone_country": { "oneOf": [ { "$ref": "#/$defs/country_code" }, { "type": "null" } ] },
 				"email": { "oneOf": [ { "$ref": "#/$defs/email" }, { "type": "null" } ] },
-				"woocommerce_id": { "type": [ "string", "null" ] },
-				"linked_via": { "$ref": "#/$defs/linked_via" }
+				"first_name": { "type": [ "string", "null" ] },
+				"last_name": { "type": [ "string", "null" ] }
 			}
 		},
 		"woo_coupon": {
@@ -179,16 +194,52 @@
 			"enum": [ "points", "voucher", "credit" ]
 		},
 		"held_redemption": {
+			"description": "One hold the server placed, in the order of the request's redemptions. coupon_code echoes the request entry (compared case-insensitively) so the store can map the hold to its coupon line.",
 			"type": "object",
-			"required": [ "redemption_id", "kind", "status", "expires_at" ],
+			"required": [ "redemption_id", "kind", "status", "expires_at", "coupon_code" ],
 			"properties": {
 				"redemption_id": { "$ref": "#/$defs/hold_ref" },
 				"kind": { "$ref": "#/$defs/redemption_kind" },
 				"status": { "const": "held" },
 				"expires_at": { "$ref": "#/$defs/datetime" },
+				"coupon_code": { "type": "string", "minLength": 1 },
 				"voucher_id": { "$ref": "#/$defs/id" },
 				"points": { "type": "integer", "minimum": 1 },
-				"discount": { "$ref": "#/$defs/non_negative_decimal" }
+				"amount_cents": { "$ref": "#/$defs/cents" },
+				"discount_cents": { "$ref": "#/$defs/cents" }
+			}
+		},
+		"commerce_line": {
+			"description": "One cart line, priced before any coupon. line_id is the store's cart item key; external_product_id is the store's product (or variation) id; category_code / category_name describe the product's first category.",
+			"type": "object",
+			"required": [ "line_id", "sku", "external_product_id", "name", "quantity", "unit_price_cents", "line_total_cents" ],
+			"additionalProperties": false,
+			"properties": {
+				"line_id": { "type": "string", "minLength": 1, "maxLength": 64 },
+				"sku": { "type": [ "string", "null" ] },
+				"external_product_id": { "$ref": "#/$defs/id" },
+				"name": { "type": "string" },
+				"category_code": { "type": "string" },
+				"category_name": { "type": "string" },
+				"quantity": { "type": "number", "exclusiveMinimum": 0 },
+				"unit_price_cents": { "$ref": "#/$defs/cents" },
+				"line_total_cents": { "$ref": "#/$defs/cents" }
+			}
+		},
+		"commerce_cart": {
+			"description": "A cart as the store prices it, in integer cents of `currency`. Product amounts (unit_price_cents, line_total_cents, subtotal_cents, discount_cents) include tax exactly when prices_include_tax is true: the base WooCommerce applies fixed_cart coupons to. Lines are priced before any coupon and subtotal_cents is their sum; discount_cents is what the store's own coupons take off (never a Pixalink voucher, points or credits); shipping_cents excludes tax and no loyalty discount comes off it; tax_cents is all the tax in the cart total. held_refs names the holds the shopper's current order already carries: their value is already spent, so balances are read as they stand.",
+			"type": "object",
+			"required": [ "lines", "subtotal_cents", "currency", "shipping_cents", "discount_cents", "tax_cents", "prices_include_tax", "held_refs" ],
+			"additionalProperties": false,
+			"properties": {
+				"lines": { "type": "array", "items": { "$ref": "#/$defs/commerce_line" } },
+				"subtotal_cents": { "$ref": "#/$defs/cents" },
+				"currency": { "$ref": "#/$defs/currency" },
+				"shipping_cents": { "$ref": "#/$defs/cents" },
+				"discount_cents": { "$ref": "#/$defs/cents" },
+				"tax_cents": { "$ref": "#/$defs/cents" },
+				"prices_include_tax": { "type": "boolean" },
+				"held_refs": { "type": "array", "items": { "$ref": "#/$defs/hold_ref" }, "uniqueItems": true }
 			}
 		}
 	}

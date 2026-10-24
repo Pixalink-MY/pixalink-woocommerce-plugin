@@ -1,18 +1,15 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customers-lookup.response.json",
-	"title": "GET customers 200 response (index-as-lookup; empty data = no member)",
+	"title": "GET customers 200 response (one match; no member: 404 not_found)",
+	"description": "Server precedence when resolving a link: external_id (the WordPress user id), then phone, then e-mail (single match only).",
 	"type": "object",
-	"required": [ "data" ],
+	"required": [ "customer" ],
 	"properties": {
-		"data": {
-			"type": "array",
-			"maxItems": 1,
-			"items": { "$ref": "common.json#/$defs/customer_ref" }
-		}
+		"customer": { "$ref": "common.json#/$defs/customer" }
 	},
 	"examples": [
-		{ "data": [ { "id": "5001", "first_name": "Aisyah", "last_name": "Rahman", "phone_e164": "+60123456789", "email": "member@example.com", "woocommerce_id": "17", "linked_via": "otp" } ] },
-		{ "data": [] }
+		{ "customer": { "id": "5001", "phone": "+60123456789", "verified": false, "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman" } },
+		{ "customer": { "id": "5001", "phone": "+60123456789", "verified": true } }
 	]
 }

@@ -147,11 +147,35 @@ final class SettingsPageTest extends \WP_UnitTestCase {
 
 		$fields = array_column( $this->page()->get_settings_for_section( 'checkout' ), null, 'id' );
 		$this->assertSame( 'yes', $fields[ Options::POINTS_REDEMPTION_ENABLED ]['default'] );
+		$this->assertSame( 'yes', $fields[ Options::CREDITS_ENABLED ]['default'] );
+		$this->assertArrayHasKey( 'desc_tip', $fields[ Options::CREDITS_ENABLED ], 'before the first heartbeat: Pixalink still has to confirm the feature' );
 		$this->assertSame( 'optional', $fields[ Options::PHONE_FIELD ]['default'] );
+		$this->assertArrayHasKey( Options::CHECKOUT_CONSENT_TEXT, $fields );
+		$this->assertArrayNotHasKey( Options::CHECKOUT_CONSENT_DEFAULT_VALUE, $fields, 'Consent is never pre-ticked, so there is no setting for it.' );
 
 		$advanced = array_column( $this->page()->get_settings_for_section( 'advanced' ), null, 'id' );
 		$this->assertArrayHasKey( Options::DEBUG_LOGGING, $advanced );
 		$this->assertArrayHasKey( Options::DELETE_DATA_ON_UNINSTALL, $advanced );
+	}
+
+	public function test_redemption_toggles_say_when_pixalink_switched_the_feature_off(): void {
+		( new \Pixalink\Loyalty\Connect\Connection( new Options() ) )->store_remote_status(
+			array(
+				'status'   => 'active',
+				'features' => array(
+					'earn'              => true,
+					'vouchers'          => true,
+					'points_redemption' => true,
+					'credits'           => false,
+					'otp_channels'      => array(),
+				),
+			)
+		);
+
+		$fields = array_column( $this->page()->get_settings_for_section( 'checkout' ), null, 'id' );
+
+		$this->assertStringContainsString( 'switched off by Pixalink', $fields[ Options::CREDITS_ENABLED ]['desc'] );
+		$this->assertStringNotContainsString( 'switched off by Pixalink', $fields[ Options::VOUCHERS_ENABLED ]['desc'] );
 	}
 
 	public function test_saving_a_section_writes_the_registered_options(): void {

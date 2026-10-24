@@ -1,5 +1,5 @@
 # Paths excluded from distributable zips (rsync --exclude-from; a leading / anchors to the repository root).
-# Shipped: main file, uninstall.php, readme.txt, changelog.txt, LICENSE, src/, build/, assets/ (readable JS source), languages/.
+# Shipped: main file, uninstall.php, readme.txt, changelog.txt, LICENSE, src/, templates/, build/, assets/ (readable JS source), languages/.
 
 /.git
 /.github

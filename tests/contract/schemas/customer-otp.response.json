@@ -1,14 +1,12 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customer-otp.response.json",
-	"title": "POST customers/{id}/otp 200 response (429 otp_throttled carries Retry-After)",
+	"title": "POST customers/{id}/otp 200 response (throttled: 429 otp_throttled with Retry-After)",
 	"type": "object",
-	"required": [ "status", "channel", "expires_in", "resend_after" ],
+	"required": [ "sent_via", "retry_after_seconds" ],
 	"properties": {
-		"status": { "const": "sent" },
-		"channel": { "enum": [ "whatsapp", "sms", "email" ] },
-		"expires_in": { "type": "integer", "minimum": 1 },
-		"resend_after": { "type": "integer", "minimum": 0 }
+		"sent_via": { "enum": [ "whatsapp", "sms" ] },
+		"retry_after_seconds": { "description": "Seconds before another code may be requested.", "type": "integer", "minimum": 0 }
 	},
-	"examples": [ { "status": "sent", "channel": "whatsapp", "expires_in": 300, "resend_after": 60 } ]
+	"examples": [ { "sent_via": "whatsapp", "retry_after_seconds": 60 }, { "sent_via": "sms", "retry_after_seconds": 30 } ]
 }

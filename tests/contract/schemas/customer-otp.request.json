@@ -1,12 +1,11 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://schemas.pixalink.io/commerce/v1/customer-otp.request.json",
-	"title": "POST customers/{id}/otp request (send a one-time code; channel routing WhatsApp -> SMS is server-side)",
+	"title": "POST customers/{id}/otp request (send a one-time code to the customer's phone; WhatsApp then SMS routing is server-side)",
 	"type": "object",
 	"additionalProperties": false,
 	"properties": {
-		"channel": { "enum": [ "whatsapp", "sms", "email", null ] },
-		"woocommerce_id": { "type": [ "string", "null" ], "pattern": "^[0-9]+$" }
+		"channel": { "description": "Preferred channel; null lets the server choose.", "enum": [ "whatsapp", "sms", null ] }
 	},
-	"examples": [ { "channel": "whatsapp", "woocommerce_id": "17" }, { "channel": null } ]
+	"examples": [ { "channel": null }, { "channel": "sms" } ]
 }
