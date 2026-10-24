@@ -210,15 +210,19 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 	}
 
 	public function test_trashing_an_unpaid_order_releases_redemptions_once(): void {
-		$order = $this->create_order();
+		$order    = $this->create_order();
+		$order_id = $order->get_id();
 
+		// WC_Data::delete() resets the instance id, even when only trashing.
 		$order->delete( false );
+		$trashed = wc_get_order( $order_id );
+		$this->assertInstanceOf( \WC_Order::class, $trashed );
 
-		$events = $this->events_of( $order );
-		$this->assertSame( array( 'order.redemptions_released' ), $this->event_types_of( $order ) );
+		$events = $this->events_of( $trashed );
+		$this->assertSame( array( 'order.redemptions_released' ), $this->event_types_of( $trashed ) );
 		$this->assertSame( 'trashed', $events[0]->payload['reason'] );
-		$this->assertSame( $order->get_order_key(), $events[0]->payload['order']['order_key'] );
-		$this->assertSame( array( EventDeliverer::OUTCOME_DELIVERED ), $this->deliver_all( $order ) );
+		$this->assertSame( $trashed->get_order_key(), $events[0]->payload['order']['order_key'] );
+		$this->assertSame( array( EventDeliverer::OUTCOME_DELIVERED ), $this->deliver_all( $trashed ) );
 	}
 
 	public function test_deleting_an_unpaid_order_releases_redemptions(): void {
@@ -234,12 +238,14 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 	}
 
 	public function test_trashing_a_paid_order_keeps_its_loyalty_history(): void {
-		$order = $this->create_order();
+		$order    = $this->create_order();
+		$order_id = $order->get_id();
 		$order->payment_complete();
 
 		$order->delete( false );
 
-		$this->assertSame( array( 'order.paid' ), $this->event_types_of( $order ) );
+		$events = Plugin::instance()->events()->repository()->for_object( 'order', $order_id );
+		$this->assertSame( array( 'order.paid' ), array_map( static fn ( $event ): string => $event->type->value, $events ) );
 	}
 
 	public function test_nothing_is_recorded_while_disconnected_or_when_filtered_out(): void {
