@@ -16,6 +16,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * Messages and context are masked before they reach the log: API keys, bearer tokens, signatures and
  * secrets are redacted; phone numbers and e-mail addresses keep only enough to correlate a support case.
+ * Debug entries are written only while the "Debug log" setting is on; info and above always are.
  */
 final class Logger {
 
@@ -32,6 +33,22 @@ final class Logger {
 	 * Context keys whose values are redacted when they match exactly (case-insensitive).
 	 */
 	private const SECRET_KEYS = array( 'code', 'key' );
+
+	/**
+	 * Whether debug entries are written (the "Debug log" setting); null writes them always.
+	 *
+	 * @var \Closure():bool|null
+	 */
+	private ?\Closure $debug_enabled;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param \Closure|null $debug_enabled Returns whether debug entries are written; null writes them always.
+	 */
+	public function __construct( ?\Closure $debug_enabled = null ) {
+		$this->debug_enabled = $debug_enabled;
+	}
 
 	/**
 	 * Log at debug level.
@@ -87,6 +104,10 @@ final class Logger {
 	 */
 	public function log( string $level, string $message, array $context = array() ): void {
 		if ( ! function_exists( 'wc_get_logger' ) ) {
+			return;
+		}
+
+		if ( 'debug' === $level && null !== $this->debug_enabled && true !== ( $this->debug_enabled )() ) {
 			return;
 		}
 

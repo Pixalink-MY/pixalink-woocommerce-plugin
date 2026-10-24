@@ -155,7 +155,7 @@ final class Plugin {
 	 * @return Logger
 	 */
 	public function logger(): Logger {
-		return $this->service( Logger::class, static fn (): Logger => new Logger() );
+		return $this->service( Logger::class, fn (): Logger => new Logger( fn (): bool => $this->options()->get_bool( Options::DEBUG_LOGGING ) ) );
 	}
 
 	/**
