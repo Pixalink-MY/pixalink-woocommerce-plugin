@@ -18,6 +18,7 @@ parameters:
 		# Action Scheduler (as_* functions, ActionScheduler_Store) ships in the packages stubs.
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
 	dynamicConstantNames:
+		- COOKIEPATH
 		- PIXALINK_LOYALTY_DISTRIBUTION
 		- PIXALINK_LOYALTY_VERSION
 	# Filter return values come from third-party code: keep defensive checks on PHPDoc-typed values.

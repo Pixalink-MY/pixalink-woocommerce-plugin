@@ -15,13 +15,14 @@
 		"last_name": { "type": [ "string", "null" ], "maxLength": 191 },
 		"marketing_consent": { "oneOf": [ { "$ref": "common.json#/$defs/marketing_consent" }, { "type": "null" } ] },
 		"verified_via": { "$ref": "common.json#/$defs/verified_via" },
-		"sso_ticket": { "$ref": "common.json#/$defs/sso_ticket" }
+		"sso_ticket": { "$ref": "common.json#/$defs/sso_ticket" },
+		"sso_state": { "description": "The state the store kept in its cookie when the shopper pressed its sign-in button (store-sign-in.query.json). Required when the ticket was minted for that button, ignored otherwise; a ticket bound to a state is refused (410 ticket_invalid, and used up) when this is missing or does not match.", "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" }
 	},
 	"allOf": [
 		{
 			"if": { "properties": { "verified_via": { "const": "sso_ticket" } } },
 			"then": { "required": [ "sso_ticket" ] },
-			"else": { "required": [ "phone", "phone_country" ], "not": { "required": [ "sso_ticket" ] } }
+			"else": { "required": [ "phone", "phone_country" ], "not": { "anyOf": [ { "required": [ "sso_ticket" ] }, { "required": [ "sso_state" ] } ] } }
 		}
 	],
 	"examples": [
@@ -35,6 +36,7 @@
 			"marketing_consent": { "value": true, "source": "checkout", "captured_at": "2026-10-24T08:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" },
 			"verified_via": "none"
 		},
-		{ "external_id": null, "verified_via": "sso_ticket", "sso_ticket": "kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ3kL7mN2pQ6rS8tU4vW1xY5zA9bC3dE7f" }
+		{ "external_id": null, "verified_via": "sso_ticket", "sso_ticket": "kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ3kL7mN2pQ6rS8tU4vW1xY5zA9bC3dE7f" },
+		{ "external_id": null, "verified_via": "sso_ticket", "sso_ticket": "kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ3kL7mN2pQ6rS8tU4vW1xY5zA9bC3dE7f", "sso_state": "q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4" }
 	]
 }

@@ -20,3 +20,11 @@ if ( ! defined( 'PIXALINK_LOYALTY_VERSION' ) ) {
 	define( 'PIXALINK_LOYALTY_URL', 'https://shop.example.test/wp-content/plugins/pixalink-loyalty-for-woocommerce/' );
 	define( 'PIXALINK_LOYALTY_DISTRIBUTION', 'dev' );
 }
+
+// Cookie constants wp_cookie_constants() defines (a site at the domain root, host-only cookies).
+if ( ! defined( 'COOKIEPATH' ) ) {
+	define( 'COOKIEPATH', '/' );
+}
+if ( ! defined( 'COOKIE_DOMAIN' ) ) {
+	define( 'COOKIE_DOMAIN', false );
+}

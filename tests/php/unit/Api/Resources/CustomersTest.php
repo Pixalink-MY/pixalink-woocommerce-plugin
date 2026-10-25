@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the portal-session part of Customers.
+ * Tests for the portal-session and ticket parts of Customers.
  *
  * @package Pixalink\Loyalty\Tests
  */
@@ -41,6 +41,32 @@ final class CustomersTest extends TestCase {
 		$this->assertSame( 'credits', Customers::portal_session_payload( 17, 'credits' )['destination'] );
 		$this->assertSame( 'home', Customers::portal_session_payload( 17, 'vouchers' )['destination'], 'Unknown pages open the portal home.' );
 		$this->assertSame( 'home', Customers::portal_session_payload( 17, '' )['destination'] );
+	}
+
+	public function test_the_ticket_payload_carries_the_state_only_when_given(): void {
+		$ticket = 'kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ';
+		$state  = 'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4';
+
+		$this->assertSame(
+			array(
+				'external_id'  => null,
+				'verified_via' => 'sso_ticket',
+				'sso_ticket'   => $ticket,
+			),
+			Customers::ticket_payload( $ticket, 0 ),
+			'A ticket from the portal\'s Order button travels alone.'
+		);
+		$this->assertArrayNotHasKey( 'sso_state', Customers::ticket_payload( $ticket, 0, null ) );
+		$this->assertArrayNotHasKey( 'sso_state', Customers::ticket_payload( $ticket, 0, '' ), 'An empty state is no state.' );
+		$this->assertSame(
+			array(
+				'external_id'  => '17',
+				'verified_via' => 'sso_ticket',
+				'sso_ticket'   => $ticket,
+				'sso_state'    => $state,
+			),
+			Customers::ticket_payload( $ticket, 17, $state )
+		);
 	}
 
 	public function test_the_payload_refuses_a_missing_user(): void {

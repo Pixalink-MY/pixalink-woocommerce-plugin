@@ -47,6 +47,12 @@ final class Responses {
 	public const PORTAL_URL = 'https://fake-pixalink.test/l/fake-cafe';
 
 	/**
+	 * The fake portal's page behind the store's "Sign in with the member portal" button (heartbeat branding). No page
+	 * answers there: tests check that the store sends the browser to it, and land tickets separately.
+	 */
+	public const SIGN_IN_URL = self::PORTAL_URL . '/store-sign-in/' . self::OUTLET_UUID;
+
+	/**
 	 * Fake portal colours (lower-case #rrggbb, like production).
 	 */
 	public const BRAND_PRIMARY = '#0f5c56';
@@ -553,6 +559,7 @@ final class Responses {
 				'primary_color_ink' => self::BRAND_INK,
 				'secondary_color'   => self::BRAND_ACCENT,
 				'portal_url'        => self::PORTAL_URL,
+				'sign_in_url'       => self::SIGN_IN_URL,
 			),
 		);
 	}

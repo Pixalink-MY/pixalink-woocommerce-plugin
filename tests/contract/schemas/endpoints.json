@@ -75,6 +75,7 @@
 	],
 	"hosted": [
 		{ "method": "GET", "path": "connect/woocommerce", "query": "connect-authorize.query.json", "lead": "connect-lead.json", "callback": "connect-callback.query.json" },
+		{ "method": "GET", "path": "l/{space}/store-sign-in/{outlet}", "query": "store-sign-in.query.json", "comment": "Behind the store's sign-in button (branding.sign_in_url). Signs the member in to the portal first if needed, then redirects to return with pixalink_sso=<ticket bound to sha256(state)>. A return off the outlet's store host gets no redirect." },
 		{ "method": "GET", "path": "l/{space}/handoff/{ticket}", "comment": "The url a portal-session response returns. Consumes the ticket once, signs the member in to the portal and redirects to the destination; an expired or used ticket lands on the portal sign-in page." }
 	]
 }

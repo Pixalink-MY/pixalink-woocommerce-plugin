@@ -93,16 +93,26 @@ final class Customers {
 	/**
 	 * Body for POST customers that redeems a Pixalink portal sign-in ticket.
 	 *
-	 * @param string $ticket     The `pixalink_sso` query parameter.
-	 * @param int    $wp_user_id Logged-in WordPress user id (0 when nobody is logged in).
-	 * @return array{external_id:string|null,verified_via:string,sso_ticket:string}
+	 * `sso_state` is the check value the store kept in its cookie when the shopper pressed "Sign in with the member
+	 * portal"; Pixalink refuses a ticket minted for that button without it (410 ticket_invalid) and ignores it for a
+	 * ticket from the portal's own Order button.
+	 *
+	 * @param string      $ticket     The `pixalink_sso` query parameter.
+	 * @param int         $wp_user_id Logged-in WordPress user id (0 when nobody is logged in).
+	 * @param string|null $state      The sign-in button's state (null or '' when there is none).
+	 * @return array{external_id:string|null,verified_via:string,sso_ticket:string,sso_state?:string}
 	 */
-	public static function ticket_payload( string $ticket, int $wp_user_id ): array {
-		return array(
+	public static function ticket_payload( string $ticket, int $wp_user_id, ?string $state = null ): array {
+		$payload = array(
 			'external_id'  => self::external_id( $wp_user_id ),
 			'verified_via' => self::VERIFIED_VIA_SSO_TICKET,
 			'sso_ticket'   => $ticket,
 		);
+		if ( null !== $state && '' !== $state ) {
+			$payload['sso_state'] = $state;
+		}
+
+		return $payload;
 	}
 
 	/**

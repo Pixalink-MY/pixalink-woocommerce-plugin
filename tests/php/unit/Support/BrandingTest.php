@@ -40,6 +40,7 @@ final class BrandingTest extends TestCase {
 			'primary_color_ink' => '#123962',
 			'secondary_color'   => '#647aa6',
 			'portal_url'        => 'https://demo.pixalink.io/l/pixalink-bookstore',
+			'sign_in_url'       => 'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81',
 		);
 	}
 
@@ -55,6 +56,7 @@ final class BrandingTest extends TestCase {
 		$this->assertSame( '#647aa6', $branding->secondary_color );
 		$this->assertSame( 'https://demo.pixalink.io/l/pixalink-bookstore', $branding->portal_url );
 		$this->assertSame( 'demo.pixalink.io', $branding->portal_host() );
+		$this->assertSame( 'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81', $branding->sign_in_url );
 		$this->assertTrue( $branding->has_colors() );
 	}
 
@@ -135,7 +137,59 @@ final class BrandingTest extends TestCase {
 		$this->assertNull( $branding->logo_url );
 		$this->assertNull( $branding->portal_url );
 		$this->assertNull( $branding->portal_host() );
+		$this->assertNull( $branding->sign_in_url, 'Without a portal address there is no host to check the sign-in page against.' );
 		$this->assertSame( '#123962', $branding->primary_color );
+	}
+
+	/**
+	 * @dataProvider bad_urls
+	 *
+	 * @param mixed $url URL.
+	 */
+	public function test_a_sign_in_url_that_is_not_https_is_dropped( $url ): void {
+		$branding = Branding::from_remote_status( array( 'branding' => array( 'sign_in_url' => $url ) + self::block() ) );
+
+		$this->assertInstanceOf( Branding::class, $branding );
+		$this->assertNull( $branding->sign_in_url );
+		$this->assertSame( 'https://demo.pixalink.io/l/pixalink-bookstore', $branding->portal_url, 'Other fields survive.' );
+	}
+
+	/**
+	 * Sign-in pages that are not on the portal's own host.
+	 *
+	 * @return array<string,array{0:string}>
+	 */
+	public static function foreign_sign_in_urls(): array {
+		return array(
+			'another host'           => array( 'https://evil.example/l/pixalink-bookstore/store-sign-in/x' ),
+			'a sub-domain'           => array( 'https://shop.demo.pixalink.io/l/pixalink-bookstore/store-sign-in/x' ),
+			'a look-alike suffix'    => array( 'https://demo.pixalink.io.evil.example/store-sign-in/x' ),
+			'credentials before host' => array( 'https://demo.pixalink.io@evil.example/store-sign-in/x' ),
+		);
+	}
+
+	/**
+	 * @dataProvider foreign_sign_in_urls
+	 *
+	 * @param string $url URL.
+	 */
+	public function test_a_sign_in_url_off_the_portal_host_is_dropped( string $url ): void {
+		$branding = Branding::from_remote_status( array( 'branding' => array( 'sign_in_url' => $url ) + self::block() ) );
+
+		$this->assertNull( $branding?->sign_in_url );
+	}
+
+	public function test_the_sign_in_url_host_is_compared_without_case(): void {
+		$branding = Branding::from_remote_status( array( 'branding' => array( 'sign_in_url' => 'https://Demo.Pixalink.IO/l/pixalink-bookstore/store-sign-in/x' ) + self::block() ) );
+
+		$this->assertSame( 'https://Demo.Pixalink.IO/l/pixalink-bookstore/store-sign-in/x', $branding?->sign_in_url );
+	}
+
+	public function test_a_server_older_than_the_sign_in_field_means_no_sign_in_page(): void {
+		$block = self::block();
+		unset( $block['sign_in_url'] );
+
+		$this->assertNull( Branding::from_remote_status( array( 'branding' => $block ) )?->sign_in_url );
 	}
 
 	public function test_http_is_accepted_on_local_development_hosts_only(): void {
@@ -151,6 +205,16 @@ final class BrandingTest extends TestCase {
 		$this->assertInstanceOf( Branding::class, $local );
 		$this->assertSame( 'http://localhost:8888/logo.svg', $local->logo_url );
 		$this->assertSame( 'explore.pixalink.test', $local->portal_host() );
+
+		$local_sign_in = Branding::from_remote_status(
+			array(
+				'branding' => array(
+					'portal_url'  => 'http://explore.pixalink.test/l/demo',
+					'sign_in_url' => 'http://explore.pixalink.test/l/demo/store-sign-in/x',
+				) + self::block(),
+			)
+		);
+		$this->assertSame( 'http://explore.pixalink.test/l/demo/store-sign-in/x', $local_sign_in?->sign_in_url );
 	}
 
 	public function test_a_null_logo_is_allowed(): void {

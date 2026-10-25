@@ -222,12 +222,14 @@ final class CustomerLinker {
 	/**
 	 * Redeem a Pixalink portal sign-in ticket (single use: any ticket presented is used up).
 	 *
-	 * @param string $ticket     The `pixalink_sso` value.
-	 * @param int    $wp_user_id Logged-in user id (0 when nobody is logged in); Pixalink links the member to it.
+	 * @param string      $ticket     The `pixalink_sso` value.
+	 * @param int         $wp_user_id Logged-in user id (0 when nobody is logged in); Pixalink links the member to it.
+	 * @param string|null $state      The state of the store's sign-in button ({@see SignInState}), null when none.
 	 * @return array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null}
-	 * @throws LinkException When the ticket is malformed, spent, foreign or did not prove the phone, or the user is staff.
+	 * @throws LinkException When the ticket is malformed, spent, foreign, bound to another state or did not prove the
+	 *                       phone, or the user is staff.
 	 */
-	public function redeem_ticket( string $ticket, int $wp_user_id ): array {
+	public function redeem_ticket( string $ticket, int $wp_user_id, ?string $state = null ): array {
 		$this->refuse_staff( $wp_user_id );
 
 		if ( 1 !== preg_match( self::TICKET_PATTERN, $ticket ) ) {
@@ -236,7 +238,7 @@ final class CustomerLinker {
 		}
 
 		try {
-			$customer = $this->customers->create( Customers::ticket_payload( $ticket, $wp_user_id ) );
+			$customer = $this->customers->create( Customers::ticket_payload( $ticket, $wp_user_id, $state ) );
 		} catch ( ApiException $exception ) {
 			$failure = $this->failure( $exception, 'ticket' );
 			throw $failure;

@@ -52,6 +52,15 @@ final class BrandingPayloadsTest extends TestCase {
 		$this->assertSame( $example['branding']['primary_color_ink'], $branding->primary_color_ink );
 		$this->assertSame( $example['branding']['secondary_color'], $branding->secondary_color );
 		$this->assertSame( $example['branding']['portal_url'], $branding->portal_url );
+		$this->assertSame( $example['branding']['sign_in_url'], $branding->sign_in_url, 'The sign-in page is on the portal host.' );
+	}
+
+	public function test_a_heartbeat_without_the_sign_in_page_is_valid_and_hides_the_button(): void {
+		$example = self::examples( 'connection-heartbeat.response.json' )[0];
+		unset( $example['branding']['sign_in_url'] );
+
+		$this->assertSame( array(), ContractValidator::validate( 'connection-heartbeat.response.json', $example ), 'Servers older than the field omit it.' );
+		$this->assertNull( Branding::from_remote_status( $example )?->sign_in_url );
 	}
 
 	public function test_a_heartbeat_without_branding_is_still_valid_and_means_no_branding(): void {
@@ -76,6 +85,7 @@ final class BrandingPayloadsTest extends TestCase {
 		$this->assertInstanceOf( Branding::class, $branding );
 		$this->assertTrue( $branding->has_colors() );
 		$this->assertSame( Responses::PORTAL_HOST, $branding->portal_host() );
+		$this->assertSame( Responses::SIGN_IN_URL, $branding->sign_in_url );
 	}
 
 	public function test_the_summary_tier_colour_is_kept(): void {

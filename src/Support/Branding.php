@@ -12,12 +12,13 @@ namespace Pixalink\Loyalty\Support;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * The heartbeat's optional `branding` block (logo, colours, portal address), validated field by field.
+ * The heartbeat's optional `branding` block (logo, colours, portal address, sign-in page), validated field by field.
  *
  * A colour is kept only when it is lower-case `#rrggbb`; the logo and portal URLs only when they are https (http is
- * accepted for local development hosts: localhost, `*.localhost`, `*.test`). Anything else becomes null, so the CSS
- * built from this object can only ever contain six hex digits per colour. A server older than the field sends no
- * block at all, which means no branding.
+ * accepted for local development hosts: localhost, `*.localhost`, `*.test`). The sign-in page behind the store's
+ * "Sign in with the member portal" button must pass the same check and sit on the portal's own host. Anything else
+ * becomes null, so the CSS built from this object can only ever contain six hex digits per colour. A server older than
+ * the field sends no block at all, which means no branding.
  */
 final class Branding {
 
@@ -38,6 +39,7 @@ final class Branding {
 	 * @param string|null $primary_color_ink Brand colour adjusted to stay readable as text on white.
 	 * @param string|null $secondary_color   Accent colour.
 	 * @param string|null $portal_url        The member portal's signed-out home page.
+	 * @param string|null $sign_in_url       The portal page behind "Sign in with the member portal" (on the portal host).
 	 */
 	public function __construct(
 		public readonly ?string $name,
@@ -46,7 +48,8 @@ final class Branding {
 		public readonly ?string $primary_color_on,
 		public readonly ?string $primary_color_ink,
 		public readonly ?string $secondary_color,
-		public readonly ?string $portal_url
+		public readonly ?string $portal_url,
+		public readonly ?string $sign_in_url = null
 	) {}
 
 	/**
@@ -61,6 +64,8 @@ final class Branding {
 			return null;
 		}
 
+		$portal_url = self::url( $block['portal_url'] ?? null );
+
 		return new self(
 			self::name( $block['name'] ?? null ),
 			self::url( $block['logo_url'] ?? null ),
@@ -68,8 +73,26 @@ final class Branding {
 			self::color( $block['primary_color_on'] ?? null ),
 			self::color( $block['primary_color_ink'] ?? null ),
 			self::color( $block['secondary_color'] ?? null ),
-			self::url( $block['portal_url'] ?? null )
+			$portal_url,
+			self::on_host_of( self::url( $block['sign_in_url'] ?? null ), $portal_url )
 		);
+	}
+
+	/**
+	 * A URL when its host is the host of another, or null (also when either is unknown).
+	 *
+	 * @param string|null $url   Candidate (already validated).
+	 * @param string|null $other URL whose host it must share.
+	 * @return string|null
+	 */
+	private static function on_host_of( ?string $url, ?string $other ): ?string {
+		if ( null === $url || null === $other ) {
+			return null;
+		}
+
+		$host = self::host( $url );
+
+		return null !== $host && self::host( $other ) === $host ? $url : null;
 	}
 
 	/**
