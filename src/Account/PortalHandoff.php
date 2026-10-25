@@ -22,8 +22,11 @@ use Pixalink\Loyalty\Support\Options;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * `admin-post.php?action=pixalink_loyalty_open_portal&destination=rewards&_wpnonce=…` (logged-in only: there is no
- * `nopriv` handler and no rewrite rule).
+ * `admin-post.php?action=pixalink_loyalty_open_portal&destination=rewards&_wpnonce=…` (no rewrite rule).
+ *
+ * A logged-out click (a page left open after the session ended) goes to the My Account login form with
+ * `redirect_to` set to the Loyalty tab, without any API call. WooCommerce's login form honours `redirect_to` (it
+ * becomes the form's `redirect` field, validated at login), and "Sign in with the member portal" comes back there too.
  *
  * When a verified member clicks a portal button, the store asks Pixalink for a single-use sign-in link
  * (`POST customers/{id}/portal-session`, valid once for 60 seconds) and redirects the browser to it at once. The link
@@ -141,12 +144,49 @@ final class PortalHandoff {
 	}
 
 	/**
-	 * Register the handler (logged-in visitors only).
+	 * Query argument of the login form's "come back here after logging in".
+	 */
+	public const REDIRECT_PARAM = 'redirect_to';
+
+	/**
+	 * Register the handlers.
 	 *
 	 * @return void
 	 */
 	public function register(): void {
 		add_action( 'admin_post_' . self::ACTION, array( $this, 'handle_request' ) );
+		add_action( 'admin_post_nopriv_' . self::ACTION, array( $this, 'handle_logged_out' ) );
+	}
+
+	/**
+	 * `admin_post_nopriv_pixalink_loyalty_open_portal` callback: to the login form, then back to the Loyalty tab.
+	 *
+	 * @return void
+	 */
+	public function handle_logged_out(): void {
+		$this->send( self::internal( self::login_url() ) );
+		( $this->terminate )();
+	}
+
+	/**
+	 * The My Account login form, with the Loyalty tab to come back to.
+	 *
+	 * @return string
+	 */
+	public static function login_url(): string {
+		return add_query_arg( self::REDIRECT_PARAM, rawurlencode( self::loyalty_url() ), wc_get_page_permalink( 'myaccount' ) );
+	}
+
+	/**
+	 * Where the login form was asked to send the shopper afterwards (`redirect_to`): a page of this store, or ''.
+	 *
+	 * @return string
+	 */
+	public static function requested_redirect(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- A destination, validated to this site.
+		$raw = isset( $_GET[ self::REDIRECT_PARAM ] ) && is_string( $_GET[ self::REDIRECT_PARAM ] ) ? sanitize_url( wp_unslash( $_GET[ self::REDIRECT_PARAM ] ) ) : '';
+
+		return '' === $raw ? '' : wp_validate_redirect( $raw, '' );
 	}
 
 	/**
@@ -218,7 +258,7 @@ final class PortalHandoff {
 	public function resolve( string $nonce, string $destination ): ?array {
 		$user_id = get_current_user_id();
 		if ( $user_id < 1 ) {
-			return self::internal( self::loyalty_url() );
+			return self::internal( self::login_url() );
 		}
 
 		if ( false === wp_verify_nonce( $nonce, self::NONCE_ACTION ) ) {

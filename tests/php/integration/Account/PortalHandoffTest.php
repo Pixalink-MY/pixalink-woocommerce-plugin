@@ -21,9 +21,10 @@ use Pixalink\Loyalty\Tests\FakeServer\Server;
 use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 
 /**
- * A click on a portal button: refused without a valid nonce, the login form for a logged-out visitor, the Loyalty tab
- * (and no API call) for an unverified shopper, and for a verified member a freshly minted sign-in link followed with a
- * 303, no-cache headers and no Referer, or the signed-out portal when anything about the link is off.
+ * A click on a portal button: refused without a valid nonce, the login form (then back to the Loyalty tab) for a
+ * logged-out visitor, the Loyalty tab (and no API call) for an unverified shopper, and for a verified member a freshly
+ * minted sign-in link followed with a 303, no-cache headers and no Referer, or the signed-out portal when anything
+ * about the link is off.
  *
  * @covers \Pixalink\Loyalty\Account\PortalHandoff
  * @covers \Pixalink\Loyalty\Api\Resources\Customers
@@ -231,9 +232,40 @@ final class PortalHandoffTest extends \WP_UnitTestCase {
 		return (string) wp_json_encode( $this->logger->entries );
 	}
 
-	public function test_the_handler_is_for_logged_in_visitors_only(): void {
+	public function test_logged_out_clicks_have_their_own_handler(): void {
 		$this->assertNotFalse( has_action( 'admin_post_' . PortalHandoff::ACTION ) );
-		$this->assertFalse( has_action( 'admin_post_nopriv_' . PortalHandoff::ACTION ), 'No nopriv handler.' );
+		$this->assertNotFalse( has_action( 'admin_post_nopriv_' . PortalHandoff::ACTION ), 'Not WordPress\'s blank 400.' );
+	}
+
+	public function test_a_logged_out_click_goes_to_the_login_form_and_back_to_the_loyalty_tab(): void {
+		$account = self::factory()->post->create( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'My account' ) );
+		update_option( 'woocommerce_myaccount_page_id', $account );
+		$_GET = array(
+			'action'      => PortalHandoff::ACTION,
+			'destination' => 'rewards',
+			'_wpnonce'    => 'stale-or-missing',
+		);
+
+		$this->handoff()->handle_logged_out();
+
+		$this->assertCount( 1, $this->redirects );
+		[ $location, $status ] = $this->redirects[0];
+		$this->assertSame( 303, $status );
+		$this->assertSame( (string) get_permalink( $account ), remove_query_arg( 'redirect_to', $location ) );
+		wp_parse_str( (string) wp_parse_url( $location, PHP_URL_QUERY ), $query );
+		$this->assertSame( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), $query['redirect_to'] ?? null );
+		$this->assertContains( 'Referrer-Policy: no-referrer', $this->headers );
+		$this->assertSame( array(), Server::recorded(), 'No API call for a logged-out visitor.' );
+		$this->assertSame( array(), $this->outcomes );
+	}
+
+	public function test_woocommerce_logs_in_to_the_redirect_to_page(): void {
+		$_GET = array( 'redirect_to' => wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ) );
+
+		$html = (string) wc_get_template_html( 'myaccount/form-login.php' );
+
+		// WooCommerce's own field (validated with wp_validate_redirect() when the form is submitted).
+		$this->assertStringContainsString( '<input type="hidden" name="redirect" value="' . esc_attr( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ) ) . '" />', $html );
 	}
 
 	public function test_button_links_carry_a_nonce_and_never_a_sign_in_link(): void {
@@ -296,7 +328,7 @@ final class PortalHandoffTest extends \WP_UnitTestCase {
 
 		$this->assertNotNull( $redirect );
 		$this->assertFalse( $redirect['external'] );
-		$this->assertSame( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), $redirect['location'] );
+		$this->assertSame( PortalHandoff::login_url(), $redirect['location'] );
 		$this->assertSame( array(), self::session_requests() );
 		$this->assertSame( array(), $this->outcomes );
 	}
