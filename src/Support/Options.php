@@ -63,9 +63,10 @@ final class Options {
 	public const CHECKOUT_CONSENT_DEFAULT_VALUE = 'pixalink_loyalty_checkout_consent_default';
 
 	// My Account section.
-	public const ACCOUNT_TAB_ENABLED = 'pixalink_loyalty_account_tab_enabled';
-	public const ACCOUNT_TAB_TITLE   = 'pixalink_loyalty_account_tab_title';
-	public const ACCOUNT_SHOW_QR     = 'pixalink_loyalty_account_show_qr';
+	public const ACCOUNT_TAB_ENABLED    = 'pixalink_loyalty_account_tab_enabled';
+	public const ACCOUNT_TAB_TITLE      = 'pixalink_loyalty_account_tab_title';
+	public const ACCOUNT_DASHBOARD_CARD = 'pixalink_loyalty_account_dashboard_card';
+	public const ACCOUNT_SHOW_QR        = 'pixalink_loyalty_account_show_qr';
 
 	// Advanced section.
 	public const DEBUG_LOGGING = 'pixalink_loyalty_debug_logging';
@@ -162,6 +163,7 @@ final class Options {
 			self::CHECKOUT_CONSENT_TEXT     => $frontend( '' ),
 			self::ACCOUNT_TAB_ENABLED       => $frontend( 'yes' ),
 			self::ACCOUNT_TAB_TITLE         => $frontend( '' ),
+			self::ACCOUNT_DASHBOARD_CARD    => $frontend( 'yes' ),
 			self::ACCOUNT_SHOW_QR           => $frontend( 'yes' ),
 			self::DEBUG_LOGGING             => array(
 				'default'  => 'no',

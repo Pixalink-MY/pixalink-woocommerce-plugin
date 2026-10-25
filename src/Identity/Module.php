@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Pixalink\Loyalty\Identity;
 
 use Pixalink\Loyalty\Account\AccountView;
+use Pixalink\Loyalty\Account\DashboardCard;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
 use Pixalink\Loyalty\Account\QrService;
 use Pixalink\Loyalty\Account\SummaryService;
@@ -165,8 +166,10 @@ final class Module {
 		( new CheckoutFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, new OrderIdentity( $this->events, $this->sync ), $this->guests ) )->register();
 		( new AccountFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, $this->sync, $this->events ) )->register();
 
-		$view = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests );
-		( new LoyaltyEndpoint( $this->options, $view ) )->register();
+		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests );
+		$endpoint = new LoyaltyEndpoint( $this->options, $view );
+		$endpoint->register();
+		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger ) )->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();
 		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger ) )->register();

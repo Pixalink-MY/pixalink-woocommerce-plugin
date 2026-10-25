@@ -1,0 +1,46 @@
+/**
+ * My Account: the loyalty card on the dashboard.
+ *
+ * Colours inherit from the theme; only spacing, the border and the progress bar width are set here. Logical
+ * properties keep the layout correct in right-to-left languages.
+ */
+
+.pixalink-loyalty-dashboard-card {
+	--pixalink-loyalty-border: rgba(0, 0, 0, 0.12);
+	--pixalink-loyalty-muted: rgba(0, 0, 0, 0.62);
+	margin-block: 1.5em;
+	padding-block: 1em;
+	padding-inline: 1.25em;
+	border: 1px solid var(--pixalink-loyalty-border);
+	border-radius: 4px;
+}
+
+.pixalink-loyalty-dashboard-card__title {
+	margin-block: 0 0.5em;
+	font-size: 1.1em;
+}
+
+.pixalink-loyalty-dashboard-card p {
+	margin-block: 0 0.5em;
+}
+
+.pixalink-loyalty-dashboard-card__points-value {
+	font-size: 1.5em;
+}
+
+.pixalink-loyalty-dashboard-card__expiring,
+.pixalink-loyalty-dashboard-card__next-tier {
+	color: var(--pixalink-loyalty-muted);
+	font-size: 0.875em;
+}
+
+.pixalink-loyalty-dashboard-card__progress {
+	display: block;
+	inline-size: 100%;
+	max-inline-size: 20em;
+	margin-block: 0 0.75em;
+}
+
+.pixalink-loyalty-dashboard-card p.pixalink-loyalty-dashboard-card__action {
+	margin-block: 0.75em 0;
+}

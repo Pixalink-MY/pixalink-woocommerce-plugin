@@ -172,6 +172,7 @@ final class SettingsPage extends \WC_Settings_Page {
 				'autoload'    => true,
 				'placeholder' => __( 'Loyalty', 'pixalink-loyalty-for-woocommerce' ),
 			),
+			self::checkbox( Options::ACCOUNT_DASHBOARD_CARD, __( 'Dashboard summary', 'pixalink-loyalty-for-woocommerce' ), __( 'Show loyalty summary on the My Account dashboard', 'pixalink-loyalty-for-woocommerce' ) ),
 			self::checkbox( Options::ACCOUNT_SHOW_QR, __( 'Member QR code', 'pixalink-loyalty-for-woocommerce' ), __( 'Show a QR code members can scan at your outlets', 'pixalink-loyalty-for-woocommerce' ) ),
 			array(
 				'type' => 'sectionend',
