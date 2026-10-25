@@ -1,0 +1,75 @@
+{
+	"name": "pixalink/pixalink-loyalty-for-woocommerce",
+	"description": "Pixalink loyalty points, vouchers and member accounts for WooCommerce stores.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"homepage": "https://pixalink.io",
+	"authors": [
+		{
+			"name": "Pixalink",
+			"homepage": "https://pixalink.io"
+		}
+	],
+	"require": {
+		"php": ">=8.1"
+	},
+	"require-dev": {
+		"brain/monkey": "^2.6",
+		"mockery/mockery": "^1.6",
+		"opis/json-schema": "^2.4",
+		"php-stubs/woocommerce-stubs": "^11.0",
+		"phpcompatibility/phpcompatibility-wp": "^2.1",
+		"phpstan/extension-installer": "^1.4",
+		"phpstan/phpstan": "^2.1",
+		"phpunit/phpunit": "^9.6",
+		"szepeviktor/phpstan-wordpress": "^2.0",
+		"woocommerce/woocommerce-sniffs": "^1.0",
+		"wp-coding-standards/wpcs": "^3.1",
+		"wp-phpunit/wp-phpunit": "^7.0",
+		"yahnis-elsts/plugin-update-checker": "^5.6",
+		"yoast/phpunit-polyfills": "^4.0"
+	},
+	"autoload": {
+		"psr-4": {
+			"Pixalink\\Loyalty\\": "src/"
+		}
+	},
+	"autoload-dev": {
+		"psr-4": {
+			"Pixalink\\Loyalty\\Tests\\Unit\\": "tests/php/unit/",
+			"Pixalink\\Loyalty\\Tests\\Contract\\": "tests/php/contract/",
+			"Pixalink\\Loyalty\\Tests\\Integration\\": "tests/php/integration/",
+			"Pixalink\\Loyalty\\Tests\\FakeServer\\": "tests/e2e/mu-plugins/fake-pixalink/"
+		}
+	},
+	"config": {
+		"platform": {
+			"php": "8.1.0"
+		},
+		"sort-packages": true,
+		"optimize-autoloader": true,
+		"allow-plugins": {
+			"dealerdirect/phpcodesniffer-composer-installer": true,
+			"phpstan/extension-installer": true
+		}
+	},
+	"scripts": {
+		"lint": "phpcs",
+		"lint:fix": "phpcbf",
+		"analyse": "phpstan analyse --memory-limit=1G",
+		"test:unit": "phpunit --testsuite unit",
+		"test:contract": "phpunit --testsuite contract",
+		"test": [
+			"@test:unit",
+			"@test:contract"
+		],
+		"test:integration": "phpunit -c phpunit-integration.xml.dist"
+	},
+	"scripts-descriptions": {
+		"lint": "Run PHPCS (WordPress-Extra, WooCommerce-Core, PHPCompatibilityWP).",
+		"analyse": "Run PHPStan level 8.",
+		"test:unit": "Run Brain Monkey unit tests (no WordPress).",
+		"test:contract": "Validate fake-server responses and request builders against the JSON Schemas.",
+		"test:integration": "Run the WordPress integration suite (inside wp-env: npm run test:integration)."
+	}
+}

@@ -1,0 +1,40 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/event.response.json",
+	"title": "POST events 200 response",
+	"description": "duplicate = already processed (success). 409 order_not_settled / event_in_progress and 425 dependency_pending = retry with backoff; 401/403 = pause delivery.",
+	"type": "object",
+	"required": [ "status", "result" ],
+	"properties": {
+		"status": { "enum": [ "processed", "duplicate", "accepted", "ignored" ] },
+		"result": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"properties": {
+						"pos_transaction_id": { "$ref": "common.json#/$defs/id" },
+						"points_earned": { "type": "integer", "minimum": 0 },
+						"earn_state": { "enum": [ "earned", "pending_completion", "skipped" ] },
+						"restored": {
+							"type": "object",
+							"properties": {
+								"points": { "type": "integer", "minimum": 0 },
+								"credits_cents": { "type": "integer", "minimum": 0 },
+								"vouchers": { "type": "array", "items": { "$ref": "common.json#/$defs/id" } }
+							}
+						},
+						"reason": { "type": "string" },
+						"pong": { "const": true }
+					}
+				}
+			]
+		}
+	},
+	"examples": [
+		{ "status": "processed", "result": { "pong": true } },
+		{ "status": "processed", "result": { "pos_transaction_id": "90001", "points_earned": 145, "earn_state": "earned" } },
+		{ "status": "duplicate", "result": null },
+		{ "status": "ignored", "result": { "reason": "refund_deleted_not_supported" } }
+	]
+}

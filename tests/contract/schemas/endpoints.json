@@ -1,0 +1,78 @@
+{
+	"$comment": "Endpoint manifest for /api/commerce/v1, shared with explore (tests/Fixtures/commerce/). auth: none = unauthenticated + unsigned; signed = Bearer outlet key + X-Pixalink-Signature. nonce: event_id | idempotency_key | read ('-'). response null = no body (status says which). errors: the non-2xx answers an endpoint documents, in the error.response.json envelope; carries names the envelope fields that error must include. common_errors apply to every signed endpoint on top of its own. `hosted` lists browser pages on the Pixalink web base (API base without /api/...), not API calls. `plugin` lists routes the store serves to Pixalink (auth signature = X-Pixalink-Timestamp + X-Pixalink-Event-Id + X-Pixalink-Signature with the outlet's derived signing key, no bearer).",
+	"base_path": "/api/commerce/v1",
+	"signature": {
+		"header": "X-Pixalink-Signature",
+		"scheme": "v1",
+		"string_to_sign": "{timestamp}.{nonce}.{raw_body}",
+		"key": "hash_hmac('sha256', 'pixalink-commerce-events-v1', hash('sha256', <api key part after the first '|'>)) as lower-case hex, used as-is",
+		"nonce_pattern": "^[A-Za-z0-9-]{16,64}$",
+		"window_seconds": 300
+	},
+	"common_errors": [
+		{ "status": 401, "code": "unauthenticated" },
+		{ "status": 401, "code": "signature_invalid" },
+		{ "status": 401, "code": "timestamp_skew", "carries": [ "server_time" ] },
+		{ "status": 422, "code": "validation_failed", "carries": [ "errors" ] }
+	],
+	"endpoints": [
+		{ "method": "POST", "path": "connect/exchange", "auth": "none", "nonce": null, "request": "connect-exchange.request.json", "response": "connect-exchange.response.json", "errors": [ { "status": 400, "code": "invalid_grant" } ] },
+		{
+			"method": "POST",
+			"path": "connection/heartbeat",
+			"auth": "signed",
+			"nonce": "idempotency_key",
+			"request": "connection-heartbeat.request.json",
+			"response": "connection-heartbeat.response.json",
+			"errors": [ { "status": 403, "code": "subscription_inactive" }, { "status": 403, "code": "commerce_not_enabled" }, { "status": 409, "code": "site_already_connected" } ]
+		},
+		{ "method": "POST", "path": "connection/disconnect", "auth": "signed", "nonce": "idempotency_key", "request": "connection-disconnect.request.json", "response": null, "status": 204, "errors": [] },
+		{ "method": "GET", "path": "outlet", "auth": "signed", "nonce": "read", "request": null, "response": "outlet.response.json", "errors": [] },
+		{ "method": "GET", "path": "customers", "auth": "signed", "nonce": "read", "query": "customers-lookup.query.json", "request": null, "response": "customers-lookup.response.json", "errors": [ { "status": 404, "code": "not_found" } ] },
+		{ "method": "POST", "path": "customers", "auth": "signed", "nonce": "idempotency_key", "request": "customers-create.request.json", "response": "customers-create.response.json", "errors": [ { "status": 410, "code": "ticket_invalid" } ] },
+		{ "method": "GET", "path": "customers/{id}", "auth": "signed", "nonce": "read", "request": null, "response": "customer-summary.response.json", "errors": [ { "status": 403, "code": "verification_required" }, { "status": 404, "code": "not_found" } ] },
+		{ "method": "POST", "path": "customers/{id}/otp", "auth": "signed", "nonce": "idempotency_key", "request": "customer-otp.request.json", "response": "customer-otp.response.json", "errors": [ { "status": 404, "code": "not_found" }, { "status": 429, "code": "otp_throttled", "headers": [ "Retry-After" ] } ] },
+		{
+			"method": "POST",
+			"path": "customers/{id}/otp/verify",
+			"auth": "signed",
+			"nonce": "idempotency_key",
+			"request": "customer-otp-verify.request.json",
+			"response": "customer-otp-verify.response.json",
+			"errors": [ { "status": 404, "code": "not_found" }, { "status": 422, "code": "otp_invalid" }, { "status": 422, "code": "otp_expired" }, { "status": 422, "code": "otp_attempts_exceeded" }, { "status": 429, "code": "otp_throttled", "headers": [ "Retry-After" ] } ]
+		},
+		{ "method": "POST", "path": "quote", "auth": "signed", "nonce": "idempotency_key", "request": "quote.request.json", "response": "quote.response.json", "errors": [ { "status": 403, "code": "verification_required" } ] },
+		{
+			"method": "PUT",
+			"path": "orders/{order_ref}/redemptions",
+			"auth": "signed",
+			"nonce": "idempotency_key",
+			"request": "redemptions-put.request.json",
+			"response": "redemptions.response.json",
+			"errors": [
+				{ "status": 403, "code": "verification_required" },
+				{ "status": 409, "code": "points_insufficient", "carries": [ "available" ] },
+				{ "status": 409, "code": "credits_insufficient", "carries": [ "available_cents" ] },
+				{ "status": 409, "code": "voucher_unavailable" },
+				{ "status": 422, "code": "discount_mismatch" }
+			]
+		},
+		{ "method": "DELETE", "path": "orders/{order_ref}/redemptions", "auth": "signed", "nonce": "idempotency_key", "request": null, "response": "redemptions.response.json", "errors": [] },
+		{ "method": "POST", "path": "events", "auth": "signed", "nonce": "event_id", "request": "event.request.json", "response": "event.response.json", "errors": [] }
+	],
+	"plugin": [
+		{
+			"method": "POST",
+			"path": "pixalink-loyalty/v1/webhook",
+			"base_path": "/wp-json",
+			"auth": "signature",
+			"nonce": "event_id",
+			"request": "webhook.request.json",
+			"response": "webhook.response.json",
+			"errors": [ { "status": 400, "code": "invalid_payload" }, { "status": 401, "code": "signature_invalid" }, { "status": 401, "code": "timestamp_skew", "carries": [ "server_time" ] }, { "status": 503, "code": "not_connected" } ]
+		}
+	],
+	"hosted": [
+		{ "method": "GET", "path": "connect/woocommerce", "query": "connect-authorize.query.json", "lead": "connect-lead.json", "callback": "connect-callback.query.json" }
+	]
+}

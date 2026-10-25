@@ -1,0 +1,11 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customer-otp.request.json",
+	"title": "POST customers/{id}/otp request (send a one-time code to the customer's phone; WhatsApp then SMS routing is server-side)",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"channel": { "description": "Preferred channel; null lets the server choose.", "enum": [ "whatsapp", "sms", null ] }
+	},
+	"examples": [ { "channel": null }, { "channel": "sms" } ]
+}

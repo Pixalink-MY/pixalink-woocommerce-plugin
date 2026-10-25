@@ -1,0 +1,42 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connect-authorize.query.json",
+	"title": "GET {pixalink web base}/connect/woocommerce query (hosted connect page, browser redirect)",
+	"description": "The plugin redirects the store admin here. Logged-in vendors pick an outlet; guests see the login page with a 'Request access' link. Pixalink redirects back to `return` with connect-callback.query.json. `state` is opaque to Pixalink and must be echoed unchanged. `intent=request_access` asks Pixalink to open the request-access form directly; `lead` (only with that intent) is base64url(JSON) of connect-lead.json to prefill it. All values arrive as strings.",
+	"type": "object",
+	"required": [ "site", "return", "state", "code_challenge", "code_challenge_method", "plugin_version", "wc_version" ],
+	"additionalProperties": false,
+	"properties": {
+		"site": { "$ref": "common.json#/$defs/url" },
+		"return": { "$ref": "common.json#/$defs/url" },
+		"state": { "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" },
+		"code_challenge": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+		"code_challenge_method": { "const": "S256" },
+		"plugin_version": { "$ref": "common.json#/$defs/semver" },
+		"wc_version": { "$ref": "common.json#/$defs/semver" },
+		"intent": { "enum": [ "connect", "request_access" ] },
+		"lead": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$", "maxLength": 4096 }
+	},
+	"examples": [
+		{
+			"site": "https://shop.example.test",
+			"return": "https://shop.example.test/wp-admin/admin.php?page=wc-settings&tab=pixalink_loyalty&pixalink_connect=callback",
+			"state": "q2Vh0bT8y3c9oXr1mJk4ZpN6wLs7AeDfGuIiHtYvBxC",
+			"code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+			"code_challenge_method": "S256",
+			"plugin_version": "0.1.0",
+			"wc_version": "11.2.1"
+		},
+		{
+			"site": "https://shop.example.test",
+			"return": "https://shop.example.test/wp-admin/admin.php?page=wc-settings&tab=pixalink_loyalty&pixalink_connect=callback",
+			"state": "q2Vh0bT8y3c9oXr1mJk4ZpN6wLs7AeDfGuIiHtYvBxC",
+			"code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+			"code_challenge_method": "S256",
+			"plugin_version": "0.1.0",
+			"wc_version": "11.2.1",
+			"intent": "request_access",
+			"lead": "eyJzdG9yZV9uYW1lIjoiRGVtbyBTaG9wIn0"
+		}
+	]
+}

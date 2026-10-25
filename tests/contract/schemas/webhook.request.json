@@ -1,0 +1,58 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/webhook.request.json",
+	"title": "POST {site}/wp-json/pixalink-loyalty/v1/webhook request: a server-to-store notification",
+	"description": "Signed like plugin requests but without a bearer token: X-Pixalink-Timestamp, X-Pixalink-Event-Id (= id) and X-Pixalink-Signature: v1=hmac_sha256('{timestamp}.{event id}.{raw body}', signing key), the key derived from the outlet API key. The store answers 401 on a bad signature or a timestamp outside ±300 s, and 200 duplicate for an id it saw in the last 7 days. Unknown types are acknowledged with 200 ignored.",
+	"type": "object",
+	"required": [ "id", "type", "occurred_at", "data" ],
+	"properties": {
+		"id": { "$ref": "common.json#/$defs/nonce" },
+		"type": { "type": "string", "pattern": "^[a-z]+\\.[a-z_]+$" },
+		"occurred_at": { "$ref": "common.json#/$defs/datetime" },
+		"data": { "type": "object" }
+	},
+	"allOf": [
+		{
+			"if": { "properties": { "type": { "const": "customer.updated" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/customer_updated" } } }
+		},
+		{
+			"if": { "properties": { "type": { "const": "voucher.issued" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/voucher_issued" } } }
+		}
+	],
+	"$defs": {
+		"customer_updated": {
+			"description": "The customer's details or balances changed in Pixalink. marketing_status blocked or do_not_contact withdraws the store's recorded marketing consent.",
+			"type": "object",
+			"required": [ "customer_id" ],
+			"properties": {
+				"customer_id": { "$ref": "common.json#/$defs/id" },
+				"external_id": { "type": [ "string", "null" ], "pattern": "^[1-9][0-9]*$" },
+				"marketing_status": { "enum": [ "subscribed", "do_not_contact", "blocked", null ] }
+			}
+		},
+		"voucher_issued": {
+			"type": "object",
+			"required": [ "customer_id" ],
+			"properties": {
+				"customer_id": { "$ref": "common.json#/$defs/id" },
+				"external_id": { "type": [ "string", "null" ], "pattern": "^[1-9][0-9]*$" },
+				"voucher": {
+					"type": "object",
+					"required": [ "id" ],
+					"properties": {
+						"id": { "$ref": "common.json#/$defs/id" },
+						"code": { "type": "string" },
+						"title": { "type": "string" },
+						"expires_at": { "$ref": "common.json#/$defs/nullable_datetime" }
+					}
+				}
+			}
+		}
+	},
+	"examples": [
+		{ "id": "5f0c2a1e-8d4b-4c7a-9e2f-1b3d5a7c9e01", "type": "customer.updated", "occurred_at": "2026-10-25T02:00:00Z", "data": { "customer_id": "5001", "external_id": "17", "marketing_status": "blocked" } },
+		{ "id": "7a1d3c5e-9f2b-4d6a-8c0e-2b4d6f8a0c12", "type": "voucher.issued", "occurred_at": "2026-10-25T02:05:00Z", "data": { "customer_id": "5001", "voucher": { "id": "89", "code": "PXL-BDAY-89", "title": "Birthday treat", "expires_at": null } } }
+	]
+}

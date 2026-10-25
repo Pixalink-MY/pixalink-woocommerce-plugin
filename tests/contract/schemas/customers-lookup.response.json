@@ -1,0 +1,15 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customers-lookup.response.json",
+	"title": "GET customers 200 response (one match; no member: 404 not_found)",
+	"description": "Server precedence when resolving a link: external_id (the WordPress user id), then phone, then e-mail (single match only).",
+	"type": "object",
+	"required": [ "customer" ],
+	"properties": {
+		"customer": { "$ref": "common.json#/$defs/customer" }
+	},
+	"examples": [
+		{ "customer": { "id": "5001", "phone": "+60123456789", "verified": false, "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman" } },
+		{ "customer": { "id": "5001", "phone": "+60123456789", "verified": true } }
+	]
+}

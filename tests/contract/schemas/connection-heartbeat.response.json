@@ -1,0 +1,64 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connection-heartbeat.response.json",
+	"title": "POST connection/heartbeat 200 response",
+	"description": "Replaces GET connect/status. features.* are remote kill switches; 409 site_already_connected when the key belongs to another site.",
+	"type": "object",
+	"required": [ "status", "outlet", "features", "redemption_rules", "earn_on", "min_plugin_version", "server_time" ],
+	"properties": {
+		"status": { "enum": [ "active", "subscription_inactive", "commerce_not_enabled" ] },
+		"outlet": { "$ref": "common.json#/$defs/outlet" },
+		"features": {
+			"type": "object",
+			"required": [ "earn", "vouchers", "points_redemption", "credits", "otp_channels" ],
+			"properties": {
+				"earn": { "type": "boolean" },
+				"vouchers": { "type": "boolean" },
+				"points_redemption": { "type": "boolean" },
+				"credits": { "type": "boolean" },
+				"otp_channels": {
+					"type": "array",
+					"items": { "enum": [ "whatsapp", "sms", "email" ] },
+					"uniqueItems": true
+				}
+			}
+		},
+		"redemption_rules": {
+			"type": "object",
+			"properties": {
+				"points": {
+					"type": "object",
+					"properties": {
+						"value_per_point": { "$ref": "common.json#/$defs/non_negative_decimal" },
+						"min": { "type": "integer", "minimum": 0 },
+						"step": { "type": "integer", "minimum": 1 },
+						"max_percent_of_subtotal": { "type": [ "integer", "null" ], "minimum": 0, "maximum": 100 }
+					}
+				},
+				"vouchers": {
+					"type": "object",
+					"properties": {
+						"max_per_order": { "type": [ "integer", "null" ], "minimum": 1 }
+					}
+				}
+			}
+		},
+		"earn_on": { "enum": [ "paid", "completed" ] },
+		"min_plugin_version": { "$ref": "common.json#/$defs/semver" },
+		"server_time": { "$ref": "common.json#/$defs/unix_time" }
+	},
+	"examples": [
+		{
+			"status": "active",
+			"outlet": { "id": "101", "uuid": "9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81", "name": "Online Store", "currency": "MYR", "timezone": "Asia/Kuala_Lumpur" },
+			"features": { "earn": true, "vouchers": true, "points_redemption": true, "credits": false, "otp_channels": [ "whatsapp", "sms" ] },
+			"redemption_rules": {
+				"points": { "value_per_point": "0.01", "min": 100, "step": 100, "max_percent_of_subtotal": 50 },
+				"vouchers": { "max_per_order": 1 }
+			},
+			"earn_on": "paid",
+			"min_plugin_version": "0.1.0",
+			"server_time": 1761300000
+		}
+	]
+}

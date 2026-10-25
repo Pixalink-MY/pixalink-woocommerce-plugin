@@ -1,0 +1,68 @@
+/**
+ * WooCommerce › Settings › Pixalink Loyalty: connection card.
+ */
+.pixalink-loyalty-connection-cell {
+	padding-left: 0;
+}
+
+.pixalink-loyalty-card {
+	max-width: 760px;
+	padding: 16px 20px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.pixalink-loyalty-card h3 {
+	margin-top: 0;
+}
+
+.pixalink-loyalty-path {
+	margin: 16px 0;
+}
+
+.pixalink-loyalty-path--primary .button-hero {
+	margin-bottom: 4px;
+}
+
+.pixalink-loyalty-path summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.pixalink-loyalty-disclosure,
+.pixalink-loyalty-consent,
+.pixalink-loyalty-request-access {
+	margin-top: 12px;
+}
+
+.pixalink-loyalty-facts {
+	margin: 12px 0;
+}
+
+.pixalink-loyalty-facts th {
+	width: 180px;
+	font-weight: 600;
+}
+
+.pixalink-loyalty-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 12px;
+	vertical-align: middle;
+}
+
+.pixalink-loyalty-badge--ok {
+	background: #edfaef;
+	color: #00450c;
+}
+
+.pixalink-loyalty-feature--off,
+.pixalink-loyalty-error {
+	color: #b32d2e;
+}
+
+.pixalink-loyalty-actions .button-link-delete {
+	margin-left: 8px;
+}

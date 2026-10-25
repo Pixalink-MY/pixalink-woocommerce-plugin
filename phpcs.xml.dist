@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<ruleset name="Pixalink Loyalty for WooCommerce">
+	<description>WordPress-Extra + WooCommerce-Core + PHPCompatibilityWP (PHP 8.1+).</description>
+
+	<file>./pixalink-loyalty-for-woocommerce.php</file>
+	<file>./uninstall.php</file>
+	<file>./src</file>
+	<file>./data</file>
+	<file>./templates</file>
+	<file>./tests/e2e/mu-plugins</file>
+
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/node_modules/*</exclude-pattern>
+	<exclude-pattern>*/build/*</exclude-pattern>
+	<exclude-pattern>*/dist/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="basepath" value="./"/>
+	<arg name="parallel" value="8"/>
+	<arg name="cache" value=".phpcs-cache"/>
+	<arg name="colors"/>
+	<arg value="sp"/>
+
+	<config name="testVersion" value="8.1-"/>
+	<config name="minimum_wp_version" value="7.0"/>
+
+	<rule ref="PHPCompatibilityWP"/>
+	<rule ref="WordPress-Extra"/>
+	<rule ref="WooCommerce-Core">
+		<!-- PSR-4: file names are class names, not class-*.php. -->
+		<exclude name="WordPress.Files.FileName"/>
+		<!-- Squiz's file-comment rules expect PEAR tags (@author, @copyright, ...) that WordPress does not use. -->
+		<exclude name="Squiz.Commenting.FileComment.MissingPackageTag"/>
+		<exclude name="Squiz.Commenting.FileComment.Missing"/>
+		<exclude name="Squiz.Commenting.FileComment.SpacingAfterComment"/>
+		<!-- Generic array shapes (array<string,mixed>) are PHPStan types, not PHP type hints. -->
+		<exclude name="Squiz.Commenting.FunctionComment.IncorrectTypeHint"/>
+		<!-- PHPStan's @template / @phpstan-* tags and promoted constants are documented by type, not prose. -->
+		<exclude name="Squiz.Commenting.FunctionComment.SpacingAfterParamType"/>
+	</rule>
+
+	<!-- PHPCompatibility 9 predates PHP 8.1 enums and reports $this inside enum methods as a plain function. -->
+	<rule ref="PHPCompatibility.Variables.ForbiddenThisUseContexts.OutsideObjectContext">
+		<exclude-pattern>src/Events/EventType.php</exclude-pattern>
+		<exclude-pattern>src/Events/EventStatus.php</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="pixalink-loyalty-for-woocommerce"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<!-- Templates read the variables wc_get_template() extracts for them; they do not define globals. -->
+		<exclude-pattern>templates/*</exclude-pattern>
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="pixalink_loyalty"/>
+				<element value="Pixalink\Loyalty"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

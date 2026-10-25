@@ -1,0 +1,20 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connection-heartbeat.request.json",
+	"title": "POST connection/heartbeat request (signed)",
+	"type": "object",
+	"required": [ "site", "plugin_version", "wc_version", "pending", "failed", "oldest_pending_at" ],
+	"additionalProperties": false,
+	"properties": {
+		"site": { "$ref": "common.json#/$defs/url" },
+		"plugin_version": { "$ref": "common.json#/$defs/semver" },
+		"wc_version": { "$ref": "common.json#/$defs/semver" },
+		"pending": { "type": "integer", "minimum": 0 },
+		"failed": { "type": "integer", "minimum": 0 },
+		"oldest_pending_at": { "$ref": "common.json#/$defs/nullable_datetime" }
+	},
+	"examples": [
+		{ "site": "https://shop.example.test", "plugin_version": "0.1.0", "wc_version": "11.2.1", "pending": 2, "failed": 0, "oldest_pending_at": "2026-10-24T08:00:00Z" },
+		{ "site": "https://shop.example.test", "plugin_version": "0.1.0", "wc_version": "11.2.1", "pending": 0, "failed": 0, "oldest_pending_at": null }
+	]
+}

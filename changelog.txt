@@ -1,0 +1,23 @@
+*** Pixalink Loyalty for WooCommerce Changelog ***
+
+= 0.1.0 - unreleased =
+* Add - Plugin scaffold: requirements checks (PHP 8.1, sodium, WooCommerce 11.0+), HPOS and Cart & Checkout blocks compatibility declarations.
+* Add - Install lifecycle: activation seeds options, deactivation unschedules work, opt-in data removal on uninstall.
+* Add - Support layer: encrypted credentials (sodium secretbox), masked WooCommerce logging, RFC 4122 UUIDs, money helpers, server-aligned clock.
+* Add - Signed Pixalink Commerce API client with timestamp-skew recovery and the Connect resource.
+* Add - WooCommerce › Settings › Pixalink Loyalty: connect an existing Pixalink account (hosted sign-in with PKCE) or paste an outlet API key, request access, test and disconnect.
+* Add - Six-hourly connection heartbeat with remote feature switches, clock alignment and a "reconnect" state when Pixalink rejects the key.
+* Add - Detects old Pixalink WooCommerce webhooks and offers to pause them when connecting.
+* Add - Admin notices for a missing connection, a rejected key, an outdated plugin, an inactive Pixalink account and disabled coupons.
+* Add - Loyalty phone number (stored in international format) and a separate, unticked marketing-consent box at checkout (Checkout block and classic), registration and Account details; the wording shown is recorded as a hash with every answer.
+* Add - My Account › Loyalty: phone verification with a one-time code (WhatsApp or SMS), points, credits, tier, vouchers, memberships, recent activity and a member QR code; `[pixalink_loyalty_summary]` and `[pixalink_loyalty_qr]` shortcodes.
+* Add - Sign-in from the Pixalink member portal (`pixalink_sso` links), customer updates to Pixalink when a shopper changes their phone or consent, and a signed webhook from Pixalink that refreshes balances and records withdrawn consent.
+* Add - Personal data export and erasure for the loyalty account data, and suggested privacy policy text.
+* Add - Vouchers, points and credits at checkout as virtual WooCommerce coupons, priced by a Pixalink quote, in the Checkout block (order summary panel, relabelled coupon chips) and the classic checkout (loyalty panel); only phone-verified members can use them.
+* Add - Points, credits and vouchers are held when the order is placed and released when payment fails, the order is cancelled or it is abandoned (15-minute sweep).
+* Add - Order-received page: points earned or when they will be added, and the rewards the order used; order screen: held and settled redemptions.
+* Add - WooCommerce › Settings › Pixalink Loyalty › Checkout: credits toggle; each toggle shows when Pixalink switched the feature off.
+* Add - My Account dashboard: a loyalty card with points, the next expiry, tier progress and vouchers ready, or a link to verify on the Loyalty tab; "Dashboard summary" setting under My Account (on by default).
+* Fix - A Pixalink portal link opened while signed in as staff (editor, shop manager, administrator) no longer links that account to the member: nothing is linked or signed in, a notice says why, and `pixalink_loyalty_sso_refused_staff` fires. Staff accounts cannot be linked by a one-time code or a guest link moved at login either.
+* Fix - A member the portal recognises but who stays a guest (store registration off, or no e-mail address) now sees a notice that they will earn points on this visit, with how to create an account; the Loyalty tab login form and `[pixalink_loyalty_summary]` say the same.
+* Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check, Playwright checkout e2e) and release pipeline.

@@ -1,0 +1,16 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customers-create.response.json",
+	"title": "POST customers 200/201 response",
+	"description": "verified is true only when the request itself proved the phone (verified_via sso_ticket with a valid ticket). Name and e-mail are returned when known so a portal sign-in can create the WordPress account.",
+	"type": "object",
+	"required": [ "customer" ],
+	"properties": {
+		"customer": { "$ref": "common.json#/$defs/customer" },
+		"created": { "type": "boolean" }
+	},
+	"examples": [
+		{ "customer": { "id": "6001", "phone": "+60199999999", "verified": false }, "created": true },
+		{ "customer": { "id": "5001", "phone": "+60123456789", "verified": true, "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman" }, "created": false }
+	]
+}

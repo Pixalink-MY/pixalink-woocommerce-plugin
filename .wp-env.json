@@ -1,0 +1,23 @@
+{
+	"$schema": "https://schemas.wp.org/trunk/wp-env.json",
+	"core": null,
+	"phpVersion": "8.3",
+	"plugins": [ "https://downloads.wordpress.org/plugin/woocommerce.latest-stable.zip" ],
+	"mappings": {
+		"wp-content/plugins/pixalink-loyalty-for-woocommerce": ".",
+		"wp-content/mu-plugins": "./tests/e2e/mu-plugins"
+	},
+	"config": {
+		"WP_DEBUG": true,
+		"WP_DEBUG_LOG": true,
+		"WP_DEBUG_DISPLAY": false,
+		"SCRIPT_DEBUG": true,
+		"WP_ENVIRONMENT_TYPE": "local",
+		"PIXALINK_LOYALTY_API_BASE": "https://fake-pixalink.test/api/commerce/v1",
+		"PIXALINK_LOYALTY_CONNECT_URL": "http://localhost:8888/?rest_route=/fake-pixalink/v1/connect/woocommerce",
+		"PIXALINK_FAKE_SERVER": true
+	},
+	"lifecycleScripts": {
+		"afterStart": "wp-env run cli wp plugin activate pixalink-loyalty-for-woocommerce"
+	}
+}

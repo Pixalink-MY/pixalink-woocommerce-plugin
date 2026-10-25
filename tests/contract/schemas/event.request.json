@@ -1,0 +1,358 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/event.request.json",
+	"title": "POST events request: one lifecycle event envelope from the plugin outbox",
+	"description": "id is a UUID v5 (Uuid::EVENT_NAMESPACE) and is also sent as X-Pixalink-Event-Id; exactly-once on (outlet, id). order.* data is a WooCommerce REST v3 subset.",
+	"type": "object",
+	"required": [ "id", "type", "version", "occurred_at", "sequence", "site_url", "outlet_id", "data" ],
+	"additionalProperties": false,
+	"properties": {
+		"id": { "type": "string", "format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+		"type": { "enum": [ "order.paid", "order.completed", "order.cancelled", "order.refunded", "order.refund_deleted", "order.redemptions_released", "customer.upserted", "ping" ] },
+		"version": { "const": 1 },
+		"occurred_at": { "$ref": "common.json#/$defs/datetime" },
+		"sequence": { "type": "integer", "minimum": 0, "description": "Per-order monotonically increasing; 0 for events without an order." },
+		"site_url": { "$ref": "common.json#/$defs/url" },
+		"outlet_id": { "$ref": "common.json#/$defs/id" },
+		"data": { "type": "object" }
+	},
+	"allOf": [
+		{
+			"if": { "properties": { "type": { "enum": [ "order.paid", "order.completed" ] } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/order_data" } } }
+		},
+		{
+			"if": { "properties": { "type": { "const": "order.cancelled" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/cancel_data" } } }
+		},
+		{
+			"if": { "properties": { "type": { "const": "order.refunded" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/refund_data" } } }
+		},
+		{
+			"if": { "properties": { "type": { "enum": [ "order.refund_deleted", "order.redemptions_released" ] } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/order_reference_data" } } }
+		},
+		{
+			"if": { "properties": { "type": { "const": "customer.upserted" } } },
+			"then": { "properties": { "data": { "$ref": "#/$defs/customer_upserted_data" } } }
+		}
+	],
+	"$defs": {
+		"customer_upserted_data": {
+			"description": "customer.upserted: a logged-in shopper changed the phone number or marketing consent (My Account, registration, checkout), linked the account to Pixalink, or a guest placed an order with new consent. Random v4 id, sequence 0. Pixalink resolves the customer by pixalink_customer_id, then wp_user_id, then phone_e164; marketing_consent null leaves the status alone.",
+			"type": "object",
+			"required": [ "customer" ],
+			"properties": {
+				"customer": {
+					"allOf": [ { "$ref": "#/$defs/customer" } ],
+					"anyOf": [
+						{ "properties": { "wp_user_id": { "type": "integer" } } },
+						{ "properties": { "phone_e164": { "$ref": "common.json#/$defs/e164" } } }
+					]
+				}
+			}
+		},
+		"customer": {
+			"type": "object",
+			"required": [ "wp_user_id", "is_guest", "phone_e164", "phone_country", "email", "first_name", "last_name", "marketing_consent" ],
+			"properties": {
+				"pixalink_customer_id": { "oneOf": [ { "$ref": "common.json#/$defs/id" }, { "type": "null" } ] },
+				"wp_user_id": { "type": [ "integer", "null" ], "minimum": 1 },
+				"is_guest": { "type": "boolean" },
+				"phone_e164": { "oneOf": [ { "$ref": "common.json#/$defs/e164" }, { "type": "null" } ] },
+				"phone_country": { "oneOf": [ { "$ref": "common.json#/$defs/country_code" }, { "type": "null" } ] },
+				"email": { "oneOf": [ { "$ref": "common.json#/$defs/email" }, { "type": "null" } ] },
+				"first_name": { "type": [ "string", "null" ] },
+				"last_name": { "type": [ "string", "null" ] },
+				"marketing_consent": { "oneOf": [ { "$ref": "common.json#/$defs/marketing_consent" }, { "type": "null" } ] }
+			}
+		},
+		"line_item": {
+			"type": "object",
+			"required": [ "id", "product_id", "variation_id", "sku", "name", "quantity", "subtotal", "total", "total_tax" ],
+			"properties": {
+				"id": { "type": "integer", "minimum": 1 },
+				"product_id": { "type": "integer", "minimum": 0 },
+				"variation_id": { "type": "integer", "minimum": 0 },
+				"sku": { "type": [ "string", "null" ] },
+				"name": { "type": "string" },
+				"category_slugs": { "type": "array", "items": { "type": "string" } },
+				"category_names": { "type": "array", "items": { "type": "string" } },
+				"quantity": { "type": "number" },
+				"subtotal": { "$ref": "common.json#/$defs/decimal" },
+				"total": { "$ref": "common.json#/$defs/decimal" },
+				"total_tax": { "$ref": "common.json#/$defs/decimal" }
+			}
+		},
+		"coupon_line": {
+			"type": "object",
+			"required": [ "code", "discount", "discount_tax", "meta" ],
+			"properties": {
+				"id": { "type": "integer", "minimum": 1 },
+				"code": { "type": "string" },
+				"discount": { "$ref": "common.json#/$defs/decimal" },
+				"discount_tax": { "$ref": "common.json#/$defs/decimal" },
+				"meta": {
+					"type": "object",
+					"properties": {
+						"pixalink_kind": { "oneOf": [ { "$ref": "common.json#/$defs/redemption_kind" }, { "type": "null" } ] },
+						"pixalink_redemption_id": { "oneOf": [ { "$ref": "common.json#/$defs/hold_ref" }, { "type": "null" } ] },
+						"pixalink_voucher_id": { "oneOf": [ { "$ref": "common.json#/$defs/id" }, { "type": "null" } ] },
+						"pixalink_points": { "type": [ "integer", "null" ], "minimum": 1 },
+						"pixalink_amount_cents": { "description": "Value the store took off for this redemption, in cents: the discount, plus its tax share when prices include tax (for credits, the credits spent). Null for store coupons.", "type": [ "integer", "null" ], "minimum": 0 },
+						"pixalink_coupon": { "oneOf": [ { "$ref": "#/$defs/coupon_snapshot" }, { "type": "null" } ] }
+					}
+				}
+			}
+		},
+		"coupon_snapshot": {
+			"description": "The resolved virtual coupon (_pixalink_coupon on the line): what WooCommerce applied, with local product and category ids.",
+			"type": "object",
+			"required": [ "discount_type", "amount" ],
+			"properties": {
+				"discount_type": { "enum": [ "fixed_cart", "percent", "fixed_product" ] },
+				"amount": { "$ref": "common.json#/$defs/non_negative_decimal" },
+				"product_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"excluded_product_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"product_categories": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"excluded_product_categories": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+				"limit_usage_to_x_items": { "type": [ "integer", "null" ], "minimum": 1 },
+				"exclude_sale_items": { "type": "boolean" },
+				"minimum_amount": { "type": "string" },
+				"maximum_amount": { "type": "string" },
+				"individual_use": { "type": "boolean" }
+			}
+		},
+		"order": {
+			"type": "object",
+			"required": [ "id", "number", "order_key", "status", "currency", "date_created", "total", "total_tax", "shipping_total", "discount_total", "prices_include_tax", "line_items", "coupon_lines" ],
+			"properties": {
+				"id": { "type": "integer", "minimum": 1 },
+				"number": { "type": "string", "minLength": 1 },
+				"order_key": { "$ref": "common.json#/$defs/order_ref" },
+				"status": { "type": "string" },
+				"currency": { "$ref": "common.json#/$defs/currency" },
+				"date_created": { "$ref": "common.json#/$defs/datetime" },
+				"date_paid": { "$ref": "common.json#/$defs/nullable_datetime" },
+				"date_completed": { "$ref": "common.json#/$defs/nullable_datetime" },
+				"payment_method": { "type": [ "string", "null" ] },
+				"created_via": { "type": [ "string", "null" ] },
+				"total": { "$ref": "common.json#/$defs/decimal" },
+				"total_tax": { "$ref": "common.json#/$defs/decimal" },
+				"shipping_total": { "$ref": "common.json#/$defs/decimal" },
+				"discount_total": { "$ref": "common.json#/$defs/decimal" },
+				"prices_include_tax": { "description": "WooCommerce REST v3 prices_include_tax: whether the store entered its prices with tax when the order was placed. Amounts are sent as WooCommerce stores them either way: line subtotal and total exclude tax, total_tax carries it.", "type": "boolean" },
+				"line_items": { "type": "array", "items": { "$ref": "#/$defs/line_item" } },
+				"coupon_lines": { "type": "array", "items": { "$ref": "#/$defs/coupon_line" } }
+			}
+		},
+		"order_reference": {
+			"type": "object",
+			"required": [ "id", "number", "order_key" ],
+			"properties": {
+				"id": { "type": "integer", "minimum": 1 },
+				"number": { "type": "string", "minLength": 1 },
+				"order_key": { "$ref": "common.json#/$defs/order_ref" }
+			}
+		},
+		"order_data": {
+			"type": "object",
+			"required": [ "order", "customer" ],
+			"properties": {
+				"order": { "$ref": "#/$defs/order" },
+				"customer": { "$ref": "#/$defs/customer" }
+			}
+		},
+		"cancel_data": {
+			"description": "order.cancelled: the full order payload plus whether it had been paid (holds and earn to reverse) and the status it was cancelled from.",
+			"allOf": [ { "$ref": "#/$defs/order_data" } ],
+			"properties": {
+				"was_paid": { "type": "boolean" },
+				"previous_status": { "type": "string" }
+			}
+		},
+		"refund_data": {
+			"description": "One order.refunded per WooCommerce refund id. Refund figures are unsigned amounts refunded (WooCommerce stores them negative); line_items is empty for an amount-only refund.",
+			"type": "object",
+			"required": [ "order", "customer", "refund" ],
+			"properties": {
+				"order": { "$ref": "#/$defs/order" },
+				"customer": { "$ref": "#/$defs/customer" },
+				"refund": {
+					"type": "object",
+					"required": [ "id", "amount", "reason", "created_at", "line_items" ],
+					"properties": {
+						"id": { "type": "integer", "minimum": 1 },
+						"amount": { "$ref": "common.json#/$defs/non_negative_decimal" },
+						"reason": { "type": [ "string", "null" ] },
+						"created_at": { "$ref": "common.json#/$defs/datetime" },
+						"shipping_total": { "$ref": "common.json#/$defs/decimal" },
+						"line_items": {
+							"type": "array",
+							"items": {
+								"type": "object",
+								"required": [ "line_item_id", "quantity", "total" ],
+								"properties": {
+									"line_item_id": { "type": "integer", "minimum": 1 },
+									"quantity": { "type": "number" },
+									"total": { "$ref": "common.json#/$defs/decimal" }
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"order_reference_data": {
+			"description": "order.refund_deleted carries refund_id; order.redemptions_released carries reason: trashed | deleted (an unpaid order removed by the merchant; release every hold of the order) or payment_failed (with redemption_ids: release only those holds, so a release still in the outbox never undoes a hold placed on the same order since).",
+			"type": "object",
+			"required": [ "order" ],
+			"properties": {
+				"order": { "$ref": "#/$defs/order_reference" },
+				"refund_id": { "type": "integer", "minimum": 1 },
+				"reason": { "type": [ "string", "null" ] },
+				"redemption_ids": { "type": "array", "items": { "$ref": "common.json#/$defs/hold_ref" }, "minItems": 1, "uniqueItems": true }
+			}
+		}
+	},
+	"examples": [
+		{
+			"id": "a6417789-0a05-5068-bab0-90d991946d97",
+			"type": "ping",
+			"version": 1,
+			"occurred_at": "2026-10-24T08:00:00Z",
+			"sequence": 0,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {}
+		},
+		{
+			"id": "5f0b6c8e-2d0e-5d2b-9a51-3c1f7b9e2a44",
+			"type": "order.paid",
+			"version": 1,
+			"occurred_at": "2026-10-24T08:00:00Z",
+			"sequence": 1,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": {
+					"id": 1001,
+					"number": "1001",
+					"order_key": "wc_order_AbC123xyz",
+					"status": "processing",
+					"currency": "MYR",
+					"date_created": "2026-10-24T07:58:00Z",
+					"date_paid": "2026-10-24T08:00:00Z",
+					"date_completed": null,
+					"payment_method": "bacs",
+					"created_via": "store-api",
+					"total": "145.00",
+					"total_tax": "0.00",
+					"shipping_total": "10.00",
+					"discount_total": "15.00",
+					"prices_include_tax": false,
+					"line_items": [
+						{ "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" }
+					],
+					"coupon_lines": [
+						{ "id": 12, "code": "pxl-points", "discount": "5.00", "discount_tax": "0.00", "meta": { "pixalink_kind": "points", "pixalink_redemption_id": "CH-01JABCDEG", "pixalink_voucher_id": null, "pixalink_points": 500, "pixalink_amount_cents": 500, "pixalink_coupon": { "discount_type": "fixed_cart", "amount": "5.00", "product_ids": [], "excluded_product_ids": [], "product_categories": [], "excluded_product_categories": [], "limit_usage_to_x_items": null, "exclude_sale_items": false, "minimum_amount": "", "maximum_amount": "", "individual_use": false } } }
+					]
+				},
+				"customer": {
+					"pixalink_customer_id": "5001",
+					"wp_user_id": 17,
+					"is_guest": false,
+					"phone_e164": "+60123456789",
+					"phone_country": "MY",
+					"email": "member@example.com",
+					"first_name": "Aisyah",
+					"last_name": "Rahman",
+					"marketing_consent": { "value": true, "source": "checkout", "captured_at": "2026-10-24T07:58:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" }
+				}
+			}
+		},
+		{
+			"id": "9b1f3c5e-7a2d-5c4b-8e6f-1a3c5e7b9d2f",
+			"type": "order.cancelled",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 2,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "cancelled", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "prices_include_tax": false, "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
+				"was_paid": true,
+				"previous_status": "processing"
+			}
+		},
+		{
+			"id": "4d6f8a1c-3e5b-5a7d-9c2e-6b8d0f2a4c6e",
+			"type": "order.refunded",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 3,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "processing", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "prices_include_tax": false, "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
+				"refund": { "id": 77, "amount": "10.80", "reason": "Damaged cup", "created_at": "2026-10-25T10:00:00Z", "shipping_total": "0.00", "line_items": [ { "line_item_id": 11, "quantity": 1, "total": "10.80" } ] }
+			}
+		},
+		{
+			"id": "2c4e6a8b-1d3f-5e5a-8b7c-9d1f3a5c7e9b",
+			"type": "order.refund_deleted",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 4,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz" },
+				"refund_id": 77,
+				"reason": null
+			}
+		},
+		{
+			"id": "8e0a2c4d-6f8b-5d1e-a3c5-7e9b1d3f5a7c",
+			"type": "order.redemptions_released",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 1,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz" },
+				"reason": "trashed"
+			}
+		},
+		{
+			"id": "3f1c2b4a-6d8e-4f0a-9b1c-2d3e4f5a6b7c",
+			"type": "customer.upserted",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:00:01Z",
+			"sequence": 0,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"customer": { "pixalink_customer_id": null, "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": { "value": false, "source": "my_account", "captured_at": "2026-10-25T10:00:00Z", "text_hash": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" } }
+			}
+		},
+		{
+			"id": "3f5a7c9e-1b2d-5f4a-9c8e-0a2b4c6d8e1f",
+			"type": "order.redemptions_released",
+			"version": 1,
+			"occurred_at": "2026-10-25T10:05:00Z",
+			"sequence": 2,
+			"site_url": "https://shop.example.test",
+			"outlet_id": "101",
+			"data": {
+				"order": { "id": 1002, "number": "1002", "order_key": "wc_order_DeF456uvw" },
+				"reason": "payment_failed",
+				"redemption_ids": [ "CH-01JABCDEG" ]
+			}
+		}
+	]
+}

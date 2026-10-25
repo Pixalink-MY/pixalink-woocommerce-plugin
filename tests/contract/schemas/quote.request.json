@@ -1,0 +1,46 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/quote.request.json",
+	"title": "POST quote request: price vouchers, points and credits for a cart (no server writes)",
+	"description": "Sent only for a verified shopper (OTP or SSO ticket). The plugin re-quotes when the last quote passed its ttl_seconds, or when the lines, their prices or the store's own coupons changed.",
+	"type": "object",
+	"required": [ "customer_id", "cart" ],
+	"additionalProperties": false,
+	"properties": {
+		"customer_id": { "$ref": "common.json#/$defs/id" },
+		"cart": { "$ref": "common.json#/$defs/commerce_cart" }
+	},
+	"examples": [
+		{
+			"customer_id": "5001",
+			"cart": {
+				"lines": [
+					{ "line_id": "c4ca4238a0b923820dcc509a6f75849b", "sku": "LATTE-12", "external_product_id": "21", "name": "Latte 12oz", "category_code": "coffee", "category_name": "Coffee", "quantity": 2, "unit_price_cents": 1200, "line_total_cents": 2400 },
+					{ "line_id": "c81e728d9d4c2f636f067f89cc14862c", "sku": "BEANS-1KG", "external_product_id": "36", "name": "House Blend 1kg", "quantity": 1, "unit_price_cents": 12600, "line_total_cents": 12600 }
+				],
+				"subtotal_cents": 15000,
+				"currency": "MYR",
+				"shipping_cents": 1000,
+				"discount_cents": 0,
+				"tax_cents": 0,
+				"prices_include_tax": false,
+				"held_refs": []
+			}
+		},
+		{
+			"customer_id": "5001",
+			"cart": {
+				"lines": [
+					{ "line_id": "eccbc87e4b5ce2fe28308fd9f2a7baf3", "sku": null, "external_product_id": "44", "name": "Gift box", "quantity": 1, "unit_price_cents": 11000, "line_total_cents": 11000 }
+				],
+				"subtotal_cents": 11000,
+				"currency": "MYR",
+				"shipping_cents": 0,
+				"discount_cents": 500,
+				"tax_cents": 1000,
+				"prices_include_tax": true,
+				"held_refs": [ "CH-01JABCDEF" ]
+			}
+		}
+	]
+}

@@ -1,0 +1,70 @@
+# Copyright (C) 2026 Pixalink
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: Pixalink Loyalty for WooCommerce 0.1.0\n"
+"Report-Msgid-Bugs-To: https://pixalink.io\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-10-24T15:23:14+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: pixalink-loyalty-for-woocommerce\n"
+
+#. Plugin Name of the plugin
+#: pixalink-loyalty-for-woocommerce.php
+msgid "Pixalink Loyalty for WooCommerce"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: pixalink-loyalty-for-woocommerce.php
+msgid "https://pixalink.io/woocommerce"
+msgstr ""
+
+#. Description of the plugin
+#: pixalink-loyalty-for-woocommerce.php
+msgid "Pixalink loyalty points, vouchers and member accounts for WooCommerce: earn on every order, redeem at checkout, see balances under My Account."
+msgstr ""
+
+#. Author of the plugin
+#: pixalink-loyalty-for-woocommerce.php
+msgid "Pixalink"
+msgstr ""
+
+#. Author URI of the plugin
+#: pixalink-loyalty-for-woocommerce.php
+msgid "https://pixalink.io"
+msgstr ""
+
+#. translators: 1: required PHP version, 2: current PHP version.
+#: pixalink-loyalty-for-woocommerce.php:37
+#, php-format
+msgid "Pixalink Loyalty for WooCommerce requires PHP %1$s or newer. This site runs PHP %2$s."
+msgstr ""
+
+#: src/Requirements.php:78
+msgid "Pixalink Loyalty for WooCommerce is inactive."
+msgstr ""
+
+#. translators: 1: required PHP version, 2: current PHP version.
+#: src/Requirements.php:97
+#, php-format
+msgid "It requires PHP %1$s or newer; this site runs PHP %2$s."
+msgstr ""
+
+#: src/Requirements.php:99
+msgid "It requires the PHP sodium extension, which is not available on this server. Ask your host to enable it."
+msgstr ""
+
+#: src/Requirements.php:101
+msgid "It requires WooCommerce to be installed and active."
+msgstr ""
+
+#. translators: 1: required WooCommerce version, 2: installed WooCommerce version.
+#: src/Requirements.php:104
+#, php-format
+msgid "It requires WooCommerce %1$s or newer; this site runs WooCommerce %2$s."
+msgstr ""

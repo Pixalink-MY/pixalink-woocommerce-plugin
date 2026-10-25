@@ -1,0 +1,143 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customer-summary.response.json",
+	"title": "GET customers/{id} 200 response (My Account summary; 403 verification_required unless the store's link is verified)",
+	"description": "Credits are a closed-loop wallet: balance_cents is shown as credits, never as money. tier.progress counts the tier's qualifying unit: current so far, next = the next tier's threshold (null on the highest tier), remaining = next - current.",
+	"type": "object",
+	"required": [ "points", "credits", "tier", "vouchers", "memberships", "recent_activity", "qr", "portal_url" ],
+	"properties": {
+		"id": { "$ref": "common.json#/$defs/id" },
+		"points": {
+			"type": "object",
+			"required": [ "balance", "expiring_soon" ],
+			"properties": {
+				"balance": { "type": "integer", "minimum": 0 },
+				"expiring_soon": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": [ "points", "expires_at" ],
+						"properties": {
+							"points": { "type": "integer", "minimum": 1 },
+							"expires_at": { "$ref": "common.json#/$defs/datetime" }
+						}
+					}
+				}
+			}
+		},
+		"credits": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"required": [ "balance_cents" ],
+					"properties": {
+						"balance_cents": { "$ref": "common.json#/$defs/cents" }
+					}
+				}
+			]
+		},
+		"tier": {
+			"oneOf": [
+				{ "type": "null" },
+				{
+					"type": "object",
+					"required": [ "name", "progress" ],
+					"properties": {
+						"name": { "type": "string", "minLength": 1 },
+						"progress": {
+							"oneOf": [
+								{ "type": "null" },
+								{
+									"type": "object",
+									"required": [ "current", "next", "remaining" ],
+									"properties": {
+										"current": { "type": "integer", "minimum": 0 },
+										"next": { "type": [ "integer", "null" ], "minimum": 0 },
+										"remaining": { "type": [ "integer", "null" ], "minimum": 0 },
+										"next_tier_name": { "type": [ "string", "null" ] }
+									}
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		"vouchers": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [ "id", "code", "title", "description", "image_url", "expires_at", "redeemable_here" ],
+				"properties": {
+					"id": { "$ref": "common.json#/$defs/id" },
+					"code": { "type": "string", "minLength": 1 },
+					"title": { "type": "string" },
+					"description": { "type": [ "string", "null" ] },
+					"image_url": { "oneOf": [ { "$ref": "common.json#/$defs/url" }, { "type": "null" } ] },
+					"expires_at": { "$ref": "common.json#/$defs/nullable_datetime" },
+					"redeemable_here": { "description": "False while the voucher is restricted to other outlets or not active yet: shown, not offered.", "type": "boolean" }
+				}
+			}
+		},
+		"memberships": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [ "id", "name", "expires_at" ],
+				"properties": {
+					"id": { "$ref": "common.json#/$defs/id" },
+					"name": { "type": "string" },
+					"status": { "enum": [ "active", "expired", "cancelled" ] },
+					"expires_at": { "$ref": "common.json#/$defs/nullable_datetime" }
+				}
+			}
+		},
+		"recent_activity": {
+			"type": "array",
+			"maxItems": 50,
+			"items": {
+				"type": "object",
+				"required": [ "type", "description", "occurred_at" ],
+				"properties": {
+					"type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+					"description": { "type": "string" },
+					"points": { "type": [ "integer", "null" ] },
+					"occurred_at": { "$ref": "common.json#/$defs/datetime" }
+				}
+			}
+		},
+		"qr": {
+			"type": "object",
+			"required": [ "type", "value" ],
+			"properties": {
+				"type": { "const": "phone" },
+				"value": { "type": "string", "minLength": 1, "maxLength": 64 }
+			}
+		},
+		"portal_url": { "$ref": "common.json#/$defs/url" }
+	},
+	"examples": [
+		{
+			"id": "5001",
+			"points": { "balance": 1250, "expiring_soon": [ { "points": 200, "expires_at": "2026-11-30T15:59:59Z" } ] },
+			"credits": { "balance_cents": 1500 },
+			"tier": { "name": "Silver", "progress": { "current": 700, "next": 1000, "remaining": 300, "next_tier_name": "Gold" } },
+			"vouchers": [ { "id": "88", "code": "PXL-WELCOME-88", "title": "RM10 off", "description": "Welcome voucher", "image_url": null, "expires_at": "2026-12-31T15:59:59Z", "redeemable_here": true } ],
+			"memberships": [ { "id": "7", "name": "Coffee Club", "status": "active", "expires_at": null } ],
+			"recent_activity": [ { "type": "points_earned", "description": "Order #1001", "points": 120, "occurred_at": "2026-10-20T04:00:00Z" } ],
+			"qr": { "type": "phone", "value": "+60123456789" },
+			"portal_url": "https://demo.pixalink.io/loyalty"
+		},
+		{
+			"points": { "balance": 0, "expiring_soon": [] },
+			"credits": null,
+			"tier": null,
+			"vouchers": [],
+			"memberships": [],
+			"recent_activity": [],
+			"qr": { "type": "phone", "value": "+60199999999" },
+			"portal_url": "https://demo.pixalink.io/loyalty"
+		}
+	]
+}
