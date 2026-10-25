@@ -9,7 +9,10 @@ namespace Pixalink\Loyalty\Tests\Integration\Checkout;
 
 use Automattic\WooCommerce\Blocks\Integrations\IntegrationRegistry;
 use Pixalink\Loyalty\Checkout\Blocks\BlocksIntegration;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Redemption\CartActions;
+use Pixalink\Loyalty\Support\Options;
+use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Redemption\Labels;
 use Pixalink\Loyalty\Tests\Integration\Redemption\RedemptionTestCase;
 
@@ -52,6 +55,29 @@ final class BlocksIntegrationTest extends RedemptionTestCase {
 		$this->assertSame( CartActions::STORE_API_NAMESPACE, $data[ BlocksIntegration::NAME . '_data' ]['namespace'] );
 		$this->assertTrue( $data[ BlocksIntegration::NAME . '_data' ]['enabled'] );
 		$this->assertSame( 'Your rewards', $data[ BlocksIntegration::NAME . '_data' ]['strings']['title'] );
+	}
+
+	public function test_the_blocks_panel_reads_the_same_portal_colours_once(): void {
+		$connection = new Connection( new Options() );
+		$connection->store_remote_status( array( 'branding' => Responses::samples( time() )['heartbeat']['response']['body']['branding'] ) + $connection->remote_status() );
+		$GLOBALS['wp_styles'] = null;
+
+		foreach ( array( 'cart_block', 'checkout_block' ) as $identifier ) {
+			$registry = new IntegrationRegistry();
+			$registry->initialize( $identifier );
+			$data = $registry->get_all_registered_script_data();
+			$this->assertTrue( $data[ BlocksIntegration::NAME . '_data' ]['branded'] );
+		}
+
+		$this->assertTrue( wp_style_is( BlocksIntegration::STYLE, 'enqueued' ) );
+		$this->assertSame( array( '.pixalink-loyalty-panel{--pxl-primary:' . Responses::BRAND_PRIMARY . ';--pxl-on-primary:' . Responses::BRAND_ON . ';--pxl-ink:' . Responses::BRAND_INK . ';--pxl-accent:' . Responses::BRAND_ACCENT . '}' ), wp_styles()->get_data( BlocksIntegration::STYLE, 'after' ), 'Once, though both blocks initialise the integration.' );
+
+		update_option( Options::PORTAL_BRANDING, 'no' );
+		$registry = new IntegrationRegistry();
+		$registry->initialize( 'checkout_block' );
+		$this->assertFalse( $registry->get_all_registered_script_data()[ BlocksIntegration::NAME . '_data' ]['branded'] );
+		delete_option( Options::PORTAL_BRANDING );
+		$GLOBALS['wp_styles'] = null;
 	}
 
 	/**

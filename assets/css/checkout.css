@@ -1,7 +1,10 @@
 /**
  * Pixalink loyalty panel: Checkout block (order summary) and classic checkout.
  *
- * Colours inherit from the theme; only spacing, layout and state cues are set here.
+ * Colours inherit from the theme; only spacing, layout and state cues are set here. With "Match your member portal"
+ * on, both checkouts carry `is-branded` and an inline rule after this file sets the portal colours on the panel:
+ * `--pxl-primary` / `--pxl-on-primary` for the buttons and the points slider, `--pxl-ink` for the applied voucher.
+ * Without it the theme's own buttons and form controls are left alone.
  */
 
 .pixalink-loyalty-panel {
@@ -9,6 +12,10 @@
 	--pixalink-loyalty-muted: rgba(0, 0, 0, 0.62);
 	--pixalink-loyalty-applied: #1a7f37;
 	--pixalink-loyalty-error: #b32d2e;
+	--pxl-primary: var(--wp--preset--color--contrast, currentColor);
+	--pxl-on-primary: var(--wp--preset--color--base, #fff);
+	--pxl-ink: currentColor;
+	--pxl-accent: currentColor;
 	margin: 0 0 1.5em;
 }
 
@@ -20,11 +27,13 @@
 .pixalink-loyalty-panel__title {
 	margin: 0 0 0.5em;
 	font-size: 1em;
+	font-weight: 600;
 }
 
 .pixalink-loyalty-panel h4 {
 	margin: 0.75em 0 0.5em;
 	font-size: 0.9em;
+	font-weight: 600;
 }
 
 .pixalink-loyalty-panel__balance,
@@ -70,7 +79,7 @@
 
 .pixalink-loyalty-voucher.is-applied {
 	border-color: var(--pixalink-loyalty-applied);
-	box-shadow: inset 3px 0 0 var(--pixalink-loyalty-applied);
+	border-inline-start-width: 4px;
 }
 
 .pixalink-loyalty-voucher.is-unavailable {
@@ -136,7 +145,61 @@
 }
 
 .pixalink-loyalty-button {
-	margin: 0 0.5em 0.5em 0;
+	margin-block: 0 0.5em;
+	margin-inline: 0 0.5em;
+}
+
+/* A compact size in both checkouts: the order summary is narrow and theme buttons are sized for page actions. */
+.pixalink-loyalty-panel :is(button, a).pixalink-loyalty-button {
+	min-block-size: 0;
+	padding: 0.55em 1.15em;
+	font-family: inherit;
+	font-size: 0.875rem;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+.pixalink-loyalty-voucher :is(button, a).pixalink-loyalty-button {
+	margin: 0;
+}
+
+/* Member portal colours (both checkouts read the same custom properties). */
+
+.pixalink-loyalty-panel.is-branded {
+	--pixalink-loyalty-applied: var(--pxl-ink);
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-button {
+	border: 1px solid var(--pxl-primary);
+	border-radius: 999px;
+	background-color: var(--pxl-primary);
+	color: var(--pxl-on-primary);
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-button:hover:not(:disabled) {
+	border-color: color-mix(in srgb, var(--pxl-primary) 86%, #000);
+	background-color: color-mix(in srgb, var(--pxl-primary) 86%, #000);
+	color: var(--pxl-on-primary);
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-button--secondary,
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-button--secondary:hover:not(:disabled) {
+	border-color: currentColor;
+	background-color: transparent;
+	color: var(--pxl-ink);
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-button:focus-visible {
+	outline: 2px solid var(--pxl-primary);
+	outline-offset: 2px;
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-points__slider {
+	accent-color: var(--pxl-primary);
+}
+
+.pixalink-loyalty-panel.is-branded .pixalink-loyalty-voucher.is-applied {
+	background-color: color-mix(in srgb, var(--pxl-ink) 6%, transparent);
 }
 
 .pixalink-loyalty-rewards-used ul {

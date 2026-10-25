@@ -151,7 +151,7 @@ final class SchemasTest extends TestCase {
 	public function test_hosted_pages_reference_existing_schemas(): void {
 		$hosted = ContractValidator::hosted();
 
-		$this->assertSame( array( 'connect/woocommerce' ), array_column( $hosted, 'path' ) );
+		$this->assertSame( array( 'connect/woocommerce', 'l/{space}/store-sign-in/{outlet}', 'l/{space}/handoff/{ticket}' ), array_column( $hosted, 'path' ) );
 		foreach ( $hosted as $page ) {
 			foreach ( array( 'query', 'lead', 'callback' ) as $field ) {
 				if ( isset( $page[ $field ] ) ) {
@@ -199,6 +199,47 @@ final class SchemasTest extends TestCase {
 					'sso_ticket'   => 'fake-sso-member-0000',
 				)
 			)
+		);
+	}
+
+	public function test_a_state_only_travels_with_a_ticket(): void {
+		$state = 'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4';
+
+		$this->assertSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'verified_via' => 'sso_ticket',
+					'sso_ticket'   => 'fake-sso-member-0000',
+					'sso_state'    => $state,
+				)
+			)
+		);
+		$this->assertNotSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'phone'         => '+60123456789',
+					'phone_country' => 'MY',
+					'verified_via'  => 'none',
+					'sso_state'     => $state,
+				)
+			),
+			'No state without a ticket.'
+		);
+		$this->assertNotSame(
+			array(),
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'verified_via' => 'sso_ticket',
+					'sso_ticket'   => 'fake-sso-member-0000',
+					'sso_state'    => 'short',
+				)
+			),
+			'At least 32 URL-safe characters.'
 		);
 	}
 

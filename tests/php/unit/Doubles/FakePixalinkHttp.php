@@ -25,9 +25,9 @@ use Pixalink\Loyalty\Tests\FakeServer\Signature;
 trait FakePixalinkHttp {
 
 	/**
-	 * Recorded requests: `{method, path, query, body}`.
+	 * Recorded requests: `{method, path, query, body, headers}` (header names lower-case).
 	 *
-	 * @var list<array{method:string,path:string,query:array<string,mixed>,body:mixed}>
+	 * @var list<array{method:string,path:string,query:array<string,mixed>,body:mixed,headers:array<string,string>}>
 	 */
 	protected array $http_requests = array();
 
@@ -49,6 +49,7 @@ trait FakePixalinkHttp {
 			'#^customers/(?P<id>[A-Za-z0-9-]+)$#'            => 'customers/{id}',
 			'#^customers/(?P<id>[A-Za-z0-9-]+)/otp$#'        => 'customers/{id}/otp',
 			'#^customers/(?P<id>[A-Za-z0-9-]+)/otp/verify$#' => 'customers/{id}/otp/verify',
+			'#^customers/(?P<id>[A-Za-z0-9-]+)/portal-session$#' => 'customers/{id}/portal-session',
 			'#^events$#'                                     => 'events',
 		);
 	}
@@ -127,11 +128,17 @@ trait FakePixalinkHttp {
 		$raw  = isset( $args['body'] ) ? (string) $args['body'] : '';
 		$body = '' === $raw ? array() : json_decode( $raw, true );
 
+		$headers = array();
+		foreach ( isset( $args['headers'] ) && is_array( $args['headers'] ) ? $args['headers'] : array() as $name => $value ) {
+			$headers[ strtolower( (string) $name ) ] = (string) $value;
+		}
+
 		$this->http_requests[] = array(
-			'method' => $method,
-			'path'   => $path,
-			'query'  => $query,
-			'body'   => $body,
+			'method'  => $method,
+			'path'    => $path,
+			'query'   => $query,
+			'body'    => $body,
+			'headers' => $headers,
 		);
 
 		foreach ( $this->http_scripts as $index => $script ) {

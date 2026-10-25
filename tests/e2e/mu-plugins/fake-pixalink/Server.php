@@ -62,6 +62,7 @@ final class Server {
 		array( 'customers/(?P<id>[A-Za-z0-9-]+)', 'GET', 'customers/{id}', true ),
 		array( 'customers/(?P<id>[A-Za-z0-9-]+)/otp', 'POST', 'customers/{id}/otp', true ),
 		array( 'customers/(?P<id>[A-Za-z0-9-]+)/otp/verify', 'POST', 'customers/{id}/otp/verify', true ),
+		array( 'customers/(?P<id>[A-Za-z0-9-]+)/portal-session', 'POST', 'customers/{id}/portal-session', true ),
 		array( 'quote', 'POST', 'quote', true ),
 		array( 'orders/(?P<order_ref>[A-Za-z0-9_-]+)/redemptions', 'PUT', 'orders/{order_ref}/redemptions', true ),
 		array( 'orders/(?P<order_ref>[A-Za-z0-9_-]+)/redemptions', 'DELETE', 'orders/{order_ref}/redemptions', true ),

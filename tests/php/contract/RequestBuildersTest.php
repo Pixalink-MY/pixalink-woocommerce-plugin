@@ -14,6 +14,8 @@ use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\PkceState;
 use Pixalink\Loyalty\Fields\ConsentRecord;
 use Pixalink\Loyalty\Fields\PhoneNumber;
+use Pixalink\Loyalty\Identity\PortalSignIn;
+use Pixalink\Loyalty\Identity\SignInState;
 use Pixalink\Loyalty\Support\Uuid;
 use Pixalink\Loyalty\Tests\FakeServer\ContractValidator;
 use Pixalink\Loyalty\Tests\Unit\TestCase;
@@ -27,6 +29,8 @@ use Pixalink\Loyalty\Tests\Unit\TestCase;
  * @covers \Pixalink\Loyalty\Api\Resources\Customers
  * @covers \Pixalink\Loyalty\Connect\LeadPayload
  * @covers \Pixalink\Loyalty\Connect\PkceState
+ * @covers \Pixalink\Loyalty\Identity\PortalSignIn::sign_in_location
+ * @covers \Pixalink\Loyalty\Identity\SignInState::generate
  */
 final class RequestBuildersTest extends TestCase {
 
@@ -166,10 +170,61 @@ final class RequestBuildersTest extends TestCase {
 		$this->assertSame( '17', $user['external_id'] );
 	}
 
+	public function test_sso_ticket_payload_with_the_state_of_the_sign_in_button(): void {
+		$payload = Customers::ticket_payload( 'kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ', 0, SignInState::generate() );
+
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $payload ) );
+		$this->assertMatchesRegularExpression( SignInState::PATTERN, $payload['sso_state'] ?? '' );
+	}
+
+	public function test_store_sign_in_query(): void {
+		$location = PortalSignIn::sign_in_location(
+			'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81',
+			'https://shop.example.test/my-account/?a=1&b=two%20words',
+			'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4'
+		);
+		parse_str( (string) parse_url( $location, PHP_URL_QUERY ), $query ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+
+		$this->assertStringStartsWith( 'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81?', $location );
+		$this->assertSame(
+			array(
+				'return' => 'https://shop.example.test/my-account/?a=1&b=two%20words',
+				'state'  => 'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4',
+			),
+			$query,
+			'The return page survives the round trip whole.'
+		);
+		$this->assertSame( array(), ContractValidator::validate( 'store-sign-in.query.json', $query ) );
+	}
+
 	public function test_otp_payloads(): void {
 		$this->assertSame( array(), ContractValidator::validate( 'customer-otp.request.json', Customers::otp_payload() ) );
 		$this->assertSame( array(), ContractValidator::validate( 'customer-otp-verify.request.json', Customers::verify_payload( ' 123456 ' ) ) );
 		$this->assertSame( array( 'code' => '123456' ), Customers::verify_payload( ' 123456 ' ) );
+	}
+
+	public function test_portal_session_payloads(): void {
+		foreach ( array( 'home', 'rewards', 'points', 'credits', 'not-a-page' ) as $destination ) {
+			$payload = Customers::portal_session_payload( 17, $destination );
+
+			$this->assertSame( array(), ContractValidator::validate( 'customer-portal-session.request.json', $payload ), $destination );
+		}
+
+		$this->assertSame( 'customers/5001/portal-session', Customers::portal_session_path( '5001' ) );
+	}
+
+	public function test_the_portal_session_answer_is_read_from_the_schema_examples(): void {
+		$schema = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/customer-portal-session.response.json' ), true );
+
+		foreach ( $schema['examples'] as $example ) {
+			$this->assertSame(
+				array(
+					'url'        => $example['url'],
+					'expires_at' => $example['expires_at'],
+				),
+				Customers::portal_session_response( $example )
+			);
+		}
 	}
 
 	public function test_customer_paths_encode_the_id(): void {

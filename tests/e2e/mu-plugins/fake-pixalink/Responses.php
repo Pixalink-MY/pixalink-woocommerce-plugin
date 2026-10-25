@@ -36,6 +36,30 @@ final class Responses {
 	public const OTP_CODE         = '123456';
 	public const POINTS_AVAILABLE = 1250;
 
+	/**
+	 * Host of the fake member portal (heartbeat branding, summary and portal-session links all point here).
+	 */
+	public const PORTAL_HOST = 'fake-pixalink.test';
+
+	/**
+	 * Signed-out home of the fake member portal.
+	 */
+	public const PORTAL_URL = 'https://fake-pixalink.test/l/fake-cafe';
+
+	/**
+	 * The fake portal's page behind the store's "Sign in with the member portal" button (heartbeat branding). No page
+	 * answers there: tests check that the store sends the browser to it, and land tickets separately.
+	 */
+	public const SIGN_IN_URL = self::PORTAL_URL . '/store-sign-in/' . self::OUTLET_UUID;
+
+	/**
+	 * Fake portal colours (lower-case #rrggbb, like production).
+	 */
+	public const BRAND_PRIMARY = '#0f5c56';
+	public const BRAND_ON      = '#ffffff';
+	public const BRAND_INK     = '#0f5c56';
+	public const BRAND_ACCENT  = '#f2b84b';
+
 	public const OTP_CODE_EXPIRED   = '111111';
 	public const OTP_CODE_EXHAUSTED = '999999';
 
@@ -82,6 +106,7 @@ final class Responses {
 		'customers/{id}',
 		'customers/{id}/otp',
 		'customers/{id}/otp/verify',
+		'customers/{id}/portal-session',
 		'quote',
 		'orders/{order_ref}/redemptions',
 		'events',
@@ -177,6 +202,15 @@ final class Responses {
 				}
 				return self::ok( array( 'verified' => true ) );
 
+			case 'POST customers/{id}/portal-session':
+				if ( ! in_array( $params['id'] ?? null, array( self::MEMBER_ID, self::NEW_CUSTOMER_ID ), true ) ) {
+					return self::error( 404, 'not_found', 'Customer not found.' );
+				}
+				return array(
+					'status' => 201,
+					'body'   => self::portal_session( $now ),
+				);
+
 			case 'POST quote':
 				return self::ok( self::quote( $body, self::points_balance( $context ) ) );
 
@@ -268,10 +302,10 @@ final class Responses {
 		);
 
 		$samples = array(
-			'exchange'              => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => 'fake-code-0123456789abcdef' ), $context ), 'connect-exchange.response.json' ),
-			'exchange invalid'      => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => self::INVALID_CODE_PREFIX . '-1' ), $context ), 'error.response.json' ),
-			'heartbeat'             => array( self::respond( 'POST', 'connection/heartbeat', array(), array(), array(), $context ), 'connection-heartbeat.response.json' ),
-			'heartbeat other site'  => array(
+			'exchange'               => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => 'fake-code-0123456789abcdef' ), $context ), 'connect-exchange.response.json' ),
+			'exchange invalid'       => array( self::respond( 'POST', 'connect/exchange', array(), array(), array( 'code' => self::INVALID_CODE_PREFIX . '-1' ), $context ), 'error.response.json' ),
+			'heartbeat'              => array( self::respond( 'POST', 'connection/heartbeat', array(), array(), array(), $context ), 'connection-heartbeat.response.json' ),
+			'heartbeat other site'   => array(
 				self::respond(
 					'POST',
 					'connection/heartbeat',
@@ -282,11 +316,11 @@ final class Responses {
 				),
 				'error.response.json',
 			),
-			'outlet'                => array( self::respond( 'GET', 'outlet', array(), array(), array(), $context ), 'outlet.response.json' ),
-			'lookup hit'            => array( self::respond( 'GET', 'customers', array(), array( 'phone' => self::MEMBER_PHONE ), array(), $context ), 'customers-lookup.response.json' ),
-			'lookup miss'           => array( self::respond( 'GET', 'customers', array(), array( 'phone' => '+60199999999' ), array(), $context ), 'error.response.json' ),
-			'create existing'       => array( self::respond( 'POST', 'customers', array(), array(), array( 'phone' => self::MEMBER_PHONE ), $context ), 'customers-create.response.json' ),
-			'create new'            => array(
+			'outlet'                 => array( self::respond( 'GET', 'outlet', array(), array(), array(), $context ), 'outlet.response.json' ),
+			'lookup hit'             => array( self::respond( 'GET', 'customers', array(), array( 'phone' => self::MEMBER_PHONE ), array(), $context ), 'customers-lookup.response.json' ),
+			'lookup miss'            => array( self::respond( 'GET', 'customers', array(), array( 'phone' => '+60199999999' ), array(), $context ), 'error.response.json' ),
+			'create existing'        => array( self::respond( 'POST', 'customers', array(), array(), array( 'phone' => self::MEMBER_PHONE ), $context ), 'customers-create.response.json' ),
+			'create new'             => array(
 				self::respond(
 					'POST',
 					'customers',
@@ -302,23 +336,26 @@ final class Responses {
 				),
 				'customers-create.response.json',
 			),
-			'sso member'            => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), $context ), 'customers-create.response.json' ),
-			'sso new'               => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NEW . 'abc123' ), $context ), 'customers-create.response.json' ),
-			'sso no email'          => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NO_EMAIL . 'abc1' ), $context ), 'customers-create.response.json' ),
-			'sso unknown'           => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( 'someone-elses-ticket-0001' ), $context ), 'error.response.json' ),
-			'sso replayed'          => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), array( 'ticket_used' => true ) + $context ), 'error.response.json' ),
-			'summary'               => array( self::respond( 'GET', 'customers/{id}', array( 'id' => self::MEMBER_ID ), array(), array(), $context ), 'customer-summary.response.json' ),
-			'summary new'           => array( self::respond( 'GET', 'customers/{id}', array( 'id' => self::NEW_CUSTOMER_ID ), array(), array(), $context ), 'customer-summary.response.json' ),
-			'summary missing'       => array( self::respond( 'GET', 'customers/{id}', array( 'id' => '1' ), array(), array(), $context ), 'error.response.json' ),
-			'otp'                   => array( self::respond( 'POST', 'customers/{id}/otp', array( 'id' => self::MEMBER_ID ), array(), array( 'channel' => null ), $context ), 'customer-otp.response.json' ),
-			'otp sms'               => array( self::respond( 'POST', 'customers/{id}/otp', array( 'id' => self::MEMBER_ID ), array(), array( 'channel' => 'sms' ), $context ), 'customer-otp.response.json' ),
-			'otp verify'            => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE ), $context ), 'customer-otp-verify.response.json' ),
-			'otp verify wrong'      => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => '000000' ), $context ), 'error.response.json' ),
-			'otp verify expired'    => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE_EXPIRED ), $context ), 'error.response.json' ),
-			'otp verify exhausted'  => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE_EXHAUSTED ), $context ), 'error.response.json' ),
-			'otp throttled'         => array( self::error( 429, 'otp_throttled', 'Too many codes requested.' ), 'error.response.json' ),
-			'verification required' => array( self::error( 403, 'verification_required', 'Verify the phone number first.' ), 'error.response.json' ),
-			'quote'                 => array(
+			'sso member'             => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), $context ), 'customers-create.response.json' ),
+			'sso new'                => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NEW . 'abc123' ), $context ), 'customers-create.response.json' ),
+			'sso no email'           => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NO_EMAIL . 'abc1' ), $context ), 'customers-create.response.json' ),
+			'sso unknown'            => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( 'someone-elses-ticket-0001' ), $context ), 'error.response.json' ),
+			'sso replayed'           => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), array( 'ticket_used' => true ) + $context ), 'error.response.json' ),
+			'summary'                => array( self::respond( 'GET', 'customers/{id}', array( 'id' => self::MEMBER_ID ), array(), array(), $context ), 'customer-summary.response.json' ),
+			'summary new'            => array( self::respond( 'GET', 'customers/{id}', array( 'id' => self::NEW_CUSTOMER_ID ), array(), array(), $context ), 'customer-summary.response.json' ),
+			'summary missing'        => array( self::respond( 'GET', 'customers/{id}', array( 'id' => '1' ), array(), array(), $context ), 'error.response.json' ),
+			'otp'                    => array( self::respond( 'POST', 'customers/{id}/otp', array( 'id' => self::MEMBER_ID ), array(), array( 'channel' => null ), $context ), 'customer-otp.response.json' ),
+			'otp sms'                => array( self::respond( 'POST', 'customers/{id}/otp', array( 'id' => self::MEMBER_ID ), array(), array( 'channel' => 'sms' ), $context ), 'customer-otp.response.json' ),
+			'otp verify'             => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE ), $context ), 'customer-otp-verify.response.json' ),
+			'otp verify wrong'       => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => '000000' ), $context ), 'error.response.json' ),
+			'otp verify expired'     => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE_EXPIRED ), $context ), 'error.response.json' ),
+			'otp verify exhausted'   => array( self::respond( 'POST', 'customers/{id}/otp/verify', array( 'id' => self::MEMBER_ID ), array(), array( 'code' => self::OTP_CODE_EXHAUSTED ), $context ), 'error.response.json' ),
+			'otp throttled'          => array( self::error( 429, 'otp_throttled', 'Too many codes requested.' ), 'error.response.json' ),
+			'portal session'         => array( self::respond( 'POST', 'customers/{id}/portal-session', array( 'id' => self::MEMBER_ID ), array(), array( 'wp_user_id' => 17 ), $context ), 'customer-portal-session.response.json' ),
+			'portal session missing' => array( self::respond( 'POST', 'customers/{id}/portal-session', array( 'id' => '1' ), array(), array( 'wp_user_id' => 17 ), $context ), 'error.response.json' ),
+			'portal rate limited'    => array( self::error( 429, 'rate_limited', 'Too many sign-in links requested.' ), 'error.response.json' ),
+			'verification required'  => array( self::error( 403, 'verification_required', 'Verify the phone number first.' ), 'error.response.json' ),
+			'quote'                  => array(
 				self::respond(
 					'POST',
 					'quote',
@@ -332,9 +369,9 @@ final class Responses {
 				),
 				'quote.response.json',
 			),
-			'quote empty cart'      => array( self::respond( 'POST', 'quote', array(), array(), array(), $context ), 'quote.response.json' ),
-			'hold'                  => array( self::respond( 'PUT', 'orders/{order_ref}/redemptions', array( 'order_ref' => 'wc_order_AbC123xyz' ), array(), $hold, $context ), 'redemptions.response.json' ),
-			'hold unknown voucher'  => array(
+			'quote empty cart'       => array( self::respond( 'POST', 'quote', array(), array(), array(), $context ), 'quote.response.json' ),
+			'hold'                   => array( self::respond( 'PUT', 'orders/{order_ref}/redemptions', array( 'order_ref' => 'wc_order_AbC123xyz' ), array(), $hold, $context ), 'redemptions.response.json' ),
+			'hold unknown voucher'   => array(
 				self::respond(
 					'PUT',
 					'orders/{order_ref}/redemptions',
@@ -353,7 +390,7 @@ final class Responses {
 				),
 				'error.response.json',
 			),
-			'hold too few credits'  => array(
+			'hold too few credits'   => array(
 				self::respond(
 					'PUT',
 					'orders/{order_ref}/redemptions',
@@ -372,7 +409,7 @@ final class Responses {
 				),
 				'error.response.json',
 			),
-			'hold mismatch'         => array(
+			'hold mismatch'          => array(
 				self::respond(
 					'PUT',
 					'orders/{order_ref}/redemptions',
@@ -391,7 +428,7 @@ final class Responses {
 				),
 				'error.response.json',
 			),
-			'hold too many points'  => array(
+			'hold too many points'   => array(
 				self::respond(
 					'PUT',
 					'orders/{order_ref}/redemptions',
@@ -410,12 +447,12 @@ final class Responses {
 				),
 				'error.response.json',
 			),
-			'release'               => array( self::respond( 'DELETE', 'orders/{order_ref}/redemptions', array( 'order_ref' => 'wc_order_AbC123xyz' ), array(), array(), $context ), 'redemptions.response.json' ),
-			'event ping'            => array( self::respond( 'POST', 'events', array(), array(), $ping, $context ), 'event.response.json' ),
-			'event duplicate'       => array( self::respond( 'POST', 'events', array(), array(), $ping, array( 'event_seen' => true ) + $context ), 'event.response.json' ),
-			'event order.paid'      => array( self::respond( 'POST', 'events', array(), array(), array( 'type' => 'order.paid' ), $context ), 'event.response.json' ),
-			'event refund_deleted'  => array( self::respond( 'POST', 'events', array(), array(), array( 'type' => 'order.refund_deleted' ), $context ), 'event.response.json' ),
-			'timestamp skew'        => array( self::error( 401, 'timestamp_skew', 'The request timestamp is outside the allowed window.', array( 'server_time' => $now ) ), 'error.response.json' ),
+			'release'                => array( self::respond( 'DELETE', 'orders/{order_ref}/redemptions', array( 'order_ref' => 'wc_order_AbC123xyz' ), array(), array(), $context ), 'redemptions.response.json' ),
+			'event ping'             => array( self::respond( 'POST', 'events', array(), array(), $ping, $context ), 'event.response.json' ),
+			'event duplicate'        => array( self::respond( 'POST', 'events', array(), array(), $ping, array( 'event_seen' => true ) + $context ), 'event.response.json' ),
+			'event order.paid'       => array( self::respond( 'POST', 'events', array(), array(), array( 'type' => 'order.paid' ), $context ), 'event.response.json' ),
+			'event refund_deleted'   => array( self::respond( 'POST', 'events', array(), array(), array( 'type' => 'order.refund_deleted' ), $context ), 'event.response.json' ),
+			'timestamp skew'         => array( self::error( 401, 'timestamp_skew', 'The request timestamp is outside the allowed window.', array( 'server_time' => $now ) ), 'error.response.json' ),
 		);
 
 		$named = array();
@@ -514,6 +551,29 @@ final class Responses {
 			'earn_on'            => 'paid',
 			'min_plugin_version' => '0.1.0',
 			'server_time'        => $now,
+			'branding'           => array(
+				'name'              => 'Fake Cafe',
+				'logo_url'          => null,
+				'primary_color'     => self::BRAND_PRIMARY,
+				'primary_color_on'  => self::BRAND_ON,
+				'primary_color_ink' => self::BRAND_INK,
+				'secondary_color'   => self::BRAND_ACCENT,
+				'portal_url'        => self::PORTAL_URL,
+				'sign_in_url'       => self::SIGN_IN_URL,
+			),
+		);
+	}
+
+	/**
+	 * A single-use portal sign-in link (a new ticket every time, valid for 60 seconds).
+	 *
+	 * @param int $now Unix time.
+	 * @return array{url:string,expires_at:string}
+	 */
+	private static function portal_session( int $now ): array {
+		return array(
+			'url'        => self::PORTAL_URL . '/handoff/' . bin2hex( random_bytes( 20 ) ),
+			'expires_at' => gmdate( 'Y-m-d\TH:i:s\Z', $now + 60 ),
 		);
 	}
 
@@ -631,6 +691,7 @@ final class Responses {
 			'credits'         => array( 'balance_cents' => 1500 ),
 			'tier'            => array(
 				'name'     => 'Silver',
+				'color'    => '#c0c0c0',
 				'progress' => array(
 					'current'        => 700,
 					'next'           => 1000,

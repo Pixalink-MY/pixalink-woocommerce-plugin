@@ -37,6 +37,7 @@ final class DashboardCardTest extends TestCase {
 				'credits'  => array( 'balance_cents' => 1500 ),
 				'tier'     => array(
 					'name'     => 'Silver',
+					'color'    => '#c0c0c0',
 					'progress' => array(
 						'current'        => 700,
 						'next'           => 1000,
@@ -76,6 +77,7 @@ final class DashboardCardTest extends TestCase {
 				),
 				'tier'           => array(
 					'name'           => 'Silver',
+					'color'          => '#c0c0c0',
 					'remaining'      => 300,
 					'next_tier_name' => 'Gold',
 					'percent'        => 70,

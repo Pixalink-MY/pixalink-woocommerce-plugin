@@ -156,6 +156,15 @@ final class SettingsPageTest extends \WP_UnitTestCase {
 		$account = array_column( $this->page()->get_settings_for_section( 'account' ), null, 'id' );
 		$this->assertSame( 'checkbox', $account[ Options::ACCOUNT_DASHBOARD_CARD ]['type'] );
 		$this->assertSame( 'yes', $account[ Options::ACCOUNT_DASHBOARD_CARD ]['default'] );
+		$this->assertSame( 'checkbox', $account[ Options::PORTAL_BRANDING ]['type'] );
+		$this->assertSame( 'yes', $account[ Options::PORTAL_BRANDING ]['default'], 'Match your member portal is on by default.' );
+		$this->assertSame( 'Match your member portal', $account[ Options::PORTAL_BRANDING ]['title'] );
+		$this->assertSame( "Use the logo and colours from your Pixalink member portal on My Account and checkout. Turn off to use your theme's colours.", $account[ Options::PORTAL_BRANDING ]['desc'] );
+
+		$this->assertSame( 'checkbox', $account[ Options::PORTAL_SIGN_IN ]['type'] );
+		$this->assertSame( 'yes', $account[ Options::PORTAL_SIGN_IN ]['default'], 'Sign in from Customer Portal is on by default.' );
+		$this->assertSame( 'Sign in from Customer Portal', $account[ Options::PORTAL_SIGN_IN ]['title'] );
+		$this->assertSame( "Adds a 'Sign in from Customer Portal' button to the login form. Members who sign in this way get a store account if they don't have one yet (they need an e-mail address in Pixalink).", $account[ Options::PORTAL_SIGN_IN ]['desc'] );
 
 		$advanced = array_column( $this->page()->get_settings_for_section( 'advanced' ), null, 'id' );
 		$this->assertArrayHasKey( Options::DEBUG_LOGGING, $advanced );

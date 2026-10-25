@@ -12,11 +12,13 @@ namespace Pixalink\Loyalty\Identity;
 use Pixalink\Loyalty\Account\AccountView;
 use Pixalink\Loyalty\Account\DashboardCard;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
+use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Account\QrService;
 use Pixalink\Loyalty\Account\SummaryService;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Api\Resources\Customers;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\Event;
 use Pixalink\Loyalty\Fields\AccountFields;
@@ -121,6 +123,13 @@ final class Module {
 	private ConsentText $consent_text;
 
 	/**
+	 * Signed-in portal links.
+	 *
+	 * @var PortalHandoff
+	 */
+	private PortalHandoff $handoff;
+
+	/**
 	 * Whether register() already ran.
 	 *
 	 * @var bool
@@ -150,6 +159,7 @@ final class Module {
 		$this->linker    = new CustomerLinker( $customers, new PendingLinks(), $this->guests, $logger );
 		$this->summaries = new SummaryService( $customers, $logger );
 		$this->events    = new CustomerEvents( $queue, $credentials, new CustomerPayloadBuilder( new OrderPayloadBuilder() ) );
+		$this->handoff   = new PortalHandoff( $customers, $this->summaries, $options, new Connection( $options ), $this->guests, $logger );
 	}
 
 	/**
@@ -166,13 +176,16 @@ final class Module {
 		( new CheckoutFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, new OrderIdentity( $this->events, $this->sync ), $this->guests ) )->register();
 		( new AccountFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, $this->sync, $this->events ) )->register();
 
-		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests );
+		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff );
 		$endpoint = new LoyaltyEndpoint( $this->options, $view );
 		$endpoint->register();
-		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger ) )->register();
+		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff ) )->register();
+		$this->handoff->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();
-		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger ) )->register();
+		$sign_in_state = new SignInState();
+		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger, $this->options, $sign_in_state ) )->register();
+		( new PortalSignIn( $this->options, $this->credentials, $sign_in_state ) )->register();
 		( new InboundController( $this->credentials, $this->summaries, $this->logger ) )->register();
 
 		( new Exporter() )->register();
@@ -209,6 +222,15 @@ final class Module {
 	 */
 	public function linker(): CustomerLinker {
 		return $this->linker;
+	}
+
+	/**
+	 * Signed-in portal links.
+	 *
+	 * @return PortalHandoff
+	 */
+	public function handoff(): PortalHandoff {
+		return $this->handoff;
 	}
 
 	/**

@@ -1,0 +1,16 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/store-sign-in.query.json",
+	"title": "GET {portal}/l/{space}/store-sign-in/{outlet} query (hosted portal page, browser redirect)",
+	"description": "The store's 'Sign in with the member portal' button sends the shopper here (the heartbeat's branding.sign_in_url, which already names the portal and the outlet). A member not signed in to the portal signs in or registers first and comes back here. Pixalink then mints a portal sign-in ticket bound to sha256(state) and redirects to `return` with `pixalink_sso=<ticket>` added. `return` must be an absolute URL on the outlet's connected store host; anything else is refused without a redirect. `state` is the random value the store keeps in its own short-lived cookie and sends back as `sso_state` when it redeems the ticket (customers-create.request.json), so a ticket only works in the browser that started the sign-in. All values arrive as strings.",
+	"type": "object",
+	"required": [ "return", "state" ],
+	"additionalProperties": false,
+	"properties": {
+		"return": { "$ref": "common.json#/$defs/url" },
+		"state": { "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" }
+	},
+	"examples": [
+		{ "return": "https://woo.pixalink.io/my-account/", "state": "q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4" }
+	]
+}

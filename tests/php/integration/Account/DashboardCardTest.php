@@ -10,6 +10,7 @@ namespace Pixalink\Loyalty\Tests\Integration\Account;
 use Pixalink\Loyalty\Account\Assets;
 use Pixalink\Loyalty\Account\DashboardCard;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Identity\Link;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
@@ -39,11 +40,17 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 		delete_option( Options::ACCOUNT_DASHBOARD_CARD );
 		delete_option( Options::ACCOUNT_TAB_ENABLED );
 		delete_option( Options::DEBUG_LOGGING );
+		delete_option( Options::PORTAL_BRANDING );
+		delete_option( Options::REMOTE_STATUS );
+		$GLOBALS['wp_styles'] = null;
 		wp_dequeue_style( DashboardCard::STYLE );
 		wp_dequeue_script( Assets::ACCOUNT_HANDLE );
 	}
 
 	public function tear_down(): void {
+		delete_option( Options::PORTAL_BRANDING );
+		delete_option( Options::REMOTE_STATUS );
+		$GLOBALS['wp_styles'] = null;
 		remove_all_filters( 'woocommerce_logging_class' );
 		remove_filter( 'stylesheet_directory', array( self::class, 'theme_dir' ) );
 		wp_set_template_globals();
@@ -63,6 +70,37 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 
 		ob_start();
 		woocommerce_account_content();
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * The fake server's heartbeat body.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function heartbeat(): array {
+		return Responses::samples( time() )['heartbeat']['response']['body'];
+	}
+
+	/**
+	 * Cache a heartbeat response as the plugin would.
+	 *
+	 * @param array<string,mixed> $status Heartbeat body.
+	 * @return void
+	 */
+	private function cache_heartbeat( array $status ): void {
+		( new Connection( new Options() ) )->store_remote_status( $status );
+	}
+
+	/**
+	 * What the account stylesheet handle prints (link tag and inline rule).
+	 *
+	 * @return string
+	 */
+	private static function printed_account_styles(): string {
+		ob_start();
+		wp_styles()->do_items( array( Assets::ACCOUNT_STYLE ) );
 
 		return (string) ob_get_clean();
 	}
@@ -136,6 +174,55 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 		$this->assertFalse( wp_script_is( Assets::ACCOUNT_HANDLE, 'enqueued' ) );
 		$this->assertStringNotContainsString( '1,250', $html, 'No balance before the phone is verified.' );
 		$this->assertSame( array(), Server::recorded(), 'Unverified shoppers cause no summary call.' );
+	}
+
+	public function test_the_card_wears_the_portal_colours_and_opens_the_portal_signed_in(): void {
+		$this->cache_heartbeat( self::heartbeat() );
+		$this->verified_member();
+
+		$html = self::dashboard();
+		$css  = self::printed_account_styles();
+
+		$this->assertStringContainsString( 'pixalink-loyalty-dashboard-card is-branded', $html );
+		$this->assertStringContainsString( 'pixalink-loyalty-card pixalink-loyalty-card--compact', $html );
+		$this->assertStringContainsString( '.pixalink-loyalty-account,.pixalink-loyalty-dashboard-card,.pixalink-loyalty-link{--pxl-primary:' . Responses::BRAND_PRIMARY, $css );
+		$this->assertStringContainsString( 'style="--pxl-tier:#c0c0c0"', $html );
+		$this->assertMatchesRegularExpression( '#href="' . preg_quote( esc_url( admin_url( 'admin-post.php' ) ), '#' ) . '\?action=pixalink_loyalty_open_portal&\#038;destination=home&\#038;_wpnonce=[0-9a-f]+" target="_blank" rel="noopener">Open member portal</a>#', $html );
+		$this->assertStringNotContainsString( '/handoff/', $html );
+		$this->assertCount( 1, Server::recorded(), 'Only the summary; the sign-in link is minted at the click.' );
+	}
+
+	public function test_no_portal_colours_on_the_card_with_the_setting_off_or_without_branding(): void {
+		update_option( Options::PORTAL_BRANDING, 'no' );
+		$this->cache_heartbeat( self::heartbeat() );
+		$member_id = $this->verified_member();
+
+		$html = self::dashboard();
+		$this->assertStringNotContainsString( 'is-branded', $html );
+		$this->assertStringNotContainsString( '--pxl-primary:', self::printed_account_styles() );
+		$this->assertStringContainsString( 'Open member portal', $html, 'The signed-in link stays.' );
+
+		delete_option( Options::PORTAL_BRANDING );
+		$status = self::heartbeat();
+		unset( $status['branding'] );
+		$this->cache_heartbeat( $status );
+		$GLOBALS['wp_styles'] = null;
+		wp_set_current_user( $member_id );
+
+		$this->assertStringNotContainsString( 'is-branded', self::dashboard() );
+		$this->assertStringNotContainsString( '--pxl-primary:', self::printed_account_styles() );
+	}
+
+	public function test_an_unlinked_shopper_keeps_the_verify_link_first_and_a_signed_out_portal_link(): void {
+		$this->cache_heartbeat( self::heartbeat() );
+		$this->unlinked_shopper();
+
+		$html = self::dashboard();
+
+		$this->assertLessThan( (int) strpos( $html, 'Open member portal' ), (int) strpos( $html, 'Link your membership' ) );
+		$this->assertStringContainsString( 'href="' . Responses::PORTAL_URL . '" target="_blank" rel="noopener">Open member portal</a>', $html );
+		$this->assertStringNotContainsString( 'admin-post.php', $html );
+		$this->assertSame( array(), Server::recorded() );
 	}
 
 	public function test_a_failed_summary_renders_nothing_logs_at_debug_and_the_dashboard_still_renders(): void {

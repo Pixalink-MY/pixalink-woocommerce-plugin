@@ -13,12 +13,14 @@ use Pixalink\Loyalty\Api\ApiException;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Fields\ConsentRecord;
 use Pixalink\Loyalty\Fields\PhoneNumber;
+use Pixalink\Loyalty\Support\Uuid;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
  * `GET customers` (lookup), `POST customers` (resolve or create, or redeem a portal sign-in ticket),
- * `POST customers/{id}/otp`, `POST customers/{id}/otp/verify` and `GET customers/{id}` (My Account summary).
+ * `POST customers/{id}/otp`, `POST customers/{id}/otp/verify`, `GET customers/{id}` (My Account summary) and
+ * `POST customers/{id}/portal-session` (a single-use link that opens the member portal signed in).
  *
  * The static builders are the single source of the request bodies and are validated against
  * `tests/contract/schemas/*.json` by the contract suite.
@@ -30,6 +32,13 @@ final class Customers {
 	public const VERIFIED_VIA_NONE       = 'none';
 	public const VERIFIED_VIA_OTP        = 'otp';
 	public const VERIFIED_VIA_SSO_TICKET = 'sso_ticket';
+
+	/**
+	 * Portal pages a portal session can open (`home` when the page is unknown).
+	 */
+	public const PORTAL_DESTINATIONS = array( 'home', 'rewards', 'points', 'credits' );
+
+	public const PORTAL_HOME = 'home';
 
 	/**
 	 * API client.
@@ -84,16 +93,26 @@ final class Customers {
 	/**
 	 * Body for POST customers that redeems a Pixalink portal sign-in ticket.
 	 *
-	 * @param string $ticket     The `pixalink_sso` query parameter.
-	 * @param int    $wp_user_id Logged-in WordPress user id (0 when nobody is logged in).
-	 * @return array{external_id:string|null,verified_via:string,sso_ticket:string}
+	 * `sso_state` is the check value the store kept in its cookie when the shopper pressed "Sign in with the member
+	 * portal"; Pixalink refuses a ticket minted for that button without it (410 ticket_invalid) and ignores it for a
+	 * ticket from the portal's own Order button.
+	 *
+	 * @param string      $ticket     The `pixalink_sso` query parameter.
+	 * @param int         $wp_user_id Logged-in WordPress user id (0 when nobody is logged in).
+	 * @param string|null $state      The sign-in button's state (null or '' when there is none).
+	 * @return array{external_id:string|null,verified_via:string,sso_ticket:string,sso_state?:string}
 	 */
-	public static function ticket_payload( string $ticket, int $wp_user_id ): array {
-		return array(
+	public static function ticket_payload( string $ticket, int $wp_user_id, ?string $state = null ): array {
+		$payload = array(
 			'external_id'  => self::external_id( $wp_user_id ),
 			'verified_via' => self::VERIFIED_VIA_SSO_TICKET,
 			'sso_ticket'   => $ticket,
 		);
+		if ( null !== $state && '' !== $state ) {
+			$payload['sso_state'] = $state;
+		}
+
+		return $payload;
 	}
 
 	/**
@@ -143,6 +162,77 @@ final class Customers {
 	 */
 	public static function verify_path( string $customer_id ): string {
 		return self::otp_path( $customer_id ) . '/verify';
+	}
+
+	/**
+	 * Path of POST customers/{id}/portal-session.
+	 *
+	 * @param string $customer_id Pixalink customer id.
+	 * @return string
+	 */
+	public static function portal_session_path( string $customer_id ): string {
+		return self::summary_path( $customer_id ) . '/portal-session';
+	}
+
+	/**
+	 * Body for POST customers/{id}/portal-session.
+	 *
+	 * @param int    $wp_user_id  The signed-in WordPress user (the store account Pixalink holds for the member).
+	 * @param string $destination One of {@see Customers::PORTAL_DESTINATIONS}; anything else opens the portal home.
+	 * @return array{wp_user_id:int,destination:string}
+	 * @throws \InvalidArgumentException When there is no user.
+	 */
+	public static function portal_session_payload( int $wp_user_id, string $destination ): array {
+		if ( $wp_user_id < 1 ) {
+			throw new \InvalidArgumentException( 'A portal session needs the signed-in WordPress user.' );
+		}
+
+		return array(
+			'wp_user_id'  => $wp_user_id,
+			'destination' => in_array( $destination, self::PORTAL_DESTINATIONS, true ) ? $destination : self::PORTAL_HOME,
+		);
+	}
+
+	/**
+	 * The `{url, expires_at}` of a 201 portal-session answer (the caller checks the URL's scheme and host).
+	 *
+	 * @param array<mixed> $body Decoded body.
+	 * @return array{url:string,expires_at:string}
+	 * @throws ApiException When the answer has no usable link.
+	 */
+	public static function portal_session_response( array $body ): array {
+		$url        = isset( $body['url'] ) && is_string( $body['url'] ) ? trim( $body['url'] ) : '';
+		$expires_at = isset( $body['expires_at'] ) && is_string( $body['expires_at'] ) ? trim( $body['expires_at'] ) : '';
+		if ( '' === $url || '' === $expires_at ) {
+			$exception = ApiException::invalid_response( 201 );
+			throw $exception;
+		}
+
+		return array(
+			'url'        => $url,
+			'expires_at' => $expires_at,
+		);
+	}
+
+	/**
+	 * Mint a single-use link that opens the member portal signed in (works once, for 60 seconds).
+	 *
+	 * Each call carries a fresh Idempotency-Key: a second click is a new ticket, never a replay of the first.
+	 *
+	 * @param string $customer_id Pixalink customer id.
+	 * @param int    $wp_user_id  Signed-in WordPress user.
+	 * @param string $destination Portal page.
+	 * @return array{url:string,expires_at:string}
+	 * @throws ApiException On failure (403 verification_required, 404 not_found, 429 rate_limited).
+	 */
+	public function portal_session( string $customer_id, int $wp_user_id, string $destination ): array {
+		$response = $this->client->post(
+			self::portal_session_path( $customer_id ),
+			self::portal_session_payload( $wp_user_id, $destination ),
+			array( 'idempotency_key' => Uuid::v4() )
+		);
+
+		return self::portal_session_response( $response->data );
 	}
 
 	/**

@@ -11,35 +11,52 @@ use Pixalink\Loyalty\Identity\GuestLinkStore;
 use Pixalink\Loyalty\Identity\Link;
 use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Identity\ShopperContextInterface;
+use Pixalink\Loyalty\Identity\SignInState;
 use Pixalink\Loyalty\Identity\SsoLanding;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
+use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
 use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 
 /**
  * `?pixalink_sso=` from the Pixalink portal: redeemed once, signs shoppers in (never staff), links accounts (never
- * staff ones), tells recognised guests they earn on this visit, and the redirect target never carries the ticket.
+ * staff ones), tells recognised guests they earn on this visit, and the redirect target never carries the ticket. A
+ * ticket from the store's own sign-in button travels with the state cookie (cleared whatever happens), and creates
+ * the account even where the store has registration off.
  *
  * @covers \Pixalink\Loyalty\Identity\SsoLanding
  * @covers \Pixalink\Loyalty\Identity\CustomerLinker::redeem_ticket
  * @covers \Pixalink\Loyalty\Identity\CustomerLinker::is_staff
  * @covers \Pixalink\Loyalty\Identity\Module::on_shopper_verified
  * @covers \Pixalink\Loyalty\Identity\Module::on_login
+ * @covers \Pixalink\Loyalty\Identity\SignInState
  */
 final class SsoLandingTest extends \WP_UnitTestCase {
 
 	use StoreFixtures;
+
+	/**
+	 * Cookies the landing set: [name, value, options].
+	 *
+	 * @var list<array{0:string,1:string,2:array<string,mixed>}>
+	 */
+	private array $cookies = array();
 
 	public function set_up(): void {
 		parent::set_up();
 
 		$this->set_up_store();
 		wp_set_current_user( 0 );
+		$_COOKIE       = array();
+		$this->cookies = array();
+		delete_option( Options::PORTAL_SIGN_IN );
 	}
 
 	public function tear_down(): void {
+		$_COOKIE = array();
+		delete_option( Options::PORTAL_SIGN_IN );
 		$this->tear_down_store();
 
 		parent::tear_down();
@@ -51,8 +68,157 @@ final class SsoLandingTest extends \WP_UnitTestCase {
 			Plugin::instance()->credentials(),
 			Plugin::instance()->identity()->guests(),
 			Plugin::instance()->identity()->normalizer(),
-			Plugin::instance()->logger()
+			Plugin::instance()->logger(),
+			new Options(),
+			new SignInState(
+				function ( string $name, string $value, array $options ): void {
+					$this->cookies[] = array( $name, $value, $options );
+				}
+			)
 		);
+	}
+
+	/**
+	 * The browser comes back from "Sign in with the member portal": it still holds the state cookie.
+	 *
+	 * @return string The state.
+	 */
+	private function pressed_the_button(): string {
+		$state                          = SignInState::generate();
+		$_COOKIE[ SignInState::COOKIE ] = $state;
+
+		return $state;
+	}
+
+	/**
+	 * Store registration off everywhere.
+	 *
+	 * @return void
+	 */
+	private static function registration_off(): void {
+		update_option( 'woocommerce_enable_myaccount_registration', 'no' );
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'no' );
+	}
+
+	/**
+	 * Whether the state cookie was expired.
+	 *
+	 * @return bool
+	 */
+	private function state_cookie_cleared(): bool {
+		foreach ( $this->cookies as $cookie ) {
+			if ( SignInState::COOKIE === $cookie[0] && '' === $cookie[1] && $cookie[2]['expires'] < time() ) {
+				return ! isset( $_COOKIE[ SignInState::COOKIE ] );
+			}
+		}
+
+		return false;
+	}
+
+	public function test_the_state_cookie_is_sent_with_the_ticket_and_cleared(): void {
+		$user_id = $this->make_user();
+		$this->link_member( $user_id );
+		$state = $this->pressed_the_button();
+
+		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'state01', '/my-account/?pixalink_sso=' . Responses::SSO_TICKET_MEMBER . 'state01' );
+
+		$this->assertSame( home_url( '/my-account/' ), $target, 'Back on the page the button was pressed on, without the ticket.' );
+		$this->assertSame( $user_id, get_current_user_id() );
+		$recorded = Server::recorded();
+		$this->assertSame( $state, $recorded[0]['body']['sso_state'] ?? null );
+		$this->assertSame( 200, $recorded[0]['status'], 'The fake server validated the body against the contract.' );
+		$this->assertTrue( $this->state_cookie_cleared() );
+	}
+
+	public function test_without_the_cookie_no_state_is_sent(): void {
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'abc123', '/?pixalink_sso=x' );
+
+		$this->assertArrayNotHasKey( 'sso_state', Server::recorded()[0]['body'] );
+		$this->assertSame( array(), $this->cookies, 'No cookie to clear.' );
+	}
+
+	public function test_a_refused_ticket_still_clears_the_cookie_and_says_the_link_expired(): void {
+		$this->pressed_the_button();
+
+		$this->landing()->handle( 'someone-elses-ticket-0001', '/my-account/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertSame( 410, Server::recorded()[0]['status'] );
+		$this->assertStringContainsString( 'This sign-in link has expired or was already used.', self::notices() );
+		$this->assertTrue( $this->state_cookie_cleared() );
+	}
+
+	public function test_a_button_sign_in_creates_the_account_even_with_registration_off(): void {
+		self::registration_off();
+		$this->pressed_the_button();
+
+		$this->landing()->handle( Responses::SSO_TICKET_NEW . 'button1', '/my-account/?pixalink_sso=x' );
+
+		$user = get_user_by( 'email', 'portal.member@example.com' );
+		$this->assertInstanceOf( \WP_User::class, $user );
+		$this->assertContains( 'customer', $user->roles );
+		$this->assertSame( (int) $user->ID, get_current_user_id() );
+		$this->assertSame( Responses::NEW_CUSTOMER_ID, get_user_meta( $user->ID, UserMeta::CUSTOMER_ID, true ) );
+		$this->assertSame( 'Portal', get_user_meta( $user->ID, 'first_name', true ) );
+	}
+
+	public function test_a_button_sign_in_without_an_email_keeps_the_guest_link(): void {
+		self::registration_off();
+		$this->pressed_the_button();
+
+		$this->landing()->handle( Responses::SSO_TICKET_NO_EMAIL . 'btn1', '/my-account/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertSame( Responses::NEW_CUSTOMER_ID, ( new GuestLinkStore() )->get( ShopperContext::current_session_id() )?->customer_id );
+		$this->assertStringContainsString( "We've recognised your Pixalink membership for this visit, so you'll earn points on your order.", self::notices() );
+	}
+
+	public function test_a_portal_order_link_does_not_create_an_account_with_registration_off(): void {
+		self::registration_off();
+
+		$this->landing()->handle( Responses::SSO_TICKET_NEW . 'order01', '/shop/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertFalse( email_exists( 'portal.member@example.com' ), 'No state cookie: the Order button path is unchanged.' );
+		$this->assertSame( Responses::NEW_CUSTOMER_ID, ( new GuestLinkStore() )->get( ShopperContext::current_session_id() )?->customer_id );
+	}
+
+	public function test_with_the_setting_off_a_button_sign_in_follows_the_store_registration_setting(): void {
+		self::registration_off();
+		update_option( Options::PORTAL_SIGN_IN, 'no' );
+		$this->pressed_the_button();
+
+		$this->landing()->handle( Responses::SSO_TICKET_NEW . 'button2', '/my-account/?pixalink_sso=x' );
+
+		$this->assertFalse( email_exists( 'portal.member@example.com' ) );
+		$this->assertTrue( $this->state_cookie_cleared() );
+	}
+
+	public function test_a_button_sign_in_never_takes_over_an_account_holding_the_email(): void {
+		self::registration_off();
+		$existing = $this->make_user( 'portal.member@example.com' );
+		$this->pressed_the_button();
+
+		$this->landing()->handle( Responses::SSO_TICKET_NEW . 'button3', '/my-account/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertFalse( UserMeta::is_verified( $existing ) );
+		$this->assertStringContainsString( 'Log in to your account', self::notices() );
+	}
+
+	public function test_a_button_sign_in_is_still_refused_for_staff(): void {
+		$staff_id = $this->make_user( 'staff@example.com', 'shop_manager' );
+		wp_set_current_user( $staff_id );
+		$state = $this->pressed_the_button();
+
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'staff09', '/my-account/?pixalink_sso=x' );
+
+		$this->assertSame( '', get_user_meta( $staff_id, UserMeta::CUSTOMER_ID, true ) );
+		$this->assertStringContainsString( 'signed in to this store as staff', self::notices() );
+		$recorded = Server::recorded();
+		$this->assertNull( $recorded[0]['body']['external_id'] );
+		$this->assertSame( $state, $recorded[0]['body']['sso_state'] ?? null, 'Spent with its state, like any other redemption.' );
+		$this->assertTrue( $this->state_cookie_cleared() );
 	}
 
 	private function link_member( int $user_id ): void {

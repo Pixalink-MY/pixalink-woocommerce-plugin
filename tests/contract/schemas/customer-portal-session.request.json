@@ -1,0 +1,13 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customer-portal-session.request.json",
+	"title": "POST customers/{id}/portal-session request (mint a single-use link that opens the member portal signed in; the store calls it only when a verified member clicks a portal button)",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [ "wp_user_id" ],
+	"properties": {
+		"wp_user_id": { "description": "The WordPress user the member is signed in as. Must equal the store account Pixalink holds for this member (properties.woocommerce.id).", "type": "integer", "minimum": 1 },
+		"destination": { "description": "Portal page to open after sign-in; home when omitted.", "enum": [ "home", "rewards", "points", "credits" ] }
+	},
+	"examples": [ { "wp_user_id": 17 }, { "wp_user_id": 17, "destination": "rewards" } ]
+}

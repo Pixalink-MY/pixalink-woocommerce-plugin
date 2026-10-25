@@ -14,6 +14,8 @@ use Pixalink\Loyalty\Checkout\Strings;
 use Pixalink\Loyalty\Redemption\CartActions;
 use Pixalink\Loyalty\Redemption\CouponMapper;
 use Pixalink\Loyalty\Redemption\Features;
+use Pixalink\Loyalty\Support\Branding;
+use Pixalink\Loyalty\Support\BrandingStyles;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -111,6 +113,7 @@ final class ClassicPanel {
 			array(
 				'data'    => $data,
 				'strings' => Strings::all(),
+				'branded' => BrandingStyles::is_branded( Branding::active() ),
 			),
 			'pixalink-loyalty/',
 			PIXALINK_LOYALTY_DIR . 'templates/'
@@ -150,6 +153,7 @@ final class ClassicPanel {
 		$version = isset( $asset['version'] ) && is_string( $asset['version'] ) ? $asset['version'] : PIXALINK_LOYALTY_VERSION;
 
 		wp_enqueue_style( self::STYLE, PIXALINK_LOYALTY_URL . 'assets/css/checkout.css', array(), PIXALINK_LOYALTY_VERSION );
+		BrandingStyles::attach( self::STYLE, BrandingStyles::CHECKOUT_SELECTORS, Branding::active() );
 		wp_enqueue_script( self::SCRIPT, PIXALINK_LOYALTY_URL . 'build/classic-checkout.js', array_values( array_unique( array_merge( $deps, array( 'jquery', 'wc-checkout' ) ) ) ), $version, true );
 		wp_add_inline_script( self::SCRIPT, 'window.pixalinkLoyaltyClassic = ' . wp_json_encode( self::config() ) . ';', 'before' );
 	}

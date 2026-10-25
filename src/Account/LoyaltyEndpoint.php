@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Pixalink\Loyalty\Account;
 
+use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -65,6 +66,7 @@ final class LoyaltyEndpoint {
 		add_filter( 'woocommerce_endpoint_' . self::ENDPOINT . '_title', array( $this, 'title' ), 10, 1 );
 		add_filter( 'pixalink_loyalty_verify_url', array( $this, 'verify_url' ), 5, 1 );
 		add_action( 'woocommerce_before_customer_login_form', array( $this, 'before_login_form' ) );
+		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_styles' ) );
 
 		add_shortcode( self::SUMMARY_SHORTCODE, array( $this, 'summary_shortcode' ) );
 		add_shortcode( self::QR_SHORTCODE, array( $this, 'qr_shortcode' ) );
@@ -79,6 +81,19 @@ final class LoyaltyEndpoint {
 		$title = trim( $this->options->get_string( Options::ACCOUNT_TAB_TITLE ) );
 
 		return '' !== $title ? $title : __( 'Loyalty', 'pixalink-loyalty-for-woocommerce' );
+	}
+
+	/**
+	 * `wp_enqueue_scripts` callback: the account stylesheet (and the portal colours) in the head of My Account pages.
+	 *
+	 * @return void
+	 */
+	public function enqueue_styles(): void {
+		if ( ! $this->options->get_bool( Options::ACCOUNT_TAB_ENABLED ) || ! function_exists( 'is_account_page' ) || ! is_account_page() || ! is_user_logged_in() ) {
+			return;
+		}
+
+		Assets::enqueue_account_style( Branding::active( $this->options ) );
 	}
 
 	/**

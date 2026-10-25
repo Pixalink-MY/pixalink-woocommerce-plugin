@@ -1,0 +1,14 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/customer-portal-session.response.json",
+	"title": "201 response to POST customers/{id}/portal-session",
+	"description": "url opens the member portal and signs the member in. It works once and only until expires_at (60 seconds), so the store redirects the browser to it at once and never stores or prints it.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [ "url", "expires_at" ],
+	"properties": {
+		"url": { "$ref": "common.json#/$defs/url" },
+		"expires_at": { "$ref": "common.json#/$defs/datetime" }
+	},
+	"examples": [ { "url": "https://demo.pixalink.io/l/pixalink-bookstore/handoff/3f9c0b7e2d4a4e1b9c6a8d2f5e7b1c3a9e0d4f6b8a2c", "expires_at": "2026-10-25T08:01:00Z" } ]
+}

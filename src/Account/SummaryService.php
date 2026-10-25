@@ -12,6 +12,7 @@ namespace Pixalink\Loyalty\Account;
 use Pixalink\Loyalty\Api\ApiException;
 use Pixalink\Loyalty\Api\Resources\Customers;
 use Pixalink\Loyalty\Identity\UserMeta;
+use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\Logger;
 
 defined( 'ABSPATH' ) || exit;
@@ -136,7 +137,7 @@ final class SummaryService {
 	 * View model of a summary response (unknown or malformed parts are dropped, never guessed).
 	 *
 	 * @param array<mixed> $raw Response body.
-	 * @return array{points_balance:int,points_expiring:list<array{points:int,expires_at:string}>,credits_cents:int|null,tier:array{name:string,current:int|null,next:int|null,remaining:int|null,next_tier_name:string|null,percent:int|null}|null,vouchers:list<array{id:string,code:string,title:string,description:string|null,image_url:string|null,expires_at:string|null,redeemable_here:bool}>,memberships:list<array{id:string,name:string,status:string|null,expires_at:string|null}>,activity:list<array{type:string,description:string,points:int|null,occurred_at:string}>,qr:string|null,portal_url:string|null}
+	 * @return array{points_balance:int,points_expiring:list<array{points:int,expires_at:string}>,credits_cents:int|null,tier:array{name:string,color:string|null,current:int|null,next:int|null,remaining:int|null,next_tier_name:string|null,percent:int|null}|null,vouchers:list<array{id:string,code:string,title:string,description:string|null,image_url:string|null,expires_at:string|null,redeemable_here:bool}>,memberships:list<array{id:string,name:string,status:string|null,expires_at:string|null}>,activity:list<array{type:string,description:string,points:int|null,occurred_at:string}>,qr:string|null,portal_url:string|null}
 	 */
 	public static function normalize( array $raw ): array {
 		$points = self::map( $raw['points'] ?? null );
@@ -171,7 +172,7 @@ final class SummaryService {
 	 * Tier view model.
 	 *
 	 * @param mixed $tier Raw tier.
-	 * @return array{name:string,current:int|null,next:int|null,remaining:int|null,next_tier_name:string|null,percent:int|null}|null
+	 * @return array{name:string,color:string|null,current:int|null,next:int|null,remaining:int|null,next_tier_name:string|null,percent:int|null}|null
 	 */
 	private static function tier( $tier ): ?array {
 		$tier = self::map( $tier );
@@ -188,6 +189,7 @@ final class SummaryService {
 
 		return array(
 			'name'           => $name,
+			'color'          => Branding::color( $tier['color'] ?? null ),
 			'current'        => $current,
 			'next'           => $next,
 			'remaining'      => $remaining,

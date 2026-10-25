@@ -1,5 +1,5 @@
 /**
- * My Account › Loyalty: the phone verification dialog and the member QR code.
+ * My Account › Loyalty: the phone verification dialog, the member QR code and its "Show member code" toggle.
  *
  * Talks to the plugin's REST routes (`pixalink-loyalty/v1/link`, `otp/send`, `otp/verify`) with the `wp_rest`
  * nonce printed in `window.pixalinkLoyaltyAccount`. The QR code is drawn locally with qrcode-generator (MIT);
@@ -66,6 +66,35 @@ const renderQrCodes = () => {
 			alt: i18n.qrLabel || '',
 		} );
 	} );
+};
+
+/**
+ * "Show member code": the code starts hidden behind the toggle once this script runs (without it, the code stays
+ * visible and the toggle stays hidden).
+ */
+const setUpCodeToggles = () => {
+	document
+		.querySelectorAll( '[data-pixalink-code-toggle]' )
+		.forEach( ( button ) => {
+			const panel = document.getElementById(
+				button.getAttribute( 'aria-controls' ) || ''
+			);
+			if ( ! panel ) {
+				return;
+			}
+
+			const show = button.getAttribute( 'data-label-show' ) || '';
+			const hide = button.getAttribute( 'data-label-hide' ) || show;
+			const set = ( open ) => {
+				panel.hidden = ! open;
+				button.setAttribute( 'aria-expanded', open ? 'true' : 'false' );
+				button.textContent = open ? hide : show;
+			};
+
+			set( false );
+			button.hidden = false;
+			button.addEventListener( 'click', () => set( panel.hidden ) );
+		} );
 };
 
 /**
@@ -197,6 +226,7 @@ const setUpLink = ( root ) => {
 
 const init = () => {
 	renderQrCodes();
+	setUpCodeToggles();
 	document.querySelectorAll( '[data-pixalink-link]' ).forEach( setUpLink );
 };
 
