@@ -26,7 +26,8 @@ defined( 'ABSPATH' ) || exit;
  * is not told their own hold made them short of points.
  *
  * After a new quote the selection is reconciled with it: points and credits are clamped to the new caps, and
- * Pixalink coupons the quote no longer offers are taken off the cart.
+ * Pixalink coupons the quote no longer offers are taken off the cart. When a re-quote fails the last quote stays
+ * usable, unless it was priced in another currency than the cart's: then it is dropped with the discounts built on it.
  */
 final class QuoteService {
 
@@ -157,7 +158,28 @@ final class QuoteService {
 				)
 			);
 
-			return $this->state->has_quote() && $this->state->customer_id() === $customer_id;
+			if ( ! $this->state->has_quote() || $this->state->customer_id() !== $customer_id ) {
+				return false;
+			}
+
+			if ( strtoupper( (string) ( $this->state->quote()['currency'] ?? '' ) ) !== $payload['currency'] ) {
+				// A quote in another currency prices nothing in this one: drop it and the discounts built on it.
+				$this->state->update(
+					array(
+						'quote'         => array(),
+						'quote_hash'    => '',
+						'points'        => 0,
+						'credits_cents' => 0,
+					)
+				);
+				if ( $reconcile ) {
+					$this->reconcile( $cart );
+				}
+
+				return false;
+			}
+
+			return true;
 		}
 
 		$this->state->store_quote( $customer_id, self::string_keys( $quote ), $signature );
