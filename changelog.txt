@@ -18,4 +18,6 @@
 * Add - Order-received page: points earned or when they will be added, and the rewards the order used; order screen: held and settled redemptions.
 * Add - WooCommerce › Settings › Pixalink Loyalty › Checkout: credits toggle; each toggle shows when Pixalink switched the feature off.
 * Add - My Account dashboard: a loyalty card with points, the next expiry, tier progress and vouchers ready, or a link to verify on the Loyalty tab; "Dashboard summary" setting under My Account (on by default).
+* Fix - A Pixalink portal link opened while signed in as staff (editor, shop manager, administrator) no longer links that account to the member: nothing is linked or signed in, a notice says why, and `pixalink_loyalty_sso_refused_staff` fires. Staff accounts cannot be linked by a one-time code or a guest link moved at login either.
+* Fix - A member the portal recognises but who stays a guest (store registration off, or no e-mail address) now sees a notice that they will earn points on this visit, with how to create an account; the Loyalty tab login form and `[pixalink_loyalty_summary]` say the same.
 * Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check, Playwright checkout e2e) and release pipeline.

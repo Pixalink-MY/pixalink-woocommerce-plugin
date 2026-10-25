@@ -12,6 +12,7 @@ use Pixalink\Loyalty\Identity\ShopperContextInterface;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
+use Pixalink\Loyalty\Tests\FakeServer\Server;
 use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 
 /**
@@ -96,6 +97,23 @@ final class RestControllerTest extends \WP_UnitTestCase {
 		$summary = $this->call( 'GET', 'summary' );
 		$this->assertSame( 200, $summary->get_status() );
 		$this->assertSame( 1250, $summary->get_data()['summary']['points_balance'] );
+	}
+
+	public function test_a_staff_account_cannot_start_a_link_and_nothing_reaches_pixalink(): void {
+		wp_set_current_user( $this->make_user( 'staff@example.com', 'administrator' ) );
+
+		$response = $this->call(
+			'POST',
+			'link',
+			array(
+				'phone_country' => 'MY',
+				'phone'         => '012-345 6789',
+			)
+		);
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 'pixalink_loyalty_staff_account', $response->get_data()['code'] );
+		$this->assertSame( array(), Server::recorded() );
 	}
 
 	public function test_an_invalid_phone_is_refused_before_any_call(): void {

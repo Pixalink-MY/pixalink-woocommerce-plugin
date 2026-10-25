@@ -64,6 +64,7 @@ final class LoyaltyEndpoint {
 		add_action( 'woocommerce_account_' . self::ENDPOINT . '_endpoint', array( $this, 'render' ) );
 		add_filter( 'woocommerce_endpoint_' . self::ENDPOINT . '_title', array( $this, 'title' ), 10, 1 );
 		add_filter( 'pixalink_loyalty_verify_url', array( $this, 'verify_url' ), 5, 1 );
+		add_action( 'woocommerce_before_customer_login_form', array( $this, 'before_login_form' ) );
 
 		add_shortcode( self::SUMMARY_SHORTCODE, array( $this, 'summary_shortcode' ) );
 		add_shortcode( self::QR_SHORTCODE, array( $this, 'qr_shortcode' ) );
@@ -192,6 +193,20 @@ final class LoyaltyEndpoint {
 		}
 
 		echo $this->view->render_current(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Template output, escaped inside the templates.
+	}
+
+	/**
+	 * `woocommerce_before_customer_login_form` callback: a logged-out visitor of the tab sees the login form; one the
+	 * portal recognised for this visit is told so above it.
+	 *
+	 * @return void
+	 */
+	public function before_login_form(): void {
+		if ( ! $this->options->get_bool( Options::ACCOUNT_TAB_ENABLED ) || ! is_wc_endpoint_url( self::ENDPOINT ) ) {
+			return;
+		}
+
+		echo $this->view->render_recognised_guest(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in AccountView (wp_kses).
 	}
 
 	/**

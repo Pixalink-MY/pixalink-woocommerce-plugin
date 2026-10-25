@@ -9,7 +9,9 @@ namespace Pixalink\Loyalty\Tests\Integration\Account;
 
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
 use Pixalink\Loyalty\Identity\Link;
+use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Identity\UserMeta;
+use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
@@ -120,6 +122,40 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'Log in</a> to see your points', $html );
 		$this->assertSame( '', do_shortcode( '[' . LoyaltyEndpoint::QR_SHORTCODE . ']' ) );
+		$this->assertSame( array(), Server::recorded() );
+	}
+
+	public function test_a_guest_recognised_from_the_portal_is_told_so_above_the_login_prompt(): void {
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'yes' );
+		Plugin::instance()->identity()->guests()->put( ShopperContext::current_session_id(), new Link( Responses::MEMBER_ID, Responses::MEMBER_PHONE, 'MY', '2026-10-25T02:00:00Z', Link::VIA_SSO_TICKET ) );
+
+		$html = do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' );
+
+		$this->assertStringContainsString( "We've recognised your Pixalink membership for this visit, so you'll earn points on your order. Create an account at checkout to see your balance here.", $html );
+		$this->assertStringContainsString( 'Log in</a> to see your points', $html );
+		$this->assertStringNotContainsString( '1,250', $html, 'A guest link never shows balances.' );
+
+		ob_start();
+		$GLOBALS['wp']->query_vars[ LoyaltyEndpoint::ENDPOINT ] = '';
+		do_action( 'woocommerce_before_customer_login_form' );
+		unset( $GLOBALS['wp']->query_vars[ LoyaltyEndpoint::ENDPOINT ] );
+		do_action( 'woocommerce_before_customer_login_form' );
+		$login_form = (string) ob_get_clean();
+
+		$this->assertSame( 1, substr_count( $login_form, 'recognised your Pixalink membership' ), 'Above the login form of the Loyalty tab only.' );
+	}
+
+	public function test_a_logged_out_visitor_without_a_guest_link_sees_no_recognised_message(): void {
+		$this->assertStringNotContainsString( 'recognised', do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' ) );
+	}
+
+	public function test_a_staff_account_is_told_why_instead_of_getting_the_phone_form(): void {
+		wp_set_current_user( $this->make_user( 'staff@example.com', 'shop_manager' ) );
+
+		$html = self::tab();
+
+		$this->assertStringContainsString( "You're signed in to this store as staff, so a Pixalink membership can't be connected to this account. Log out to shop as a member.", $html );
+		$this->assertStringNotContainsString( 'data-pixalink-link-form', $html );
 		$this->assertSame( array(), Server::recorded() );
 	}
 

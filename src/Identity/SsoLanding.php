@@ -22,6 +22,10 @@ defined( 'ABSPATH' ) || exit;
  *
  * The ticket is redeemed with `POST customers` (verified_via `sso_ticket`). Then:
  *
+ * - logged in as staff (anything more than a shopper, {@see CustomerLinker::is_staff()}): refused. Nothing is linked,
+ *   parked or signed in; the ticket is spent without the account id (so Pixalink links nothing to the staff account
+ *   either), `pixalink_loyalty_sso_refused_staff` fires and a notice asks them to log out and open the link again. The
+ *   same refusal answers a confirmation (below) sent from a staff account;
  * - logged in and not linked yet: nothing is redeemed or linked on the bare link. The ticket waits (for this account
  *   only, {@see SsoLanding::PENDING_TTL}) behind a notice asking the shopper to confirm; its link carries a nonce bound
  *   to the account, and only that confirmation redeems the ticket and links the account. A ticket is proof of the
@@ -30,7 +34,7 @@ defined( 'ABSPATH' ) || exit;
  * - logged out: the account linked to the member (or holding the member's verified number) is signed in; with none,
  *   a customer account is created when the store allows registration and the e-mail is free. Accounts that can
  *   do more than shop (editors, shop managers, administrators) are never signed in this way. Otherwise the shopper
- *   stays a guest with a verified link for this session.
+ *   stays a guest with a verified link for this session, and a notice says they were recognised for this visit.
  */
 final class SsoLanding {
 
@@ -156,6 +160,10 @@ final class SsoLanding {
 		}
 
 		$user_id = get_current_user_id();
+		if ( $this->refused_staff( $user_id, $ticket ) ) {
+			return self::where_notices_show( $target );
+		}
+
 		if ( $user_id > 0 && null === UserMeta::link( $user_id ) ) {
 			$this->ask_to_link( $user_id, $ticket, $target );
 
@@ -196,6 +204,10 @@ final class SsoLanding {
 
 		$ticket = get_transient( self::PENDING_TRANSIENT . $user_id );
 		delete_transient( self::PENDING_TRANSIENT . $user_id );
+		if ( $this->refused_staff( $user_id, is_string( $ticket ) ? $ticket : '' ) ) {
+			return self::where_notices_show( $target );
+		}
+
 		if ( ! is_string( $ticket ) || '' === $ticket ) {
 			self::notice( ( new LinkException( LinkException::TICKET_INVALID ) )->user_message() );
 
@@ -234,6 +246,96 @@ final class SsoLanding {
 			: untrailingslashit( home_url() );
 
 		return $origin . rtrim( $relative, '?' );
+	}
+
+	/**
+	 * Refuse a ticket opened in a staff account's session: no link, no parked ticket, nobody signed in.
+	 *
+	 * The ticket is still redeemed, without the account id, so it is spent (the portal mints a new one for every tap)
+	 * and the refusal can name the member.
+	 *
+	 * @param int    $user_id Logged-in user id (0 when nobody is logged in).
+	 * @param string $ticket  Ticket ('' when none is left).
+	 * @return bool Whether the ticket was refused.
+	 */
+	private function refused_staff( int $user_id, string $ticket ): bool {
+		if ( ! CustomerLinker::is_staff( $user_id ) ) {
+			return false;
+		}
+
+		$customer = null;
+		if ( $this->credentials->is_configured() && 1 === preg_match( CustomerLinker::TICKET_PATTERN, $ticket ) ) {
+			try {
+				$customer = $this->linker->redeem_ticket( $ticket, 0 );
+			} catch ( LinkException $exception ) {
+				unset( $exception ); // Spent, foreign or unreachable: the refusal is the same (the linker logged the failure).
+			}
+		}
+
+		$this->logger->info(
+			'Portal sign-in refused: a staff account is signed in.',
+			array(
+				'user_id'     => $user_id,
+				'customer_id' => $customer['id'] ?? null,
+			)
+		);
+		self::notice( __( 'You\'re signed in to this store as staff, so we didn\'t connect your Pixalink membership to this account. Log out and open the link again to shop as a member.', 'pixalink-loyalty-for-woocommerce' ) );
+
+		/**
+		 * Fires when a Pixalink portal ticket was refused because a staff account is signed in (nothing was linked).
+		 *
+		 * @since 0.1.0
+		 *
+		 * @param int                      $user_id  The signed-in staff account.
+		 * @param array<string,mixed>|null $customer The Pixalink customer the ticket proved `{id, phone, email, ...}`, or
+		 *                                           null when it could not be redeemed.
+		 */
+		do_action( 'pixalink_loyalty_sso_refused_staff', $user_id, $customer );
+
+		return true;
+	}
+
+	/**
+	 * Where a notice for the shopper is seen: the landing page when WooCommerce prints notices there (shop, product,
+	 * cart, checkout, My Account), otherwise My Account (when the store has that page).
+	 *
+	 * @param string $target Landing URL.
+	 * @return string
+	 */
+	private static function where_notices_show( string $target ): string {
+		$account = wc_get_page_permalink( 'myaccount', '' );
+		// The requested page itself: is_cart() and is_checkout() also answer true while an order is being placed.
+		$pages = array_values( array_filter( array( wc_get_page_id( 'cart' ), wc_get_page_id( 'checkout' ) ), static fn ( int $id ): bool => $id > 0 ) );
+		if ( '' === $account || is_woocommerce() || is_account_page() || ( array() !== $pages && is_page( $pages ) ) ) {
+			return $target;
+		}
+
+		return $account;
+	}
+
+	/**
+	 * Notice for a member recognised for this visit only (no account to sign in to): they earn on this order, and are
+	 * told how to get an account where the store offers one.
+	 *
+	 * @return string HTML (a link at most).
+	 */
+	public static function recognised_guest_message(): string {
+		$message = __( 'Welcome back! We\'ve recognised your Pixalink membership for this visit, so you\'ll earn points on your order.', 'pixalink-loyalty-for-woocommerce' );
+
+		if ( 'yes' === get_option( 'woocommerce_enable_signup_and_login_from_checkout' ) ) {
+			return $message . ' ' . __( 'Create an account at checkout to see your balance here.', 'pixalink-loyalty-for-woocommerce' );
+		}
+
+		$account = wc_get_page_permalink( 'myaccount', '' );
+		if ( 'yes' === get_option( 'woocommerce_enable_myaccount_registration' ) && '' !== $account ) {
+			return $message . ' ' . sprintf(
+				/* translators: %s: URL of My Account, where shoppers register. */
+				__( '<a href="%s">Create an account</a> to see your balance here.', 'pixalink-loyalty-for-woocommerce' ),
+				esc_url( $account )
+			);
+		}
+
+		return $message;
 	}
 
 	/**
@@ -301,7 +403,11 @@ final class SsoLanding {
 			return;
 		}
 
-		$this->linker->store( ShopperContext::resolve( $user_id, '', $this->guests ), $link );
+		try {
+			$this->linker->store( ShopperContext::resolve( $user_id, '', $this->guests ), $link );
+		} catch ( LinkException $exception ) {
+			self::notice( $exception->user_message() );
+		}
 	}
 
 	/**
@@ -319,10 +425,12 @@ final class SsoLanding {
 			$created = null !== $user;
 		}
 
-		if ( null === $user || ! self::may_sign_in( $user ) ) {
+		if ( null === $user || CustomerLinker::is_staff( $user->ID ) ) {
 			$this->keep_as_guest( $link );
 			if ( null !== $user || ( null !== $customer['email'] && false !== email_exists( $customer['email'] ) ) ) {
 				self::notice( __( 'Welcome back! Log in to your account to see your points.', 'pixalink-loyalty-for-woocommerce' ) );
+			} else {
+				self::notice( self::recognised_guest_message() );
 			}
 
 			return;
@@ -441,27 +549,6 @@ final class SsoLanding {
 		$user = get_userdata( (int) $user_id );
 
 		return $user instanceof \WP_User ? $user : null;
-	}
-
-	/**
-	 * Whether a portal ticket may sign this account in (shoppers only).
-	 *
-	 * @param \WP_User $user Account.
-	 * @return bool
-	 */
-	private static function may_sign_in( \WP_User $user ): bool {
-		// phpcs:ignore WordPress.WP.Capabilities.Unknown -- manage_woocommerce is WooCommerce's shop manager capability.
-		$allowed = ! user_can( $user, 'edit_posts' ) && ! user_can( $user, 'manage_woocommerce' ) && ! user_can( $user, 'list_users' );
-
-		/**
-		 * Filters whether a Pixalink portal sign-in may log this account in.
-		 *
-		 * @since 0.1.0
-		 *
-		 * @param bool     $allowed Default: true for accounts that can only shop.
-		 * @param \WP_User $user    The account.
-		 */
-		return (bool) apply_filters( 'pixalink_loyalty_sso_can_sign_in', $allowed, $user );
 	}
 
 	/**
