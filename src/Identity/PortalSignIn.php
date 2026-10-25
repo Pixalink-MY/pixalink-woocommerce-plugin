@@ -20,11 +20,11 @@ use Pixalink\Loyalty\Support\Options;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * A "Sign in with {portal name}" button on WooCommerce's login forms (My Account and the classic checkout's
+ * A "Sign in from Customer Portal" button on WooCommerce's login forms (My Account and the classic checkout's
  * "Returning customer?" form, both through `woocommerce_login_form_end`; the Checkout block has no such form), and
  * `admin-post.php?action=pixalink_loyalty_portal_sign_in&redirect_to=<page>`, where it starts.
  *
- * The button shows for logged-out shoppers while "Sign in with your member portal" is on, the store is connected and
+ * The button shows for logged-out shoppers while "Sign in from Customer Portal" is on, the store is connected and
  * the heartbeat named the portal's sign-in page (`branding.sign_in_url`, on the portal host). Pressing it keeps a
  * random state in a ten-minute cookie ({@see SignInState}) and sends the browser (303, no cache, no Referer) to that
  * page with `return` (the page to come back to, on this store) and `state`. The member signs in on the portal, which
@@ -172,15 +172,10 @@ final class PortalSignIn {
 			return '';
 		}
 
-		$remote = Branding::remote( $this->options );
 		$active = Branding::active( $this->options );
 		Assets::enqueue_sign_in_style( $active );
 
-		$name  = $remote?->name;
-		$label = null === $name
-			? __( 'Sign in with the member portal', 'pixalink-loyalty-for-woocommerce' )
-			/* translators: %s: name of the store's member portal, such as "Kopi Corner Rewards". */
-			: sprintf( __( 'Sign in with %s', 'pixalink-loyalty-for-woocommerce' ), $name );
+		$label = __( 'Sign in from Customer Portal', 'pixalink-loyalty-for-woocommerce' );
 
 		return (string) wc_get_template_html(
 			self::TEMPLATE,

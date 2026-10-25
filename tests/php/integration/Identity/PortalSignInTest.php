@@ -227,7 +227,7 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 		$html = self::account_login_form();
 
 		$this->assertStringContainsString( 'class="pixalink-loyalty-sign-in is-branded"', $html );
-		$this->assertStringContainsString( 'Sign in with Fake Cafe', $html );
+		$this->assertStringContainsString( 'Sign in from Customer Portal', $html );
 		$this->assertStringContainsString( '>or<', $html, 'A divider sets it apart from the password form.' );
 		$href = self::button_href( $html );
 		$this->assertStringStartsWith( admin_url( 'admin-post.php' ), $href );
@@ -261,7 +261,7 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 
 		$html = self::checkout_login_form();
 
-		$this->assertStringContainsString( 'Sign in with Fake Cafe', $html );
+		$this->assertStringContainsString( 'Sign in from Customer Portal', $html );
 		$this->assertSame( home_url( '/checkout/' ), self::query( self::button_href( $html ) )['redirect_to'] ?? null, 'Back to checkout, cart intact.' );
 	}
 
@@ -279,17 +279,17 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 
 		$this->assertStringContainsString( 'class="pixalink-loyalty-sign-in"', $neutral, 'Neutral styling: no is-branded.' );
 		$this->assertStringNotContainsString( 'logo.png', $neutral );
-		$this->assertStringContainsString( 'Sign in with Fake Cafe', $neutral, 'The portal keeps its name.' );
+		$this->assertStringContainsString( 'Sign in from Customer Portal', $neutral, 'Same label without the portal look.' );
 	}
 
-	public function test_a_portal_without_a_name_is_called_the_member_portal(): void {
+	public function test_the_label_does_not_depend_on_the_portal_name(): void {
 		$this->heartbeat(
 			static function ( array &$branding ): void {
 				$branding['name'] = '';
 			}
 		);
 
-		$this->assertStringContainsString( 'Sign in with the member portal', self::account_login_form() );
+		$this->assertStringContainsString( 'Sign in from Customer Portal', self::account_login_form() );
 	}
 
 	/**

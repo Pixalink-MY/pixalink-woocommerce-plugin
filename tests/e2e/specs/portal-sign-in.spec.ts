@@ -41,7 +41,7 @@ test.describe( 'Sign in with the member portal', () => {
 
 		const form = page.locator( 'form.woocommerce-form-login' );
 		const button = form.getByRole( 'link', {
-			name: 'Sign in with Fake Cafe',
+			name: 'Sign in from Customer Portal',
 		} );
 		await expect( button ).toBeVisible();
 		await expect( form.locator( '.pixalink-loyalty-sign-in' ) ).toHaveClass(

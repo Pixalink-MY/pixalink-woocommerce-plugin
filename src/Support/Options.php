@@ -74,7 +74,7 @@ final class Options {
 	public const PORTAL_BRANDING = 'pixalink_loyalty_portal_branding';
 
 	/**
-	 * "yes" while the login forms offer "Sign in with {portal name}" (needs the heartbeat's `branding.sign_in_url`).
+	 * "yes" while the login forms offer "Sign in from Customer Portal" (needs the heartbeat's `branding.sign_in_url`).
 	 */
 	public const PORTAL_SIGN_IN = 'pixalink_loyalty_portal_sign_in';
 

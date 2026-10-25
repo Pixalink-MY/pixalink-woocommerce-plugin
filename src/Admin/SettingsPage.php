@@ -11,7 +11,6 @@ namespace Pixalink\Loyalty\Admin;
 
 use Pixalink\Loyalty\Connect\ConnectController;
 use Pixalink\Loyalty\Fields\ConsentText;
-use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -178,12 +177,8 @@ final class SettingsPage extends \WC_Settings_Page {
 			self::checkbox( Options::PORTAL_BRANDING, __( 'Match your member portal', 'pixalink-loyalty-for-woocommerce' ), __( 'Use the logo and colours from your Pixalink member portal on My Account and checkout. Turn off to use your theme\'s colours.', 'pixalink-loyalty-for-woocommerce' ) ),
 			self::checkbox(
 				Options::PORTAL_SIGN_IN,
-				__( 'Sign in with your member portal', 'pixalink-loyalty-for-woocommerce' ),
-				sprintf(
-					/* translators: %s: name of the merchant's Pixalink member portal, or "your member portal". */
-					__( 'Adds a \'Sign in with %s\' button to the login form. Members who sign in this way get a store account if they don\'t have one yet (they need an e-mail address in Pixalink).', 'pixalink-loyalty-for-woocommerce' ),
-					Branding::remote()->name ?? __( 'your member portal', 'pixalink-loyalty-for-woocommerce' )
-				)
+				__( 'Sign in from Customer Portal', 'pixalink-loyalty-for-woocommerce' ),
+				__( 'Adds a \'Sign in from Customer Portal\' button to the login form. Members who sign in this way get a store account if they don\'t have one yet (they need an e-mail address in Pixalink).', 'pixalink-loyalty-for-woocommerce' )
 			),
 			array(
 				'type' => 'sectionend',

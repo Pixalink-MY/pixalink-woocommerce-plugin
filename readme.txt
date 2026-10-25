@@ -72,9 +72,9 @@ Theme developers can override the colours with CSS custom properties on the plug
 
 No. For a member who verified their phone number, "View all rewards", "Full points history", "Credits" and "Open member portal" open the Pixalink member portal already signed in. The link is created by Pixalink at the moment of the click, works once for 60 seconds, is never shown in the page or stored, and the redirect asks the browser not to pass the store's address on. If Pixalink cannot be reached, the member gets the portal's normal sign-in page instead. Shoppers who have not verified their phone number get the portal's normal sign-in page. A portal button clicked after the shopper's store session ended takes them to your store's login form first, and back to the Loyalty tab once they are logged in.
 
-= How does Sign in with the member portal work? =
+= How does "Sign in from Customer Portal" work? =
 
-Logged-out shoppers see an "or" line and a **Sign in with** button named after your member portal under the login form on My Account and in the classic checkout's "Returning customer?" form (the Checkout block has no login form, so it does not show there). With "Match your member portal" on, the button uses your portal's logo and colours; otherwise it takes your theme's text colour.
+Logged-out shoppers see an "or" line and a **Sign in from Customer Portal** button under the login form on My Account and in the classic checkout's "Returning customer?" form (the Checkout block has no login form, so it does not show there). With "Match your member portal" on, the button uses your portal's logo and colours; otherwise it takes your theme's text colour.
 
 When a member presses it, they go to your Pixalink member portal. If they are not signed in there yet, they sign in (or join) the way they always do. The portal then sends them straight back to the page they started on, signed in to your store.
 
@@ -130,4 +130,4 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 * Staff accounts (editors, shop managers, administrators) are never linked to a Pixalink member: a portal link opened while signed in as staff links nothing and says so, and the Loyalty tab explains it instead of offering the phone code.
 * Members the portal recognises but who have no account on the store (or cannot get one automatically) are told they will earn points on this visit, and how to create an account where the store allows it.
 * My Account and checkout match the member portal's logo and colours ("Match your member portal", on by default); the Loyalty tab and dashboard card show a member card, and portal buttons open the member portal already signed in.
-* "Sign in with" your member portal on the My Account and classic checkout login forms: members sign in through the portal and come back signed in, with a store account created for them when they have none ("Sign in with your member portal", on by default).
+* "Sign in from Customer Portal" on the My Account and classic checkout login forms: members sign in through the portal and come back signed in, with a store account created for them when they have none ("Sign in from Customer Portal" setting, on by default).

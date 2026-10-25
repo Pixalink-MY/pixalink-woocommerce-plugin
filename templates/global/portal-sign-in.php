@@ -10,7 +10,7 @@
  * @version 0.3.0
  *
  * @var string      $url      Where the button goes (the store's start handler, never the portal itself).
- * @var string      $label    "Sign in with {portal name}".
+ * @var string      $label    "Sign in from Customer Portal".
  * @var string|null $logo_url Member portal logo (null: a member card mark instead).
  * @var bool        $branded  Whether the member portal's colours are used.
  */
