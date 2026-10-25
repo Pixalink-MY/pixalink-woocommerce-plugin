@@ -170,4 +170,22 @@ final class EventQueueTest extends TestCase {
 		$this->assertSame( array(), $this->store->rows );
 		$this->assertSame( array(), $this->enqueued );
 	}
+
+	public function test_an_event_remembers_the_connection_it_was_recorded_for(): void {
+		$queue = new EventQueue(
+			$this->store,
+			new Scheduler(),
+			static fn (): int => self::NOW,
+			static fn (): array => array(
+				'outlet_id' => '101',
+				'api_base'  => 'https://api.example.test/commerce/v1',
+			)
+		);
+
+		$stored = $queue->enqueue( EventType::ORDER_PAID, $this->order(), array() );
+
+		$event = $this->store->find( $stored['id'] );
+		$this->assertSame( '101', $event?->outlet_id );
+		$this->assertSame( 'https://api.example.test/commerce/v1', $event?->api_base );
+	}
 }

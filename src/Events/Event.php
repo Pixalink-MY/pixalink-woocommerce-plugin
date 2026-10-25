@@ -44,6 +44,8 @@ final class Event {
 	 * @param array<mixed>|null   $response         Last decoded response or error body.
 	 * @param string              $created_at       When the event was recorded (UTC); sent as `occurred_at`.
 	 * @param string|null         $delivered_at     When Pixalink accepted it (UTC).
+	 * @param string|null         $outlet_id        Outlet the event was recorded for (null when unknown then).
+	 * @param string|null         $api_base         API base the event was recorded for (null on older rows).
 	 */
 	public function __construct(
 		public readonly int $id,
@@ -61,7 +63,9 @@ final class Event {
 		public readonly ?string $last_error,
 		public readonly ?array $response,
 		public readonly string $created_at,
-		public readonly ?string $delivered_at
+		public readonly ?string $delivered_at,
+		public readonly ?string $outlet_id = null,
+		public readonly ?string $api_base = null
 	) {}
 
 	/**
@@ -93,7 +97,9 @@ final class Event {
 			self::nullable_string( $row['last_error'] ?? null ),
 			self::decode( $row['response'] ?? null ),
 			self::string( $row['created_at'] ?? '' ),
-			self::nullable_string( $row['delivered_at'] ?? null )
+			self::nullable_string( $row['delivered_at'] ?? null ),
+			self::nullable_string( $row['outlet_id'] ?? null ),
+			self::nullable_string( $row['api_base'] ?? null )
 		);
 	}
 

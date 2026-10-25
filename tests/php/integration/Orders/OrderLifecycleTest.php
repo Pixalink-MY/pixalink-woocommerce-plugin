@@ -10,9 +10,12 @@ namespace Pixalink\Loyalty\Tests\Integration\Orders;
 use Pixalink\Loyalty\Events\EventDeliverer;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\EventType;
+use Pixalink\Loyalty\Events\OutletResolver;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Plugin;
+use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
+use Pixalink\Loyalty\Tests\FakeServer\Signature;
 use Pixalink\Loyalty\Tests\Integration\Support\OrderFixtures;
 
 /**
@@ -304,6 +307,28 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		Plugin::instance()->credentials()->store( \Pixalink\Loyalty\Tests\FakeServer\Signature::FAKE_API_KEY );
 		$this->assertFalse( $deliverer->is_paused() );
 		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $deliverer->deliver( $event->id ) );
+	}
+
+	public function test_an_event_queued_before_reconnecting_to_another_outlet_is_never_sent_there(): void {
+		set_transient( OutletResolver::TRANSIENT, Responses::OUTLET_ID, DAY_IN_SECONDS );
+		$order = $this->create_order();
+		$order->payment_complete();
+		$event = $this->events_of( $order )[0];
+		$this->assertSame( Responses::OUTLET_ID, $event->outlet_id );
+
+		// The merchant reconnects the store, now to outlet 202, before the event went out.
+		Plugin::instance()->credentials()->store( Signature::FAKE_API_KEY );
+		$outlet_b = static fn (): string => '202';
+		add_filter( 'pixalink_loyalty_outlet_id', $outlet_b );
+		$outcome = Plugin::instance()->events()->deliverer()->deliver( $event->id );
+		remove_filter( 'pixalink_loyalty_outlet_id', $outlet_b );
+
+		$this->assertSame( EventDeliverer::OUTCOME_DEAD, $outcome );
+		$this->assertSame( array(), array_filter( Server::recorded(), static fn ( array $request ): bool => 'events' === $request['path'] ), 'Outlet 101\'s order never reaches outlet 202.' );
+		$row = Plugin::instance()->events()->repository()->find( $event->id );
+		$this->assertSame( 'dead', $row?->status->value );
+		$this->assertStringStartsWith( EventDeliverer::CONNECTION_CHANGED, (string) $row?->last_error );
+		$this->assertSame( 1, Plugin::instance()->events()->health()['stats']['dead'], 'Counted under "Failed" in the health panel.' );
 	}
 
 	public function test_resend_requeues_a_dead_paid_event(): void {

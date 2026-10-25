@@ -47,6 +47,30 @@ final class OutletResolver {
 	 * @throws ApiException When the outlet cannot be determined (not connected, network, rejected key).
 	 */
 	public function outlet_id(): string {
+		$known = $this->known_outlet_id();
+		if ( null !== $known ) {
+			return $known;
+		}
+
+		$response = $this->client->get( 'outlet' );
+		$outlet   = isset( $response->data['outlet'] ) && is_array( $response->data['outlet'] ) ? $response->data['outlet'] : array();
+		$id       = isset( $outlet['id'] ) && is_scalar( $outlet['id'] ) ? trim( (string) $outlet['id'] ) : '';
+		if ( '' === $id ) {
+			$exception = ApiException::invalid_response( $response->status );
+			throw $exception;
+		}
+
+		set_transient( self::TRANSIENT, $id, DAY_IN_SECONDS );
+
+		return $id;
+	}
+
+	/**
+	 * The outlet id known without a request (the filter, then the cache), or null.
+	 *
+	 * @return string|null
+	 */
+	public function known_outlet_id(): ?string {
 		/**
 		 * Filters the Pixalink outlet id sent in event envelopes.
 		 *
@@ -62,21 +86,8 @@ final class OutletResolver {
 		}
 
 		$cached = get_transient( self::TRANSIENT );
-		if ( is_scalar( $cached ) && '' !== (string) $cached ) {
-			return (string) $cached;
-		}
 
-		$response = $this->client->get( 'outlet' );
-		$outlet   = isset( $response->data['outlet'] ) && is_array( $response->data['outlet'] ) ? $response->data['outlet'] : array();
-		$id       = isset( $outlet['id'] ) && is_scalar( $outlet['id'] ) ? trim( (string) $outlet['id'] ) : '';
-		if ( '' === $id ) {
-			$exception = ApiException::invalid_response( $response->status );
-			throw $exception;
-		}
-
-		set_transient( self::TRANSIENT, $id, DAY_IN_SECONDS );
-
-		return $id;
+		return is_scalar( $cached ) && '' !== (string) $cached ? (string) $cached : null;
 	}
 
 	/**

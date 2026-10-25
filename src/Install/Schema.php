@@ -19,13 +19,14 @@ defined( 'ABSPATH' ) || exit;
  *
  * Tables:
  * - `{prefix}pixalink_events`: the event outbox (see {@see \Pixalink\Loyalty\Events\EventRepository}). Times are UTC.
+ *   `outlet_id` / `api_base` (v3) are the connection a row was recorded for; NULL on rows recorded before v3.
  */
 final class Schema {
 
 	/**
 	 * Current schema version.
 	 */
-	public const VERSION = 2;
+	public const VERSION = 3;
 
 	/**
 	 * Unprefixed name of the event outbox table.
@@ -92,6 +93,8 @@ final class Schema {
 					'object_id bigint(20) unsigned NOT NULL DEFAULT 0,',
 					'sequence int(10) unsigned NOT NULL DEFAULT 0,',
 					'payload longtext NOT NULL,',
+					'outlet_id varchar(64) NULL DEFAULT NULL,',
+					'api_base varchar(255) NULL DEFAULT NULL,',
 					"status varchar(20) NOT NULL DEFAULT 'pending',",
 					'attempts smallint(5) unsigned NOT NULL DEFAULT 0,',
 					'next_attempt_at datetime NULL DEFAULT NULL,',

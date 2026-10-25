@@ -43,10 +43,12 @@ final class EventRepository implements EventStore {
 	 * @param int          $object_id   Object id.
 	 * @param array<mixed> $payload     Envelope data.
 	 * @param string       $now         Creation time.
+	 * @param string|null  $outlet_id   Outlet the event is recorded for.
+	 * @param string|null  $api_base    API base the event is recorded for.
 	 * @return array{id:int,created:bool,sequence:int}
 	 * @throws \RuntimeException When the row can be neither inserted nor found.
 	 */
-	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now ): array {
+	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null ): array {
 		global $wpdb;
 
 		$json = wp_json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
@@ -58,14 +60,16 @@ final class EventRepository implements EventStore {
 			// The per-order sequence is computed in the same statement, so concurrent inserts serialise on the index.
 			$affected = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT IGNORE INTO %i (uuid, type, object_type, object_id, sequence, payload, status, attempts, created_at)
-					SELECT %s, %s, %s, %d, COALESCE(MAX(sequence), 0) + 1, %s, 'pending', 0, %s FROM %i WHERE object_type = %s AND object_id = %d",
+					"INSERT IGNORE INTO %i (uuid, type, object_type, object_id, sequence, payload, outlet_id, api_base, status, attempts, created_at)
+					SELECT %s, %s, %s, %d, COALESCE(MAX(sequence), 0) + 1, %s, NULLIF(%s, ''), NULLIF(%s, ''), 'pending', 0, %s FROM %i WHERE object_type = %s AND object_id = %d",
 					$this->table(),
 					$uuid,
 					$type->value,
 					$object_type,
 					$object_id,
 					$json,
+					(string) $outlet_id,
+					(string) $api_base,
 					$now,
 					$this->table(),
 					$object_type,
@@ -75,13 +79,15 @@ final class EventRepository implements EventStore {
 		} else {
 			$affected = $wpdb->query(
 				$wpdb->prepare(
-					"INSERT IGNORE INTO %i (uuid, type, object_type, object_id, sequence, payload, status, attempts, created_at) VALUES (%s, %s, %s, %d, 0, %s, 'pending', 0, %s)",
+					"INSERT IGNORE INTO %i (uuid, type, object_type, object_id, sequence, payload, outlet_id, api_base, status, attempts, created_at) VALUES (%s, %s, %s, %d, 0, %s, NULLIF(%s, ''), NULLIF(%s, ''), 'pending', 0, %s)",
 					$this->table(),
 					$uuid,
 					$type->value,
 					$object_type,
 					max( 0, $object_id ),
 					$json,
+					(string) $outlet_id,
+					(string) $api_base,
 					$now
 				)
 			);

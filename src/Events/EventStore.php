@@ -30,9 +30,11 @@ interface EventStore {
 	 * @param int          $object_id   Order or user id.
 	 * @param array<mixed> $payload     Envelope `data`.
 	 * @param string       $now         Creation time.
+	 * @param string|null  $outlet_id   Outlet the event is recorded for (null when not known locally).
+	 * @param string|null  $api_base    API base the event is recorded for.
 	 * @return array{id:int,created:bool,sequence:int} The new or existing row.
 	 */
-	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now ): array;
+	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null ): array;
 
 	/**
 	 * Row by id.
