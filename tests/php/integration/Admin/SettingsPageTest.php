@@ -153,6 +153,10 @@ final class SettingsPageTest extends \WP_UnitTestCase {
 		$this->assertArrayHasKey( Options::CHECKOUT_CONSENT_TEXT, $fields );
 		$this->assertArrayNotHasKey( Options::CHECKOUT_CONSENT_DEFAULT_VALUE, $fields, 'Consent is never pre-ticked, so there is no setting for it.' );
 
+		$account = array_column( $this->page()->get_settings_for_section( 'account' ), null, 'id' );
+		$this->assertSame( 'checkbox', $account[ Options::ACCOUNT_DASHBOARD_CARD ]['type'] );
+		$this->assertSame( 'yes', $account[ Options::ACCOUNT_DASHBOARD_CARD ]['default'] );
+
 		$advanced = array_column( $this->page()->get_settings_for_section( 'advanced' ), null, 'id' );
 		$this->assertArrayHasKey( Options::DEBUG_LOGGING, $advanced );
 		$this->assertArrayHasKey( Options::DELETE_DATA_ON_UNINSTALL, $advanced );

@@ -58,6 +58,10 @@ No. Coupon codes starting with `PXL-` (any case) are reserved for Pixalink: vouc
 
 Like any WooCommerce fixed cart coupon: in a store whose prices exclude tax, the discount comes off the price before tax, so the order total falls by the discount plus its tax. Credits are applied as a discount, so the part of an order paid with credits does not earn points.
 
+= What does the loyalty card on the My Account dashboard show? =
+
+Verified members see their points balance, the next points to expire, their tier and progress to the next one, and how many vouchers they can use in your online store, with a link to the Loyalty tab for the details. Shoppers who have not verified their phone number see one line that takes them to the Loyalty tab to do so. If your store is not connected or Pixalink cannot be reached, the card is simply left out. Turn it off under **WooCommerce › Settings › Pixalink Loyalty › My Account › Dashboard summary** (it also disappears when the Loyalty tab is off). Themes can override it by copying `templates/myaccount/dashboard-card.php` to `yourtheme/pixalink-loyalty/myaccount/dashboard-card.php`.
+
 = Does uninstalling delete my data? =
 
 Only if you enable **Delete all data on uninstall** in the plugin settings. Order notes and order meta stay with your orders either way.
@@ -76,7 +80,7 @@ What is sent, and when:
 * **When an administrator sends a test ping from the settings:** an empty test event.
 * **When a shopper verifies their phone number (My Account › Loyalty):** the phone number to look the member up; if Pixalink has no member with it, the shopper's WordPress user id, name, e-mail address, phone number and country, and their recorded marketing choice, to create one. Pixalink then sends a one-time code by WhatsApp or SMS, and the plugin sends the code the shopper types.
 * **When a member arrives from the Pixalink member portal (the `pixalink_sso` link):** the single-use sign-in ticket in the link and, if they are logged in to a customer account, their WordPress user id (never the id of a staff account: editors, shop managers and administrators are never linked to a member). Pixalink answers with the member's id, phone number, name and e-mail address, which the plugin uses to sign the member in or create their customer account.
-* **When a verified member views My Account › Loyalty or the loyalty shortcodes:** their Pixalink customer id, to show points, credits, tier, vouchers, memberships, recent activity and the member QR code (drawn in the browser; no image service is used).
+* **When a verified member views My Account › Loyalty, the My Account dashboard or the loyalty shortcodes:** their Pixalink customer id, to show points, credits, tier, vouchers, memberships, recent activity and the member QR code (drawn in the browser; no image service is used).
 * **When a shopper changes their loyalty phone number or marketing choice (checkout, registration, Account details) or links their account:** a customer update with their WordPress user id, Pixalink customer id, phone number and country, e-mail address, name and marketing choice with its time, where it was given and the hash of the wording shown.
 * **When a verified member opens checkout or changes the rewards they use:** their Pixalink customer id and the cart contents needed to price vouchers, points and credits (product names, SKUs, categories, quantities and prices, store discounts, shipping and tax totals).
 * **When a member places an order using vouchers, points or credits:** the order key, the cart contents and the rewards to hold for the order; when payment fails or an unpaid order is abandoned, a request to release them.

@@ -126,7 +126,7 @@
 		},
 		"order": {
 			"type": "object",
-			"required": [ "id", "number", "order_key", "status", "currency", "date_created", "total", "total_tax", "shipping_total", "discount_total", "line_items", "coupon_lines" ],
+			"required": [ "id", "number", "order_key", "status", "currency", "date_created", "total", "total_tax", "shipping_total", "discount_total", "prices_include_tax", "line_items", "coupon_lines" ],
 			"properties": {
 				"id": { "type": "integer", "minimum": 1 },
 				"number": { "type": "string", "minLength": 1 },
@@ -142,6 +142,7 @@
 				"total_tax": { "$ref": "common.json#/$defs/decimal" },
 				"shipping_total": { "$ref": "common.json#/$defs/decimal" },
 				"discount_total": { "$ref": "common.json#/$defs/decimal" },
+				"prices_include_tax": { "description": "WooCommerce REST v3 prices_include_tax: whether the store entered its prices with tax when the order was placed. Amounts are sent as WooCommerce stores them either way: line subtotal and total exclude tax, total_tax carries it.", "type": "boolean" },
 				"line_items": { "type": "array", "items": { "$ref": "#/$defs/line_item" } },
 				"coupon_lines": { "type": "array", "items": { "$ref": "#/$defs/coupon_line" } }
 			}
@@ -250,6 +251,7 @@
 					"total_tax": "0.00",
 					"shipping_total": "10.00",
 					"discount_total": "15.00",
+					"prices_include_tax": false,
 					"line_items": [
 						{ "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" }
 					],
@@ -279,7 +281,7 @@
 			"site_url": "https://shop.example.test",
 			"outlet_id": "101",
 			"data": {
-				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "cancelled", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "cancelled", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "prices_include_tax": false, "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
 				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
 				"was_paid": true,
 				"previous_status": "processing"
@@ -294,7 +296,7 @@
 			"site_url": "https://shop.example.test",
 			"outlet_id": "101",
 			"data": {
-				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "processing", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
+				"order": { "id": 1001, "number": "1001", "order_key": "wc_order_AbC123xyz", "status": "processing", "currency": "MYR", "date_created": "2026-10-24T07:58:00Z", "date_paid": "2026-10-24T08:00:00Z", "date_completed": null, "payment_method": "bacs", "created_via": "store-api", "total": "21.60", "total_tax": "0.00", "shipping_total": "0.00", "discount_total": "2.40", "prices_include_tax": false, "line_items": [ { "id": 11, "product_id": 21, "variation_id": 0, "sku": "LATTE-12", "name": "Latte 12oz", "category_slugs": [ "coffee" ], "category_names": [ "Coffee" ], "quantity": 2, "subtotal": "24.00", "total": "21.60", "total_tax": "0.00" } ], "coupon_lines": [] },
 				"customer": { "pixalink_customer_id": "5001", "wp_user_id": 17, "is_guest": false, "phone_e164": "+60123456789", "phone_country": "MY", "email": "member@example.com", "first_name": "Aisyah", "last_name": "Rahman", "marketing_consent": null },
 				"refund": { "id": 77, "amount": "10.80", "reason": "Damaged cup", "created_at": "2026-10-25T10:00:00Z", "shipping_total": "0.00", "line_items": [ { "line_item_id": 11, "quantity": 1, "total": "10.80" } ] }
 			}
