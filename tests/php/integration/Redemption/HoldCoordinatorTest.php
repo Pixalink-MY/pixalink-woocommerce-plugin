@@ -295,6 +295,49 @@ final class HoldCoordinatorTest extends RedemptionTestCase {
 		$this->assertSame( OrderMeta::REDEMPTION_HELD, OrderMeta::get_string( wc_get_order( $order->get_id() ), OrderMeta::REDEMPTION_STATE ) );
 	}
 
+	public function test_paying_for_an_order_whose_holds_were_released_holds_them_again_first(): void {
+		$this->spend( 1000, false, false );
+		$order = wc_get_order( $this->classic_create_order() );
+		$order->update_status( 'failed' );
+		$order = wc_get_order( $order->get_id() );
+		$this->assertSame( OrderMeta::REDEMPTION_RELEASED, OrderMeta::get_string( $order, OrderMeta::REDEMPTION_STATE ) );
+		$puts = count( $this->pixalink_requests( 'PUT', 'orders/' ) );
+		WC()->cart->empty_cart();
+
+		$paid = $this->pay_for_order( $order );
+
+		$this->assertTrue( $paid, implode( ' ', wp_list_pluck( wc_get_notices( 'error' ), 'notice' ) ) );
+		$this->assertCount( $puts + 1, $this->pixalink_requests( 'PUT', 'orders/' ) );
+		$put = $this->last_request( 'PUT', 'orders/' );
+		$this->assertSame( 200, $put['status'] );
+		$this->assertSame( 'orders/' . $order->get_order_key() . '/redemptions', $put['path'] );
+		$this->assertSame( 1000, $put['body']['redemptions'][0]['points'] );
+		$this->assertSame( 20000, $put['body']['cart']['subtotal_cents'], 'priced on the order, not on the (empty) cart' );
+		$order = wc_get_order( $order->get_id() );
+		$this->assertSame( OrderMeta::REDEMPTION_HELD, OrderMeta::get_string( $order, OrderMeta::REDEMPTION_STATE ) );
+		$this->assertSame( 'on-hold', $order->get_status(), 'BACS took the payment after the hold' );
+	}
+
+	public function test_paying_for_an_order_whose_holds_are_refused_again_removes_the_discount_and_stops_the_payment(): void {
+		$this->spend( 1000, false, false );
+		$order = wc_get_order( $this->classic_create_order() );
+		$order->update_status( 'failed' );
+		Server::set_points_balance( 500 );
+		WC()->cart->empty_cart();
+
+		$paid = $this->pay_for_order( wc_get_order( $order->get_id() ) );
+
+		$this->assertFalse( $paid );
+		$this->assertSame( 409, $this->last_request( 'PUT', 'orders/' )['status'] );
+		$order = wc_get_order( $order->get_id() );
+		$this->assertSame( array(), $order->get_coupon_codes(), 'the unheld discount is gone' );
+		$this->assertEqualsWithDelta( 200.0, (float) $order->get_total(), 0.001 );
+		$this->assertSame( 'failed', $order->get_status(), 'not charged' );
+		$this->assertContains( Labels::pay_rewards_removed(), wp_list_pluck( wc_get_notices( 'error' ), 'notice' ) );
+		$notes = wp_list_pluck( wc_get_order_notes( array( 'order_id' => $order->get_id() ) ), 'content' );
+		$this->assertStringContainsString( 'points_insufficient', implode( "\n", $notes ) );
+	}
+
 	public function test_order_paid_carries_the_redemption_meta_of_every_coupon_line(): void {
 		$this->spend( 1000, true, true );
 		$order = wc_get_order( $this->blocks_checkout()->get_data()['order_id'] );
@@ -359,6 +402,49 @@ final class HoldCoordinatorTest extends RedemptionTestCase {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Post the pay-for-order form (My Account "Pay") through WC_Form_Handler::pay_action().
+	 *
+	 * A successful payment is stopped where WooCommerce would redirect and exit.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return bool Whether the gateway took the payment.
+	 */
+	private function pay_for_order( \WC_Order $order ): bool {
+		global $wp;
+
+		$paid = false;
+		$stop = static function () use ( &$paid ): void {
+			$paid = true;
+			throw new \Exception( 'Stopped before the redirect.' );
+		};
+		add_filter( 'woocommerce_payment_successful_result', $stop );
+		$level                       = ob_get_level();
+		$wp->query_vars['order-pay'] = $order->get_id();
+		$_GET                        = array( 'key' => $order->get_order_key() );
+		$_POST                       = array(
+			'woocommerce_pay'       => '1',
+			'payment_method'        => 'bacs',
+			'woocommerce-pay-nonce' => wp_create_nonce( 'woocommerce-pay' ),
+		);
+		$_REQUEST                    = $_POST + $_GET;
+
+		try {
+			\WC_Form_Handler::pay_action();
+		} finally {
+			remove_filter( 'woocommerce_payment_successful_result', $stop );
+			unset( $wp->query_vars['order-pay'] );
+			$_GET     = array();
+			$_POST    = array();
+			$_REQUEST = array();
+			while ( ob_get_level() > $level ) {
+				ob_end_clean();
+			}
+		}
+
+		return $paid;
 	}
 
 	/**
