@@ -35,6 +35,10 @@ permissions:
 
 env:
   COMPOSER_NO_INTERACTION: 1
+  # The self-hosted runners reach downloads.wordpress.org at ~245 ms TCP connect, just under Node's default
+  # 250 ms per-address attempt timeout, so busy moments failed wp-env with AggregateError [ETIMEDOUT]. The runners
+  # have no IPv6 either, so try IPv4 first and give each address 2 s.
+  NODE_OPTIONS: --network-family-autoselection-attempt-timeout=2000 --dns-result-order=ipv4first
 
 jobs:
   # Pushes cover branches in this repository; pull_request only adds runs for forks (no duplicate matrices).
@@ -323,8 +327,12 @@ jobs:
             export WP_ENV_PORT
             echo "Starting wp-env on host port $WP_ENV_PORT (attempt $attempt)"
             npx --yes "@wordpress/env@$WP_ENV_VERSION" start && echo "WP_ENV_PORT=$WP_ENV_PORT" >> "$GITHUB_ENV" && exit 0
-            echo "wp-env start failed (attempt $attempt); retrying"
-            npx --yes "@wordpress/env@$WP_ENV_VERSION" stop || true
+            echo "wp-env start failed (attempt $attempt); retrying from a clean slate"
+            # A failed download leaves half-written sources behind, and the next start then fails on them
+            # ("untracked working tree files would be overwritten by checkout"). Remove the environment entirely.
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
+              || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
+              || true
             sleep 15
           done
           exit 1
@@ -436,8 +444,12 @@ jobs:
             export WP_ENV_PORT
             echo "Starting wp-env on host port $WP_ENV_PORT (attempt $attempt)"
             npx --yes "@wordpress/env@$WP_ENV_VERSION" start && echo "WP_ENV_PORT=$WP_ENV_PORT" >> "$GITHUB_ENV" && exit 0
-            echo "wp-env start failed (attempt $attempt); retrying"
-            npx --yes "@wordpress/env@$WP_ENV_VERSION" stop || true
+            echo "wp-env start failed (attempt $attempt); retrying from a clean slate"
+            # A failed download leaves half-written sources behind, and the next start then fails on them
+            # ("untracked working tree files would be overwritten by checkout"). Remove the environment entirely.
+            npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
+              || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
+              || true
             sleep 15
           done
           exit 1
