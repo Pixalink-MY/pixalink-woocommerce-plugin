@@ -322,6 +322,13 @@ jobs:
               } )();
             '
           }
+          # Each job gets its own wp-env home in the runner's per-job temp directory (emptied before every job).
+          # The default ~/.wp-env/<hash of the checkout path> is shared by every job on a runner, so a WordPress
+          # unpacked from a zip by an integration job made the next E2E job's git checkout of core fail on
+          # "untracked working tree files would be overwritten by checkout", and destroy does not remove it.
+          export WP_ENV_HOME="$RUNNER_TEMP/wp-env"
+          rm -rf "$WP_ENV_HOME"
+          echo "WP_ENV_HOME=$WP_ENV_HOME" >> "$GITHUB_ENV"
           for attempt in 1 2 3; do
             WP_ENV_PORT="$(free_port)"
             export WP_ENV_PORT
@@ -333,6 +340,7 @@ jobs:
             npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
               || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
               || true
+            rm -rf "$WP_ENV_HOME"
             sleep 15
           done
           exit 1
@@ -439,6 +447,13 @@ jobs:
               } )();
             '
           }
+          # Each job gets its own wp-env home in the runner's per-job temp directory (emptied before every job).
+          # The default ~/.wp-env/<hash of the checkout path> is shared by every job on a runner, so a WordPress
+          # unpacked from a zip by an integration job made the next E2E job's git checkout of core fail on
+          # "untracked working tree files would be overwritten by checkout", and destroy does not remove it.
+          export WP_ENV_HOME="$RUNNER_TEMP/wp-env"
+          rm -rf "$WP_ENV_HOME"
+          echo "WP_ENV_HOME=$WP_ENV_HOME" >> "$GITHUB_ENV"
           for attempt in 1 2 3; do
             WP_ENV_PORT="$(free_port)"
             export WP_ENV_PORT
@@ -450,6 +465,7 @@ jobs:
             npx --yes "@wordpress/env@$WP_ENV_VERSION" destroy --force \
               || npx --yes "@wordpress/env@$WP_ENV_VERSION" cleanup --force \
               || true
+            rm -rf "$WP_ENV_HOME"
             sleep 15
           done
           exit 1
