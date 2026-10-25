@@ -172,6 +172,30 @@ final class RequestBuildersTest extends TestCase {
 		$this->assertSame( array( 'code' => '123456' ), Customers::verify_payload( ' 123456 ' ) );
 	}
 
+	public function test_portal_session_payloads(): void {
+		foreach ( array( 'home', 'rewards', 'points', 'credits', 'not-a-page' ) as $destination ) {
+			$payload = Customers::portal_session_payload( 17, $destination );
+
+			$this->assertSame( array(), ContractValidator::validate( 'customer-portal-session.request.json', $payload ), $destination );
+		}
+
+		$this->assertSame( 'customers/5001/portal-session', Customers::portal_session_path( '5001' ) );
+	}
+
+	public function test_the_portal_session_answer_is_read_from_the_schema_examples(): void {
+		$schema = json_decode( (string) file_get_contents( ContractValidator::schema_dir() . '/customer-portal-session.response.json' ), true );
+
+		foreach ( $schema['examples'] as $example ) {
+			$this->assertSame(
+				array(
+					'url'        => $example['url'],
+					'expires_at' => $example['expires_at'],
+				),
+				Customers::portal_session_response( $example )
+			);
+		}
+	}
+
 	public function test_customer_paths_encode_the_id(): void {
 		$this->assertSame( 'customers/5001', Customers::summary_path( '5001' ) );
 		$this->assertSame( 'customers/a%2Fb/otp', Customers::otp_path( 'a/b' ) );

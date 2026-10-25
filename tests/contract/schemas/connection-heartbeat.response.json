@@ -45,7 +45,25 @@
 		},
 		"earn_on": { "enum": [ "paid", "completed" ] },
 		"min_plugin_version": { "$ref": "common.json#/$defs/semver" },
-		"server_time": { "$ref": "common.json#/$defs/unix_time" }
+		"server_time": { "$ref": "common.json#/$defs/unix_time" },
+		"branding": {
+			"description": "How the merchant's member portal looks, so the store can match it. Colours are lower-case #rrggbb. Optional: servers older than this field omit it, and the store then keeps its theme colours.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": [ "name", "logo_url", "primary_color", "primary_color_on", "primary_color_ink", "secondary_color", "portal_url" ],
+			"properties": {
+				"name": { "description": "The portal's app title.", "type": "string", "minLength": 1 },
+				"logo_url": { "description": "Absolute URL of the portal logo, or null when none is uploaded.", "oneOf": [ { "type": "null" }, { "$ref": "common.json#/$defs/url" } ] },
+				"primary_color": { "description": "Brand colour.", "$ref": "#/$defs/hex_color" },
+				"primary_color_on": { "description": "Readable text colour on primary_color.", "$ref": "#/$defs/hex_color" },
+				"primary_color_ink": { "description": "primary_color adjusted to stay readable as text on a white background.", "$ref": "#/$defs/hex_color" },
+				"secondary_color": { "description": "Accent colour.", "$ref": "#/$defs/hex_color" },
+				"portal_url": { "description": "The member portal's home page (signed-out entry point).", "$ref": "common.json#/$defs/url" }
+			}
+		}
+	},
+	"$defs": {
+		"hex_color": { "type": "string", "pattern": "^#[0-9a-f]{6}$" }
 	},
 	"examples": [
 		{
@@ -58,7 +76,8 @@
 			},
 			"earn_on": "paid",
 			"min_plugin_version": "0.1.0",
-			"server_time": 1761300000
+			"server_time": 1761300000,
+			"branding": { "name": "Pixalink Bookstore", "logo_url": "https://demo.pixalink.io/storage/logo.png", "primary_color": "#123962", "primary_color_on": "#ffffff", "primary_color_ink": "#123962", "secondary_color": "#647aa6", "portal_url": "https://demo.pixalink.io/l/pixalink-bookstore" }
 		}
 	]
 }

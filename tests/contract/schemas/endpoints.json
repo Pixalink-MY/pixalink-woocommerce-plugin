@@ -31,6 +31,7 @@
 		{ "method": "GET", "path": "customers", "auth": "signed", "nonce": "read", "query": "customers-lookup.query.json", "request": null, "response": "customers-lookup.response.json", "errors": [ { "status": 404, "code": "not_found" } ] },
 		{ "method": "POST", "path": "customers", "auth": "signed", "nonce": "idempotency_key", "request": "customers-create.request.json", "response": "customers-create.response.json", "errors": [ { "status": 410, "code": "ticket_invalid" } ] },
 		{ "method": "GET", "path": "customers/{id}", "auth": "signed", "nonce": "read", "request": null, "response": "customer-summary.response.json", "errors": [ { "status": 403, "code": "verification_required" }, { "status": 404, "code": "not_found" } ] },
+		{ "method": "POST", "path": "customers/{id}/portal-session", "auth": "signed", "nonce": "idempotency_key", "request": "customer-portal-session.request.json", "response": "customer-portal-session.response.json", "errors": [ { "status": 403, "code": "verification_required" }, { "status": 404, "code": "not_found" }, { "status": 429, "code": "rate_limited", "headers": [ "Retry-After" ] } ] },
 		{ "method": "POST", "path": "customers/{id}/otp", "auth": "signed", "nonce": "idempotency_key", "request": "customer-otp.request.json", "response": "customer-otp.response.json", "errors": [ { "status": 404, "code": "not_found" }, { "status": 429, "code": "otp_throttled", "headers": [ "Retry-After" ] } ] },
 		{
 			"method": "POST",
@@ -73,6 +74,7 @@
 		}
 	],
 	"hosted": [
-		{ "method": "GET", "path": "connect/woocommerce", "query": "connect-authorize.query.json", "lead": "connect-lead.json", "callback": "connect-callback.query.json" }
+		{ "method": "GET", "path": "connect/woocommerce", "query": "connect-authorize.query.json", "lead": "connect-lead.json", "callback": "connect-callback.query.json" },
+		{ "method": "GET", "path": "l/{space}/handoff/{ticket}", "comment": "The url a portal-session response returns. Consumes the ticket once, signs the member in to the portal and redirects to the destination; an expired or used ticket lands on the portal sign-in page." }
 	]
 }
