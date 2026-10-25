@@ -299,10 +299,11 @@ const CreditsField = ( { credits, strings, busy, run } ) => {
  * @param {Object}                            props
  * @param {string}                            props.namespace Store API namespace.
  * @param {Object}                            props.strings   Strings.
+ * @param {boolean}                           props.branded   Whether the member portal's colours are used.
  * @param {(data: Object) => Promise<Object>} props.update    `extensionCartUpdate` for our namespace.
  * @return {Element|null} Panel.
  */
-export const DiscountsPanel = ( { namespace, strings, update } ) => {
+export const DiscountsPanel = ( { namespace, strings, branded, update } ) => {
 	const { data, totals } = useSelect(
 		( select ) => {
 			const cart = select( 'wc/store/cart' ).getCartData();
@@ -444,7 +445,9 @@ export const DiscountsPanel = ( { namespace, strings, update } ) => {
 
 	return (
 		<div
-			className={ `wc-block-components-totals-wrapper pixalink-loyalty-panel${ busy ? ' is-busy' : '' }` }
+			className={ `wc-block-components-totals-wrapper pixalink-loyalty-panel${
+				branded ? ' is-branded' : ''
+			}${ busy ? ' is-busy' : '' }` }
 			data-testid="pixalink-loyalty-panel"
 		>
 			<h3 className="pixalink-loyalty-panel__title">{ strings.title }</h3>

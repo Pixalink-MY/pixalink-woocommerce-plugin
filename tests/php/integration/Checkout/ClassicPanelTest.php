@@ -8,7 +8,10 @@
 namespace Pixalink\Loyalty\Tests\Integration\Checkout;
 
 use Pixalink\Loyalty\Checkout\Classic\ClassicPanel;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Redemption\Labels;
+use Pixalink\Loyalty\Support\Options;
+use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Tests\Integration\Redemption\RedemptionTestCase;
 
 /**
@@ -104,5 +107,25 @@ final class ClassicPanelTest extends RedemptionTestCase {
 		$this->assertSame( 1, wp_verify_nonce( $config['nonce'], 'wc_store_api' ) );
 		$this->assertSame( '$', $config['currency']['symbol'] );
 		$this->assertSame( 2, $config['currency']['decimals'] );
+	}
+
+	public function test_the_panel_wears_the_portal_colours_from_the_checkout_stylesheet(): void {
+		$connection = new Connection( new Options() );
+		$connection->store_remote_status( array( 'branding' => Responses::samples( time() )['heartbeat']['response']['body']['branding'] ) + $connection->remote_status() );
+		$GLOBALS['wp_styles'] = null;
+		$this->fill_cart();
+		add_filter( 'woocommerce_is_checkout', '__return_true' );
+
+		$this->module()->classic()->enqueue();
+		$html = $this->module()->classic()->html();
+
+		remove_filter( 'woocommerce_is_checkout', '__return_true' );
+		$this->assertStringContainsString( 'class="pixalink-loyalty-panel is-branded"', $html );
+		$this->assertSame( array( '.pixalink-loyalty-panel{--pxl-primary:' . Responses::BRAND_PRIMARY . ';--pxl-on-primary:' . Responses::BRAND_ON . ';--pxl-ink:' . Responses::BRAND_INK . ';--pxl-accent:' . Responses::BRAND_ACCENT . '}' ), wp_styles()->get_data( ClassicPanel::STYLE, 'after' ) );
+
+		update_option( Options::PORTAL_BRANDING, 'no' );
+		$this->assertStringContainsString( 'class="pixalink-loyalty-panel"', $this->module()->classic()->html(), 'Theme colours with the setting off.' );
+		delete_option( Options::PORTAL_BRANDING );
+		$GLOBALS['wp_styles'] = null;
 	}
 }

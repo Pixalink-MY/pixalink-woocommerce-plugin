@@ -6,10 +6,11 @@
  * `data-pixalink-*` attributes: assets/js/src/classic-checkout reads them.
  *
  * @package Pixalink\Loyalty
- * @version 0.2.0
+ * @version 0.3.0
  *
  * @var array<string,mixed>  $data    Panel data ({@see \Pixalink\Loyalty\Checkout\PanelData::build()}).
  * @var array<string,string> $strings Translated strings ({@see \Pixalink\Loyalty\Checkout\Strings::all()}).
+ * @var bool                 $branded Whether the member portal's colours are used (`--pxl-*` custom properties).
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -26,7 +27,7 @@ if ( null !== $pixalink_loyalty_credits ) {
 	$pixalink_loyalty_balances[] = (string) $pixalink_loyalty_credits['balance_label'];
 }
 ?>
-<div class="pixalink-loyalty-panel" data-pixalink-panel data-verified="<?php echo esc_attr( ! empty( $data['verified'] ) ? '1' : '0' ); ?>" data-stale="<?php echo esc_attr( $pixalink_loyalty_stale ? '1' : '0' ); ?>" data-testid="pixalink-loyalty-panel">
+<div class="pixalink-loyalty-panel<?php echo ! empty( $branded ) ? ' is-branded' : ''; ?>" data-pixalink-panel data-verified="<?php echo esc_attr( ! empty( $data['verified'] ) ? '1' : '0' ); ?>" data-stale="<?php echo esc_attr( $pixalink_loyalty_stale ? '1' : '0' ); ?>" data-testid="pixalink-loyalty-panel">
 	<h3 class="pixalink-loyalty-panel__title"><?php echo esc_html( $strings['title'] ); ?></h3>
 
 	<?php if ( empty( $data['verified'] ) ) : ?>

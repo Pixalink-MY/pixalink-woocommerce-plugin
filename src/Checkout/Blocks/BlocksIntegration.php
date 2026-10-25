@@ -14,6 +14,8 @@ use Automattic\WooCommerce\Blocks\Integrations\IntegrationRegistry;
 use Pixalink\Loyalty\Checkout\Strings;
 use Pixalink\Loyalty\Redemption\CartActions;
 use Pixalink\Loyalty\Redemption\Features;
+use Pixalink\Loyalty\Support\Branding;
+use Pixalink\Loyalty\Support\BrandingStyles;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -91,6 +93,21 @@ final class BlocksIntegration implements IntegrationInterface {
 		wp_register_script( self::SCRIPT, PIXALINK_LOYALTY_URL . 'build/blocks.js', array_values( array_unique( array_merge( $deps, self::DEPENDENCIES ) ) ), $version, true );
 		wp_register_style( self::STYLE, PIXALINK_LOYALTY_URL . 'assets/css/checkout.css', array(), PIXALINK_LOYALTY_VERSION );
 		wp_enqueue_style( self::STYLE );
+		// Both checkouts read the same custom properties from the same handle; is-branded comes with the script data.
+		if ( ! self::has_branding_rule() ) {
+			BrandingStyles::attach( self::STYLE, BrandingStyles::CHECKOUT_SELECTORS, Branding::active() );
+		}
+	}
+
+	/**
+	 * Whether the stylesheet already carries the portal colours (the Cart and Checkout blocks both initialise us).
+	 *
+	 * @return bool
+	 */
+	private static function has_branding_rule(): bool {
+		$after = wp_styles()->get_data( self::STYLE, 'after' );
+
+		return is_array( $after ) && array() !== array_filter( $after, static fn ( $css ): bool => is_string( $css ) && str_contains( $css, '--pxl-primary' ) );
 	}
 
 	/**
@@ -120,6 +137,7 @@ final class BlocksIntegration implements IntegrationInterface {
 		return array(
 			'namespace' => CartActions::STORE_API_NAMESPACE,
 			'enabled'   => $this->features->panel_enabled(),
+			'branded'   => BrandingStyles::is_branded( Branding::active() ),
 			'strings'   => Strings::all(),
 		);
 	}

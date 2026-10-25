@@ -60,6 +60,7 @@ if ( blocksCheckout && window.wp?.plugins && settings.enabled ) {
 				<DiscountsPanel
 					namespace={ NAMESPACE }
 					strings={ strings }
+					branded={ Boolean( settings.branded ) }
 					update={ update }
 				/>
 			</ExperimentalDiscountsMeta>
