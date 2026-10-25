@@ -133,19 +133,21 @@ final class OrderPayloadBuilder {
 		$currency = (string) $order->get_currency();
 
 		return $this->reference( $order ) + array(
-			'status'         => (string) $order->get_status(),
-			'currency'       => '' !== $currency ? strtoupper( $currency ) : Money::store_currency(),
-			'date_created'   => self::iso8601( $order->get_date_created() ) ?? gmdate( 'Y-m-d\TH:i:s\Z' ),
-			'date_paid'      => self::iso8601( $order->get_date_paid() ),
-			'date_completed' => self::iso8601( $order->get_date_completed() ),
-			'payment_method' => self::nullable( $order->get_payment_method() ),
-			'created_via'    => self::nullable( $order->get_created_via() ),
-			'total'          => Money::to_decimal( $order->get_total() ),
-			'total_tax'      => Money::to_decimal( $order->get_total_tax() ),
-			'shipping_total' => Money::to_decimal( $order->get_shipping_total() ),
-			'discount_total' => Money::to_decimal( $order->get_discount_total() ),
-			'line_items'     => $line_items,
-			'coupon_lines'   => $coupon_lines,
+			'status'             => (string) $order->get_status(),
+			'currency'           => '' !== $currency ? strtoupper( $currency ) : Money::store_currency(),
+			'date_created'       => self::iso8601( $order->get_date_created() ) ?? gmdate( 'Y-m-d\TH:i:s\Z' ),
+			'date_paid'          => self::iso8601( $order->get_date_paid() ),
+			'date_completed'     => self::iso8601( $order->get_date_completed() ),
+			'payment_method'     => self::nullable( $order->get_payment_method() ),
+			'created_via'        => self::nullable( $order->get_created_via() ),
+			'total'              => Money::to_decimal( $order->get_total() ),
+			'total_tax'          => Money::to_decimal( $order->get_total_tax() ),
+			'shipping_total'     => Money::to_decimal( $order->get_shipping_total() ),
+			'discount_total'     => Money::to_decimal( $order->get_discount_total() ),
+			// The order's own flag, not wc_prices_include_tax(): a refund days later keeps the setting it was sold under.
+			'prices_include_tax' => (bool) $order->get_prices_include_tax(),
+			'line_items'         => $line_items,
+			'coupon_lines'       => $coupon_lines,
 		);
 	}
 

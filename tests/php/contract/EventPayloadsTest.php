@@ -155,6 +155,7 @@ final class EventPayloadsTest extends TestCase {
 			'get_total_tax'          => '0',
 			'get_shipping_total'     => '10',
 			'get_discount_total'     => '15',
+			'get_prices_include_tax' => false,
 			'get_customer_id'        => 17,
 			'get_billing_phone'      => '012-345 6789',
 			'get_billing_email'      => 'member@example.com',
@@ -241,6 +242,7 @@ final class EventPayloadsTest extends TestCase {
 
 		$order = $data['order'];
 		$this->assertSame( '145.00', $order['total'] );
+		$this->assertFalse( $order['prices_include_tax'] );
 		$this->assertSame( '2026-10-24T08:00:00Z', $order['date_paid'] );
 		$this->assertNull( $order['date_completed'] );
 		$this->assertSame( array( 'coffee' ), $order['line_items'][0]['category_slugs'] );
@@ -423,6 +425,20 @@ final class EventPayloadsTest extends TestCase {
 		$this->assert_valid( self::envelope( EventType::ORDER_COMPLETED, $data ) );
 		$this->assertSame( '2026-10-25T09:00:00Z', $data['order']['date_completed'] );
 		$this->assertCount( 1, $data['order']['line_items'] );
+	}
+
+	public function test_a_tax_inclusive_order_says_so_and_the_schema_requires_it(): void {
+		$data = ( new OrderPayloadBuilder() )->build( $this->order( self::member_meta(), array( 'get_prices_include_tax' => true ) ), EventType::ORDER_PAID );
+
+		$this->assert_valid( self::envelope( EventType::ORDER_PAID, $data ) );
+		$this->assertTrue( $data['order']['prices_include_tax'] );
+
+		unset( $data['order']['prices_include_tax'] );
+		$this->assertSame(
+			array( '/data/order: The required properties (prices_include_tax) are missing' ),
+			ContractValidator::validate( 'event.request.json', self::envelope( EventType::ORDER_PAID, $data ) ),
+			'Pixalink picks the earn base from it, so an order without it breaks the contract.'
+		);
 	}
 
 	public function test_order_cancelled_says_whether_it_was_paid_and_where_it_came_from(): void {
