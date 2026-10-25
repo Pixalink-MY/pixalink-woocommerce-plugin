@@ -108,6 +108,15 @@ final class Labels {
 	}
 
 	/**
+	 * Shopper-facing message when paying for an existing order whose Pixalink rewards could not be held again.
+	 *
+	 * @return string
+	 */
+	public static function pay_rewards_removed(): string {
+		return __( 'Your Pixalink rewards could not be reserved again for this order, so they were removed. Please check the new order total and pay again.', 'pixalink-loyalty-for-woocommerce' );
+	}
+
+	/**
 	 * Shopper-facing message for a refused hold.
 	 *
 	 * @param string $error_code Server error code.

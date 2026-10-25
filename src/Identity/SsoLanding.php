@@ -22,7 +22,11 @@ defined( 'ABSPATH' ) || exit;
  *
  * The ticket is redeemed with `POST customers` (verified_via `sso_ticket`). Then:
  *
- * - logged in: the account is linked, unless it is already linked to a different member (nothing changes);
+ * - logged in and not linked yet: nothing is redeemed or linked on the bare link. The ticket waits (for this account
+ *   only, {@see SsoLanding::PENDING_TTL}) behind a notice asking the shopper to confirm; its link carries a nonce bound
+ *   to the account, and only that confirmation redeems the ticket and links the account. A ticket is proof of the
+ *   member, not of the signed-in shopper's consent, so a link sent by someone else cannot attach their membership;
+ * - logged in and linked: the link is refreshed, unless it is to a different member (nothing changes);
  * - logged out: the account linked to the member (or holding the member's verified number) is signed in; with none,
  *   a customer account is created when the store allows registration and the e-mail is free. Accounts that can
  *   do more than shop (editors, shop managers, administrators) are never signed in this way. Otherwise the shopper
@@ -31,6 +35,21 @@ defined( 'ABSPATH' ) || exit;
 final class SsoLanding {
 
 	public const PARAM = 'pixalink_sso';
+
+	/**
+	 * Query parameter of the confirmation link; carries the nonce.
+	 */
+	public const CONFIRM_PARAM = 'pixalink_sso_link';
+
+	/**
+	 * Seconds a ticket waits for the signed-in shopper to confirm.
+	 */
+	public const PENDING_TTL = 600;
+
+	/**
+	 * Transient prefix of a ticket waiting for confirmation (suffix: user id).
+	 */
+	private const PENDING_TRANSIENT = 'pixalink_loyalty_sso_pending_';
 
 	/**
 	 * Linker.
@@ -99,16 +118,20 @@ final class SsoLanding {
 	 * @return void
 	 */
 	public function on_template_redirect(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The single-use ticket Pixalink minted is the credential; nothing is submitted from this site.
-		if ( ! isset( $_GET[ self::PARAM ] ) ) {
-			return;
-		}
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- See above.
-		$ticket      = is_string( $_GET[ self::PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::PARAM ] ) ) : '';
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) && is_string( $_SERVER['REQUEST_URI'] ) ? sanitize_url( wp_unslash( $_SERVER['REQUEST_URI'] ) ) : '/';
 
-		$target = $this->handle( $ticket, $request_uri );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- confirm() verifies this nonce.
+		if ( isset( $_GET[ self::CONFIRM_PARAM ] ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- See above.
+			$nonce  = is_string( $_GET[ self::CONFIRM_PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::CONFIRM_PARAM ] ) ) : '';
+			$target = $this->confirm( $nonce, $request_uri );
+		} elseif ( isset( $_GET[ self::PARAM ] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- The single-use ticket Pixalink minted is the credential; nothing is submitted from this site.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- See above.
+			$ticket = is_string( $_GET[ self::PARAM ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::PARAM ] ) ) : '';
+			$target = $this->handle( $ticket, $request_uri );
+		} else {
+			return;
+		}
 
 		nocache_headers();
 		if ( ! headers_sent() ) {
@@ -133,6 +156,12 @@ final class SsoLanding {
 		}
 
 		$user_id = get_current_user_id();
+		if ( $user_id > 0 && null === UserMeta::link( $user_id ) ) {
+			$this->ask_to_link( $user_id, $ticket, $target );
+
+			return $target;
+		}
+
 		try {
 			$customer = $this->linker->redeem_ticket( $ticket, $user_id );
 		} catch ( LinkException $exception ) {
@@ -141,14 +170,51 @@ final class SsoLanding {
 			return $target;
 		}
 
-		$country = $customer['phone_country'] ?? $this->normalizer->normalize( $customer['phone'], '' )->country ?? '';
-		$link    = new Link( $customer['id'], $customer['phone'], (string) $country, gmdate( 'Y-m-d\TH:i:s\Z' ), Link::VIA_SSO_TICKET );
-
+		$link = $this->link_for( $customer );
 		if ( $user_id > 0 ) {
 			$this->link_account( $user_id, $link );
 		} else {
 			$this->sign_in( $customer, $link );
 		}
+
+		return $target;
+	}
+
+	/**
+	 * The signed-in shopper confirmed: redeem the ticket waiting for their account and link it.
+	 *
+	 * @param string $nonce       Nonce from the confirmation link.
+	 * @param string $request_uri Request URI (path and query).
+	 * @return string Absolute URL to redirect to.
+	 */
+	public function confirm( string $nonce, string $request_uri ): string {
+		$target  = self::target( $request_uri );
+		$user_id = get_current_user_id();
+		if ( $user_id < 1 || false === wp_verify_nonce( $nonce, self::nonce_action( $user_id ) ) ) {
+			return $target;
+		}
+
+		$ticket = get_transient( self::PENDING_TRANSIENT . $user_id );
+		delete_transient( self::PENDING_TRANSIENT . $user_id );
+		if ( ! is_string( $ticket ) || '' === $ticket ) {
+			self::notice( ( new LinkException( LinkException::TICKET_INVALID ) )->user_message() );
+
+			return $target;
+		}
+
+		if ( ! $this->credentials->is_configured() ) {
+			return $target;
+		}
+
+		try {
+			$customer = $this->linker->redeem_ticket( $ticket, $user_id );
+		} catch ( LinkException $exception ) {
+			self::notice( $exception->user_message() );
+
+			return $target;
+		}
+
+		$this->link_account( $user_id, $this->link_for( $customer ) );
 
 		return $target;
 	}
@@ -160,7 +226,7 @@ final class SsoLanding {
 	 * @return string Absolute URL on the home origin.
 	 */
 	public static function target( string $request_uri ): string {
-		$relative = remove_query_arg( self::PARAM, '' !== $request_uri ? $request_uri : '/' );
+		$relative = remove_query_arg( array( self::PARAM, self::CONFIRM_PARAM ), '' !== $request_uri ? $request_uri : '/' );
 		$relative = '/' === substr( $relative, 0, 1 ) ? $relative : '/' . $relative;
 		$home     = wp_parse_url( home_url() );
 		$origin   = is_array( $home ) && isset( $home['scheme'], $home['host'] )
@@ -168,6 +234,55 @@ final class SsoLanding {
 			: untrailingslashit( home_url() );
 
 		return $origin . rtrim( $relative, '?' );
+	}
+
+	/**
+	 * Keep the ticket for this account and ask the shopper to confirm the link.
+	 *
+	 * @param int    $user_id User id.
+	 * @param string $ticket  Ticket from the query string.
+	 * @param string $target  Where the shopper lands.
+	 * @return void
+	 */
+	private function ask_to_link( int $user_id, string $ticket, string $target ): void {
+		if ( 1 !== preg_match( CustomerLinker::TICKET_PATTERN, $ticket ) ) {
+			self::notice( ( new LinkException( LinkException::TICKET_INVALID ) )->user_message() );
+
+			return;
+		}
+
+		set_transient( self::PENDING_TRANSIENT . $user_id, $ticket, self::PENDING_TTL );
+
+		$url = add_query_arg( self::CONFIRM_PARAM, wp_create_nonce( self::nonce_action( $user_id ) ), $target );
+		self::notice(
+			sprintf(
+				/* translators: %s: link that confirms. */
+				__( 'Link this account to your loyalty membership? %s', 'pixalink-loyalty-for-woocommerce' ),
+				'<a class="button" href="' . esc_url( $url ) . '">' . esc_html__( 'Link my account', 'pixalink-loyalty-for-woocommerce' ) . '</a>'
+			)
+		);
+	}
+
+	/**
+	 * Nonce action of the confirmation link (bound to the account; WordPress also binds it to the session).
+	 *
+	 * @param int $user_id User id.
+	 * @return string
+	 */
+	private static function nonce_action( int $user_id ): string {
+		return 'pixalink_sso_link_' . $user_id;
+	}
+
+	/**
+	 * The verified link a redeemed ticket proves.
+	 *
+	 * @param array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null} $customer Customer.
+	 * @return Link
+	 */
+	private function link_for( array $customer ): Link {
+		$country = $customer['phone_country'] ?? $this->normalizer->normalize( $customer['phone'], '' )->country ?? '';
+
+		return new Link( $customer['id'], $customer['phone'], (string) $country, gmdate( 'Y-m-d\TH:i:s\Z' ), Link::VIA_SSO_TICKET );
 	}
 
 	/**

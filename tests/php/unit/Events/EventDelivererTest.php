@@ -33,6 +33,8 @@ final class EventDelivererTest extends TestCase {
 
 	private const NOW = 1761300000;
 
+	private const API_BASE = 'https://api.example.test/commerce/v1';
+
 	private InMemoryEventStore $store;
 
 	/**
@@ -104,7 +106,8 @@ final class EventDelivererTest extends TestCase {
 				return $next;
 			},
 			static fn (): string => '101',
-			static fn (): int => self::NOW
+			static fn (): int => self::NOW,
+			static fn (): string => self::API_BASE
 		);
 	}
 
@@ -186,6 +189,64 @@ final class EventDelivererTest extends TestCase {
 		$this->assertSame( 'https://shop.example.test', $envelope['site_url'] );
 		$this->assertSame( '101', $envelope['outlet_id'] );
 		$this->assertSame( array( 'order' => array( 'id' => 1001 ) ), $envelope['data'] );
+	}
+
+	/**
+	 * Connections other than the current one (outlet 101 at API_BASE).
+	 *
+	 * @return array<string,array{0:array<string,string>}>
+	 */
+	public static function other_connections(): array {
+		return array(
+			'another outlet'   => array(
+				array(
+					'outlet_id' => '202',
+					'api_base'  => self::API_BASE,
+				),
+			),
+			'another API base' => array(
+				array(
+					'outlet_id' => '101',
+					'api_base'  => 'https://uat.example.test/commerce/v1',
+				),
+			),
+		);
+	}
+
+	/**
+	 * @dataProvider other_connections
+	 *
+	 * @param array<string,string> $recorded_for Connection the event was recorded for.
+	 */
+	public function test_an_event_recorded_for_another_connection_is_marked_dead_and_never_sent( array $recorded_for ): void {
+		$id = $this->event();
+		$this->store->patch( $id, $recorded_for );
+
+		$this->assertSame( EventDeliverer::OUTCOME_DEAD, $this->deliverer()->deliver( $id ) );
+
+		$this->assertSame( array(), $this->sent );
+		$row = $this->store->rows[ $id ];
+		$this->assertSame( 'dead', $row['status'] );
+		$this->assertSame( 0, $row['attempts'], 'Nothing was attempted.' );
+		$this->assertStringStartsWith( EventDeliverer::CONNECTION_CHANGED, (string) $row['last_error'] );
+	}
+
+	public function test_an_event_recorded_for_this_connection_or_before_connections_were_recorded_is_sent(): void {
+		$bound = $this->event( EventType::ORDER_PAID, 1001, 'bound' );
+		$this->store->patch(
+			$bound,
+			array(
+				'outlet_id' => '101',
+				'api_base'  => self::API_BASE . '/',
+			)
+		);
+		$legacy         = $this->event( EventType::ORDER_PAID, 1002, 'legacy' );
+		$this->script[] = $this->processed();
+		$this->script[] = $this->processed();
+
+		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $this->deliverer()->deliver( $bound ) );
+		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $this->deliverer()->deliver( $legacy ) );
+		$this->assertCount( 2, $this->sent );
 	}
 
 	public function test_empty_data_is_sent_as_a_json_object(): void {

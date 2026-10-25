@@ -46,6 +46,11 @@ final class OrderMeta {
 	public const POS_TRANSACTION_ID = '_pixalink_pos_transaction_id';
 	public const EVENT_SEQ          = '_pixalink_event_seq';
 
+	/**
+	 * Ids of the refunds `order.refunded` was recorded for (outlives the pruned outbox rows).
+	 */
+	public const REPORTED_REFUNDS = '_pixalink_reported_refunds';
+
 	// Coupon line item meta (written by the redemption unit on virtual coupons).
 	public const COUPON_KIND          = '_pixalink_kind';
 	public const COUPON_VOUCHER_ID    = '_pixalink_voucher_id';

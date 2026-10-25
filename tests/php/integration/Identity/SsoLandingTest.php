@@ -146,14 +146,72 @@ final class SsoLandingTest extends \WP_UnitTestCase {
 		$this->assertStringContainsString( 'Log in to your account', implode( ' ', array_column( wc_get_notices( 'notice' ), 'notice' ) ) );
 	}
 
-	public function test_a_logged_in_shopper_is_linked(): void {
+	public function test_a_logged_in_shopper_is_linked_only_after_confirming(): void {
 		$user_id = $this->make_user( 'shopper@example.com' );
 		wp_set_current_user( $user_id );
 
-		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'abc123', '/cart/?pixalink_sso=x' );
+		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'abc123', '/cart/?pixalink_sso=x' );
 
+		$this->assertSame( home_url( '/cart/' ), $target );
+		$this->assertSame( '', get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ), 'A bare link never links a signed-in account.' );
+		$this->assertSame( array(), Server::recorded(), 'The ticket is not redeemed, so the account id is not sent either.' );
+		$confirm = $this->confirmation_url();
+		$this->assertStringStartsWith( home_url( '/cart/?' . SsoLanding::CONFIRM_PARAM . '=' ), $confirm );
+
+		$target = $this->landing()->confirm( $this->confirmation_nonce( $confirm ), '/cart/?' . SsoLanding::CONFIRM_PARAM . '=x' );
+
+		$this->assertSame( home_url( '/cart/' ), $target );
 		$this->assertSame( Responses::MEMBER_ID, get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ) );
 		$this->assertSame( (string) $user_id, Server::recorded()[0]['body']['external_id'] );
+	}
+
+	public function test_a_ticket_planted_on_a_signed_in_account_cannot_take_it_over(): void {
+		$victim_id = $this->make_user( 'victim@example.com' );
+		wp_set_current_user( $victim_id );
+
+		// The attacker sends the victim a store link carrying a ticket for the attacker's own member.
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'attack1', '/?pixalink_sso=x' );
+		$this->assertFalse( UserMeta::is_verified( $victim_id ) );
+
+		// Another visit with a forged confirmation, or one minted for a different account, links nothing either.
+		$this->landing()->confirm( 'forged', '/?' . SsoLanding::CONFIRM_PARAM . '=forged' );
+		$this->landing()->confirm( wp_create_nonce( 'pixalink_sso_link_' . ( $victim_id + 1 ) ), '/' );
+		$this->assertFalse( UserMeta::is_verified( $victim_id ) );
+		$this->assertSame( array(), Server::recorded() );
+
+		// Then, with a fresh ticket in their own browser, the attacker is not signed in to the victim's account.
+		wp_set_current_user( 0 );
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'attack2', '/?pixalink_sso=x' );
+
+		$this->assertNotSame( $victim_id, get_current_user_id() );
+	}
+
+	public function test_the_redirect_target_drops_the_confirmation_too(): void {
+		$this->assertSame( home_url( '/shop/?orderby=price' ), SsoLanding::target( '/shop/?' . SsoLanding::CONFIRM_PARAM . '=abc&orderby=price' ) );
+	}
+
+	/**
+	 * The confirmation link in the notice the landing left for the signed-in shopper.
+	 *
+	 * @return string
+	 */
+	private function confirmation_url(): string {
+		$notices = implode( ' ', array_column( wc_get_notices( 'notice' ), 'notice' ) );
+		$this->assertSame( 1, preg_match( '/href="([^"]+)"/', $notices, $match ), 'The notice links to the confirmation: ' . $notices );
+
+		return html_entity_decode( $match[1] );
+	}
+
+	/**
+	 * The nonce a confirmation link carries.
+	 *
+	 * @param string $url Confirmation link.
+	 * @return string
+	 */
+	private function confirmation_nonce( string $url ): string {
+		parse_str( (string) wp_parse_url( $url, PHP_URL_QUERY ), $query );
+
+		return (string) $query[ SsoLanding::CONFIRM_PARAM ];
 	}
 
 	public function test_an_account_linked_to_another_member_is_not_switched(): void {

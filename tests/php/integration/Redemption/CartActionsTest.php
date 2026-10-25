@@ -278,6 +278,27 @@ final class CartActionsTest extends RedemptionTestCase {
 		$this->assertNull( $panel['points'], 'no balances for unverified shoppers' );
 	}
 
+	public function test_points_cannot_be_spent_from_a_quote_in_another_currency(): void {
+		$this->fill_cart();
+		$this->act( array( 'action' => 'refresh_quote' ) );
+
+		$eur = static fn (): string => 'EUR';
+		add_filter( 'woocommerce_currency', $eur );
+		add_filter( 'pre_http_request', array( HoldCoordinatorTest::class, 'network_down' ), 5, 3 );
+		$refused = $this->cart_action(
+			array(
+				'action' => 'set_points',
+				'points' => 1000,
+			)
+		);
+		remove_filter( 'pre_http_request', array( HoldCoordinatorTest::class, 'network_down' ), 5 );
+		remove_filter( 'woocommerce_currency', $eur );
+
+		$this->assertSame( 503, $refused->get_status(), (string) wp_json_encode( $refused->get_data() ) );
+		$this->assertSame( array(), WC()->cart->get_applied_coupons() );
+		$this->assertSame( 0, $this->module()->state()->points() );
+	}
+
 	public function test_a_switched_off_redemption_is_refused(): void {
 		$this->switch_features( true, true, false );
 		$this->fill_cart();

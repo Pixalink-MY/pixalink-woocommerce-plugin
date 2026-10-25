@@ -134,8 +134,16 @@ final class Module {
 		$this->connection  = new Connection( $options );
 		$this->repository  = new EventRepository();
 		$this->scheduler   = new Scheduler();
-		$this->queue       = new EventQueue( $this->repository, $this->scheduler );
 		$this->outlet      = new OutletResolver( $client );
+		$this->queue       = new EventQueue(
+			$this->repository,
+			$this->scheduler,
+			null,
+			fn (): array => array(
+				'outlet_id' => $this->outlet->known_outlet_id() ?? $this->connected_outlet_id(),
+				'api_base'  => $client->base_url(),
+			)
+		);
 		$this->deliverer   = new EventDeliverer(
 			$this->repository,
 			$this->scheduler,
@@ -143,7 +151,9 @@ final class Module {
 			$options,
 			$logger,
 			static fn ( array $envelope ) => $client->send_event( $envelope ),
-			fn (): string => $this->outlet->outlet_id()
+			fn (): string => $this->outlet->outlet_id(),
+			null,
+			static fn (): string => $client->base_url()
 		);
 
 		$orders           = new OrderPayloadBuilder();
@@ -217,6 +227,21 @@ final class Module {
 	public function on_credentials_changed(): void {
 		$this->outlet->forget();
 		$this->deliverer->resume();
+	}
+
+	/**
+	 * Outlet id of the stored connection, or null.
+	 *
+	 * @return string|null
+	 */
+	private function connected_outlet_id(): ?string {
+		if ( ! $this->connection->exists() ) {
+			return null;
+		}
+
+		$id = $this->connection->data()['outlet']['id'] ?? null;
+
+		return is_scalar( $id ) && '' !== trim( (string) $id ) ? trim( (string) $id ) : null;
 	}
 
 	/**

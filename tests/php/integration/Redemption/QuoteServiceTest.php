@@ -77,6 +77,32 @@ final class QuoteServiceTest extends RedemptionTestCase {
 		$this->assertSame( 1250, $this->module()->state()->points_config()['balance'] ?? null );
 	}
 
+	public function test_a_failed_quote_never_keeps_a_quote_priced_in_another_currency(): void {
+		$quotes = $this->module()->quotes();
+		$this->fill_cart();
+		$this->act( array( 'action' => 'refresh_quote' ) );
+		$this->act(
+			array(
+				'action' => 'set_points',
+				'points' => 1000,
+			)
+		);
+		$this->assertContains( 'pxl-points', WC()->cart->get_applied_coupons() );
+
+		// A currency switcher moves the cart from USD to EUR, and the re-quote fails.
+		$eur = static fn (): string => 'EUR';
+		add_filter( 'woocommerce_currency', $eur );
+		add_filter( 'pre_http_request', array( HoldCoordinatorTest::class, 'network_down' ), 5, 3 );
+		$kept = $quotes->refresh( true );
+		remove_filter( 'pre_http_request', array( HoldCoordinatorTest::class, 'network_down' ), 5 );
+		remove_filter( 'woocommerce_currency', $eur );
+
+		$this->assertFalse( $kept, 'a USD quote prices nothing in EUR' );
+		$this->assertNotContains( 'pxl-points', WC()->cart->get_applied_coupons(), 'the discount built on it is taken off' );
+		$this->assertSame( 0, $this->module()->state()->points() );
+		$this->assertNull( $this->module()->state()->points_config() );
+	}
+
 	public function test_the_current_orders_holds_are_sent_as_held_refs(): void {
 		$this->fill_cart();
 		$this->act( array( 'action' => 'refresh_quote' ) );

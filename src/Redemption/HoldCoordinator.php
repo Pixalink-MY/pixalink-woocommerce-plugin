@@ -32,6 +32,10 @@ defined( 'ABSPATH' ) || exit;
  * A refusal re-quotes first, so the shopper sees the current balances and the clamped discount when they look
  * at the total again. A payment that fails releases the holds through the outbox (`order.redemptions_released`);
  * a cancelled order releases through `order.cancelled`; abandoned orders are left to {@see HoldSweeper}.
+ *
+ * Paying for an existing order (My Account "Pay", the order-pay link) runs neither checkout hook, so holds that
+ * were released or expired since submit are placed again at `woocommerce_before_pay_action`, priced on the order
+ * ({@see HoldCoordinator::hold_pay_for_order()}).
  */
 final class HoldCoordinator {
 
@@ -107,6 +111,7 @@ final class HoldCoordinator {
 		add_action( 'woocommerce_checkout_order_exception', array( $this, 'release_unsaved_classic' ), 10, 1 );
 		add_action( 'woocommerce_store_api_checkout_order_processed', array( $this, 'hold_blocks' ), self::BLOCKS_PRIORITY, 1 );
 		add_action( 'woocommerce_order_status_failed', array( $this, 'on_failed' ), 20, 2 );
+		add_action( 'woocommerce_before_pay_action', array( $this, 'hold_pay_for_order' ), 10, 1 );
 	}
 
 	/**
@@ -191,6 +196,37 @@ final class HoldCoordinator {
 	}
 
 	/**
+	 * Pay-for-order (`woocommerce_before_pay_action`): an order whose Pixalink coupon lines are no longer held (the
+	 * payment failed, or the holds were swept or expired) is held again before the gateway runs.
+	 *
+	 * When Pixalink refuses, the Pixalink coupons come off the order, its totals are recalculated and an error
+	 * notice stops this payment (WC_Form_Handler::pay_action() skips the gateway once an error notice exists), so
+	 * the shopper sees the full total before paying. When Pixalink cannot be reached, the payment stops and the
+	 * discount stays for the next attempt.
+	 *
+	 * @param mixed $order Order about to be paid (the instance pay_action() saves afterwards).
+	 * @return void
+	 */
+	public function hold_pay_for_order( $order ): void {
+		if ( ! $order instanceof \WC_Order || ! self::needs_new_holds( $order ) ) {
+			return;
+		}
+
+		try {
+			$this->place( $order, CartPayload::from_order( $order ) );
+		} catch ( HoldRefusedException $refused ) {
+			if ( self::is_transient( $refused ) ) {
+				wc_add_notice( $refused->getMessage(), 'error' );
+
+				return;
+			}
+
+			$this->remove_redemptions( $order, $refused->error_code() );
+			wc_add_notice( Labels::pay_rewards_removed(), 'error' );
+		}
+	}
+
+	/**
 	 * `woocommerce_order_status_failed` action: give the held value back.
 	 *
 	 * @param mixed $order_id Order id.
@@ -207,11 +243,12 @@ final class HoldCoordinator {
 	/**
 	 * PUT the order's redemptions and record the result.
 	 *
-	 * @param \WC_Order $order Order (its coupon lines carry our meta).
+	 * @param \WC_Order                $order Order (its coupon lines carry our meta).
+	 * @param array<string,mixed>|null $cart  `cart` object to price the holds on (default: the shopper's cart).
 	 * @return bool Whether a request was sent and accepted.
 	 * @throws HoldRefusedException When Pixalink refuses or cannot be reached.
 	 */
-	public function place( \WC_Order $order ): bool {
+	public function place( \WC_Order $order, ?array $cart = null ): bool {
 		$redemptions = self::redemptions( $order );
 		$had_holds   = OrderMeta::is_held( $order );
 		if ( array() === $redemptions && ! $had_holds ) {
@@ -229,7 +266,7 @@ final class HoldCoordinator {
 			}
 		}
 
-		$cart    = function_exists( 'WC' ) && WC()->cart instanceof \WC_Cart ? CartPayload::from_cart( WC()->cart, OrderMeta::hold_refs( $order ) ) : self::empty_cart();
+		$cart    = $cart ?? ( function_exists( 'WC' ) && WC()->cart instanceof \WC_Cart ? CartPayload::from_cart( WC()->cart, OrderMeta::hold_refs( $order ) ) : self::empty_cart() );
 		$payload = Redemptions::hold_payload( $customer_id, $cart, $redemptions );
 
 		try {
@@ -420,6 +457,85 @@ final class HoldCoordinator {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Whether an order about to be paid carries Pixalink coupon lines whose holds are gone (released, or expired).
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return bool
+	 */
+	private static function needs_new_holds( \WC_Order $order ): bool {
+		$state   = OrderMeta::get_string( $order, OrderMeta::REDEMPTION_STATE );
+		$expires = (int) OrderMeta::get_string( $order, OrderMeta::REDEMPTION_EXPIRES_AT );
+		$gone    = OrderMeta::REDEMPTION_RELEASED === $state || ( OrderMeta::REDEMPTION_HELD === $state && $expires > 0 && $expires <= time() );
+		if ( ! $gone ) {
+			return false;
+		}
+
+		foreach ( $order->get_coupon_codes() as $code ) {
+			if ( CouponMapper::is_ours( (string) $code ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a refusal only means Pixalink could not answer now (network, 5xx, rate limit), not that it said no.
+	 *
+	 * @param HoldRefusedException $refused Refusal.
+	 * @return bool
+	 */
+	private static function is_transient( HoldRefusedException $refused ): bool {
+		$cause = $refused->getPrevious();
+		if ( ! $cause instanceof ApiException || ApiException::NOT_CONNECTED === $cause->error_code() ) {
+			return false;
+		}
+
+		$status = $cause->http_status();
+
+		return 0 === $status || $status >= 500 || in_array( $status, array( 408, 425, 429 ), true );
+	}
+
+	/**
+	 * Take the Pixalink coupons off an order whose holds were refused, and say so on the order.
+	 *
+	 * WC_Abstract_Order::remove_coupon() recalculates and saves the order.
+	 *
+	 * @param \WC_Order $order      Order.
+	 * @param string    $error_code Server error code.
+	 * @return void
+	 */
+	private function remove_redemptions( \WC_Order $order, string $error_code ): void {
+		foreach ( $order->get_coupon_codes() as $code ) {
+			if ( CouponMapper::is_ours( (string) $code ) ) {
+				$order->remove_coupon( (string) $code );
+			}
+		}
+
+		OrderMeta::update(
+			$order,
+			array(
+				OrderMeta::REDEMPTIONS           => array(),
+				OrderMeta::REDEMPTION_EXPIRES_AT => null,
+			)
+		);
+		$order->add_order_note(
+			sprintf(
+				/* translators: %s: Pixalink error code. */
+				__( 'Pixalink: the points, vouchers or credits on this order could not be held again before payment (%s), so they were removed and the total was recalculated.', 'pixalink-loyalty-for-woocommerce' ),
+				$error_code
+			)
+		);
+		$this->logger->info(
+			'Pay-for-order: Pixalink refused new holds; the Pixalink coupons were removed from the order.',
+			array(
+				'order_id'   => $order->get_id(),
+				'error_code' => $error_code,
+			)
+		);
 	}
 
 	/**

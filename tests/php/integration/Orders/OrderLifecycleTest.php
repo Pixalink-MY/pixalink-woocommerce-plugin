@@ -10,9 +10,13 @@ namespace Pixalink\Loyalty\Tests\Integration\Orders;
 use Pixalink\Loyalty\Events\EventDeliverer;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\EventType;
+use Pixalink\Loyalty\Events\OutletResolver;
+use Pixalink\Loyalty\Events\Pruner;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Plugin;
+use Pixalink\Loyalty\Tests\FakeServer\Responses;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
+use Pixalink\Loyalty\Tests\FakeServer\Signature;
 use Pixalink\Loyalty\Tests\Integration\Support\OrderFixtures;
 
 /**
@@ -200,6 +204,28 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		$this->assertStringContainsString( 'did not undo deleted refund', implode( "\n", $this->notes_of( $order ) ), 'The fake server answers "ignored".' );
 	}
 
+	public function test_deleting_a_reported_refund_after_its_event_was_pruned_still_records_refund_deleted(): void {
+		$order = $this->create_order();
+		$order->payment_complete();
+		$refund = wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => '5.00',
+			)
+		);
+		$this->assertInstanceOf( \WC_Order_Refund::class, $refund );
+		$refund_id = $refund->get_id();
+		$this->deliver_all( $order );
+		( new Pruner( Plugin::instance()->events()->repository(), static fn (): int => time() + 31 * DAY_IN_SECONDS ) )->prune();
+		$this->assertSame( array(), $this->events_of( $order ) );
+
+		$refund->delete( true );
+		do_action( 'woocommerce_refund_deleted', $refund_id, $order->get_id() );
+
+		$this->assertSame( array( 'order.refund_deleted' ), $this->event_types_of( $order ) );
+		$this->assertSame( $refund_id, $this->events_of( $order )[0]->payload['refund_id'] );
+	}
+
 	public function test_refund_deleted_is_skipped_for_refunds_pixalink_never_saw(): void {
 		$order = $this->create_order();
 		$order->payment_complete();
@@ -207,6 +233,27 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		do_action( 'woocommerce_refund_deleted', 987654, $order->get_id() );
 
 		$this->assertSame( array( 'order.paid' ), $this->event_types_of( $order ) );
+	}
+
+	public function test_the_order_sequence_continues_after_its_delivered_events_are_pruned(): void {
+		$order = $this->create_order();
+		$order->payment_complete();
+		$order->update_status( 'completed' );
+		$this->assertSame( array( 1, 2 ), array_map( static fn ( $event ): int => $event->sequence, $this->events_of( $order ) ) );
+		$this->deliver_all( $order );
+		( new Pruner( Plugin::instance()->events()->repository(), static fn (): int => time() + 31 * DAY_IN_SECONDS ) )->prune();
+		$this->assertSame( array(), $this->events_of( $order ), 'Delivered rows are gone after 30 days.' );
+
+		wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => '5.00',
+			)
+		);
+
+		$events = $this->events_of( $order );
+		$this->assertSame( array( 'order.refunded' ), $this->event_types_of( $order ) );
+		$this->assertSame( 3, $events[0]->sequence, 'Never 1 again: Pixalink already saw 1 and 2 for this order.' );
 	}
 
 	public function test_trashing_an_unpaid_order_releases_redemptions_once(): void {
@@ -304,6 +351,28 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		Plugin::instance()->credentials()->store( \Pixalink\Loyalty\Tests\FakeServer\Signature::FAKE_API_KEY );
 		$this->assertFalse( $deliverer->is_paused() );
 		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $deliverer->deliver( $event->id ) );
+	}
+
+	public function test_an_event_queued_before_reconnecting_to_another_outlet_is_never_sent_there(): void {
+		set_transient( OutletResolver::TRANSIENT, Responses::OUTLET_ID, DAY_IN_SECONDS );
+		$order = $this->create_order();
+		$order->payment_complete();
+		$event = $this->events_of( $order )[0];
+		$this->assertSame( Responses::OUTLET_ID, $event->outlet_id );
+
+		// The merchant reconnects the store, now to outlet 202, before the event went out.
+		Plugin::instance()->credentials()->store( Signature::FAKE_API_KEY );
+		$outlet_b = static fn (): string => '202';
+		add_filter( 'pixalink_loyalty_outlet_id', $outlet_b );
+		$outcome = Plugin::instance()->events()->deliverer()->deliver( $event->id );
+		remove_filter( 'pixalink_loyalty_outlet_id', $outlet_b );
+
+		$this->assertSame( EventDeliverer::OUTCOME_DEAD, $outcome );
+		$this->assertSame( array(), array_filter( Server::recorded(), static fn ( array $request ): bool => 'events' === $request['path'] ), 'Outlet 101\'s order never reaches outlet 202.' );
+		$row = Plugin::instance()->events()->repository()->find( $event->id );
+		$this->assertSame( 'dead', $row?->status->value );
+		$this->assertStringStartsWith( EventDeliverer::CONNECTION_CHANGED, (string) $row?->last_error );
+		$this->assertSame( 1, Plugin::instance()->events()->health()['stats']['dead'], 'Counted under "Failed" in the health panel.' );
 	}
 
 	public function test_resend_requeues_a_dead_paid_event(): void {

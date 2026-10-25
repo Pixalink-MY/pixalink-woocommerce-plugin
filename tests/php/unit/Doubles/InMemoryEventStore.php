@@ -31,7 +31,7 @@ final class InMemoryEventStore implements EventStore {
 	 */
 	private int $next_id = 1;
 
-	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now ): array {
+	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null, int $sequence_after = 0 ): array {
 		foreach ( $this->rows as $row ) {
 			if ( $row['uuid'] === $uuid ) {
 				return array(
@@ -44,6 +44,7 @@ final class InMemoryEventStore implements EventStore {
 
 		$sequence = 0;
 		if ( Event::OBJECT_ORDER === $object_type && $object_id > 0 ) {
+			$sequence = max( 0, $sequence_after );
 			foreach ( $this->rows as $row ) {
 				if ( $row['object_type'] === $object_type && (int) $row['object_id'] === $object_id ) {
 					$sequence = max( $sequence, (int) $row['sequence'] );
@@ -61,6 +62,8 @@ final class InMemoryEventStore implements EventStore {
 			'object_id'        => $object_id,
 			'sequence'         => $sequence,
 			'payload'          => (string) json_encode( $payload ),
+			'outlet_id'        => '' !== (string) $outlet_id ? $outlet_id : null,
+			'api_base'         => '' !== (string) $api_base ? $api_base : null,
 			'status'           => 'pending',
 			'attempts'         => 0,
 			'next_attempt_at'  => null,

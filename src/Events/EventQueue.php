@@ -21,6 +21,9 @@ defined( 'ABSPATH' ) || exit;
  * produce the same id, the INSERT is ignored and Pixalink's `(outlet, id)` key dedupes anything that slipped
  * through. The discriminator separates repeatable facts of one order (the refund id for `order.refunded`).
  * `customer.upserted` and `ping` get random v4 ids.
+ *
+ * Every row also records the connection it was made for (outlet id and API base, as known locally), so a queue
+ * left behind by a reconnect to another outlet is never delivered there ({@see EventDeliverer}).
  */
 final class EventQueue {
 
@@ -46,16 +49,25 @@ final class EventQueue {
 	private \Closure $now;
 
 	/**
+	 * The current connection, `{outlet_id: string|null, api_base: string|null}`, resolved without a request.
+	 *
+	 * @var \Closure():array<string,string|null>
+	 */
+	private \Closure $destination;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param EventStore    $store     Outbox storage.
-	 * @param Scheduler     $scheduler Action Scheduler wiring.
-	 * @param \Closure|null $now       Unix time source (tests); defaults to time().
+	 * @param EventStore    $store       Outbox storage.
+	 * @param Scheduler     $scheduler   Action Scheduler wiring.
+	 * @param \Closure|null $now         Unix time source (tests); defaults to time().
+	 * @param \Closure|null $destination `fn (): array{outlet_id: ?string, api_base: ?string}`; defaults to unknown.
 	 */
-	public function __construct( EventStore $store, Scheduler $scheduler, ?\Closure $now = null ) {
-		$this->store     = $store;
-		$this->scheduler = $scheduler;
-		$this->now       = $now ?? static fn (): int => time();
+	public function __construct( EventStore $store, Scheduler $scheduler, ?\Closure $now = null, ?\Closure $destination = null ) {
+		$this->store       = $store;
+		$this->scheduler   = $scheduler;
+		$this->now         = $now ?? static fn (): int => time();
+		$this->destination = $destination ?? static fn (): array => array();
 	}
 
 	/**
@@ -65,9 +77,11 @@ final class EventQueue {
 	 * @param object|null  $subject       \WC_Order for order events, \WP_User for customer events, null otherwise.
 	 * @param array<mixed> $data          Envelope `data`.
 	 * @param string       $discriminator Separates repeatable facts of one order (refund id); empty otherwise.
+	 * @param int          $sequence_after Last sequence the order used (its `_pixalink_event_seq`), so pruning delivered
+	 *                                     rows never restarts the order's sequence.
 	 * @return array{id:int,created:bool,sequence:int,uuid:string}|null Null when the subject cannot carry this event.
 	 */
-	public function enqueue( EventType $type, ?object $subject, array $data, string $discriminator = '' ): ?array {
+	public function enqueue( EventType $type, ?object $subject, array $data, string $discriminator = '', int $sequence_after = 0 ): ?array {
 		$target = self::target( $type, $subject );
 		if ( null === $target ) {
 			return null;
@@ -77,7 +91,18 @@ final class EventQueue {
 			? self::event_uuid( $type, self::site_url(), $target['key'], $discriminator )
 			: Uuid::v4();
 
-		$stored = $this->store->insert( $uuid, $type, $target['object_type'], $target['object_id'], $data, gmdate( 'Y-m-d H:i:s', ( $this->now )() ) );
+		$destination = ( $this->destination )();
+		$stored      = $this->store->insert(
+			$uuid,
+			$type,
+			$target['object_type'],
+			$target['object_id'],
+			$data,
+			gmdate( 'Y-m-d H:i:s', ( $this->now )() ),
+			isset( $destination['outlet_id'] ) && is_string( $destination['outlet_id'] ) ? $destination['outlet_id'] : null,
+			isset( $destination['api_base'] ) && is_string( $destination['api_base'] ) ? $destination['api_base'] : null,
+			$sequence_after
+		);
 
 		if ( $stored['created'] ) {
 			$this->scheduler->deliver_now( $stored['id'] );

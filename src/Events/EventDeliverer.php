@@ -24,7 +24,9 @@ defined( 'ABSPATH' ) || exit;
  * - 401/403 (except `timestamp_skew`) or missing credentials → delivery paused for every event until the
  *   credentials change or a manual ping succeeds; the attempt is not counted;
  * - 400/404/422 and other client errors → dead;
- * - 408/409/425/429/5xx, transport errors and a repeated `timestamp_skew` → retried per {@see RetryPolicy}.
+ * - 408/409/425/429/5xx, transport errors and a repeated `timestamp_skew` → retried per {@see RetryPolicy};
+ * - recorded for another outlet or API base than the store is connected to now (it was reconnected since) → dead
+ *   with `connection_changed`, without sending: one outlet's orders and customers never go to another.
  *
  * Per-order ordering: while an earlier event of the same order is still open, the attempt is pushed back (at least a
  * minute, or until the earlier event's next attempt) without counting it, so Pixalink sees `order.paid` before that
@@ -40,6 +42,11 @@ final class EventDeliverer {
 
 	public const PAUSE_AUTH_FAILED   = 'auth_failed';
 	public const PAUSE_NOT_CONNECTED = 'not_connected';
+
+	/**
+	 * Error code of rows recorded for a connection the store no longer has.
+	 */
+	public const CONNECTION_CHANGED = 'connection_changed';
 
 	/**
 	 * Seconds after which a `sending` lock is considered abandoned (worker died mid-request).
@@ -128,6 +135,13 @@ final class EventDeliverer {
 	private \Closure $now;
 
 	/**
+	 * The current API base (null: not compared).
+	 *
+	 * @var (\Closure():string)|null
+	 */
+	private ?\Closure $api_base;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param EventStore    $store     Outbox storage.
@@ -138,8 +152,9 @@ final class EventDeliverer {
 	 * @param \Closure      $sender    `fn (array $envelope): ApiResponse`, throwing ApiException on failure.
 	 * @param \Closure      $outlet_id `fn (): string`, throwing ApiException when unknown.
 	 * @param \Closure|null $now       Unix time source (tests); defaults to time().
+	 * @param \Closure|null $api_base  `fn (): string`, the API base the sender posts to.
 	 */
-	public function __construct( EventStore $store, Scheduler $scheduler, RetryPolicy $policy, Options $options, Logger $logger, \Closure $sender, \Closure $outlet_id, ?\Closure $now = null ) {
+	public function __construct( EventStore $store, Scheduler $scheduler, RetryPolicy $policy, Options $options, Logger $logger, \Closure $sender, \Closure $outlet_id, ?\Closure $now = null, ?\Closure $api_base = null ) {
 		$this->store     = $store;
 		$this->scheduler = $scheduler;
 		$this->policy    = $policy;
@@ -148,6 +163,7 @@ final class EventDeliverer {
 		$this->sender    = $sender;
 		$this->outlet_id = $outlet_id;
 		$this->now       = $now ?? static fn (): int => time();
+		$this->api_base  = $api_base;
 	}
 
 	/**
@@ -212,7 +228,15 @@ final class EventDeliverer {
 		$attempts = $event->attempts + 1;
 
 		try {
-			$envelope = $event->to_envelope( EventQueue::site_url(), ( $this->outlet_id )() );
+			$outlet_id = ( $this->outlet_id )();
+			$moved     = $this->connection_change( $event, $outlet_id );
+			if ( null !== $moved ) {
+				$this->give_up( $event, $event->attempts, 0, self::CONNECTION_CHANGED, $moved, array() );
+
+				return self::OUTCOME_DEAD;
+			}
+
+			$envelope = $event->to_envelope( EventQueue::site_url(), $outlet_id );
 			$response = ( $this->sender )( $envelope );
 		} catch ( ApiException $exception ) {
 			return $this->handle_failure( $event, $attempts, $exception, $now );
@@ -503,6 +527,29 @@ final class EventDeliverer {
 		 * @param string $reason "auth_failed" or "not_connected".
 		 */
 		do_action( 'pixalink_loyalty_delivery_paused', $reason );
+	}
+
+	/**
+	 * Why the row may not be sent over the current connection, or null when it may (rows recorded before the
+	 * connection was stored, or while the outlet was not known locally, are not compared on that part).
+	 *
+	 * @param Event  $event     Event.
+	 * @param string $outlet_id Outlet the store is connected to now.
+	 * @return string|null
+	 */
+	private function connection_change( Event $event, string $outlet_id ): ?string {
+		if ( null !== $event->outlet_id && '' !== $event->outlet_id && $event->outlet_id !== $outlet_id ) {
+			return sprintf( '%s: recorded for outlet %s, connected to outlet %s now', self::CONNECTION_CHANGED, $event->outlet_id, $outlet_id );
+		}
+
+		if ( null !== $this->api_base && null !== $event->api_base && '' !== $event->api_base ) {
+			$current = rtrim( ( $this->api_base )(), '/' );
+			if ( rtrim( $event->api_base, '/' ) !== $current ) {
+				return sprintf( '%s: recorded for %s, connected to %s now', self::CONNECTION_CHANGED, $event->api_base, $current );
+			}
+		}
+
+		return null;
 	}
 
 	/**

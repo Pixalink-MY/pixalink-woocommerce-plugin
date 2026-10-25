@@ -22,7 +22,8 @@ interface EventStore {
 	/**
 	 * Insert an event unless its uuid already exists (exactly-once by uuid).
 	 *
-	 * Order events get the next per-order sequence (1, 2, …); other events get 0.
+	 * Order events get the next per-order sequence (1, 2, …), above both the order's retained rows and
+	 * `$sequence_after` (the order's last sequence, which survives pruning); other events get 0.
 	 *
 	 * @param string       $uuid        Event id.
 	 * @param EventType    $type        Event type.
@@ -30,9 +31,12 @@ interface EventStore {
 	 * @param int          $object_id   Order or user id.
 	 * @param array<mixed> $payload     Envelope `data`.
 	 * @param string       $now         Creation time.
+	 * @param string|null  $outlet_id   Outlet the event is recorded for (null when not known locally).
+	 * @param string|null  $api_base    API base the event is recorded for.
+	 * @param int          $sequence_after Last sequence the order is known to have used (0 when none).
 	 * @return array{id:int,created:bool,sequence:int} The new or existing row.
 	 */
-	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now ): array;
+	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null, int $sequence_after = 0 ): array;
 
 	/**
 	 * Row by id.

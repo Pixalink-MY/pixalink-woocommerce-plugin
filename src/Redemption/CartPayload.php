@@ -66,6 +66,65 @@ final class CartPayload {
 	}
 
 	/**
+	 * The `cart` object for an existing order (pay-for-order: the shopper's cart is not this order's), priced the
+	 * way {@see CartPayload::from_cart()} prices a cart, with the order's own tax setting and currency.
+	 *
+	 * @param \WC_Order    $order     Order.
+	 * @param list<string> $held_refs Holds (`CH-…`) the order still carries.
+	 * @return array{lines:list<array<string,mixed>>,subtotal_cents:int,currency:string,shipping_cents:int,discount_cents:int,tax_cents:int,prices_include_tax:bool,held_refs:list<string>}
+	 */
+	public static function from_order( \WC_Order $order, array $held_refs = array() ): array {
+		$inclusive = (bool) $order->get_prices_include_tax();
+		$lines     = array();
+		$subtotal  = 0;
+
+		foreach ( $order->get_items() as $item_id => $item ) {
+			if ( ! $item instanceof \WC_Order_Item_Product ) {
+				continue;
+			}
+
+			$line = self::line(
+				(string) $item_id,
+				array(
+					'data'              => $item->get_product(),
+					'quantity'          => $item->get_quantity(),
+					'line_subtotal'     => $item->get_subtotal(),
+					'line_subtotal_tax' => $item->get_subtotal_tax(),
+					'product_id'        => $item->get_product_id(),
+					'variation_id'      => $item->get_variation_id(),
+				),
+				$inclusive
+			);
+			if ( null === $line ) {
+				continue;
+			}
+
+			$lines[]   = $line;
+			$subtotal += $line['line_total_cents'];
+		}
+
+		$discount = 0;
+		foreach ( $order->get_items( 'coupon' ) as $coupon ) {
+			if ( $coupon instanceof \WC_Order_Item_Coupon && ! CouponMapper::is_ours( (string) $coupon->get_code() ) ) {
+				$discount += self::value_cents( $coupon->get_discount(), $coupon->get_discount_tax(), $inclusive );
+			}
+		}
+
+		$currency = strtoupper( (string) $order->get_currency() );
+
+		return array(
+			'lines'              => $lines,
+			'subtotal_cents'     => $subtotal,
+			'currency'           => '' !== $currency ? $currency : 'MYR',
+			'shipping_cents'     => max( 0, Money::to_cents( (float) $order->get_shipping_total() ) ),
+			'discount_cents'     => $discount,
+			'tax_cents'          => max( 0, Money::to_cents( (float) $order->get_total_tax() ) ),
+			'prices_include_tax' => $inclusive,
+			'held_refs'          => array_values( array_unique( array_filter( $held_refs, static fn ( $ref ): bool => is_string( $ref ) && 1 === preg_match( '/^CH-[A-Za-z0-9]+$/', $ref ) ) ) ),
+		);
+	}
+
+	/**
 	 * Signature of what a quote depends on: the lines, their prices and the store's own discounts.
 	 *
 	 * Pixalink's own coupons, shipping and tax are left out, so applying points never makes the quote look stale.
