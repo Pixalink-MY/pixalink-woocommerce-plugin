@@ -17,4 +17,5 @@
 * Add - Points, credits and vouchers are held when the order is placed and released when payment fails, the order is cancelled or it is abandoned (15-minute sweep).
 * Add - Order-received page: points earned or when they will be added, and the rewards the order used; order screen: held and settled redemptions.
 * Add - WooCommerce › Settings › Pixalink Loyalty › Checkout: credits toggle; each toggle shows when Pixalink switched the feature off.
+* Add - My Account dashboard: a loyalty card with points, the next expiry, tier progress and vouchers ready, or a link to verify on the Loyalty tab; "Dashboard summary" setting under My Account (on by default).
 * Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check, Playwright checkout e2e) and release pipeline.
