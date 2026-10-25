@@ -1,6 +1,6 @@
 <?php
 /**
- * Arrival from the Pixalink member portal ("Order").
+ * Arrival from the Pixalink member portal ("Order", or the store's "Sign in with the member portal" button).
  *
  * @package Pixalink\Loyalty
  */
@@ -12,6 +12,7 @@ namespace Pixalink\Loyalty\Identity;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Fields\PhoneNormalizer;
 use Pixalink\Loyalty\Support\Logger;
+use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -35,6 +36,12 @@ defined( 'ABSPATH' ) || exit;
  *   a customer account is created when the store allows registration and the e-mail is free. Accounts that can
  *   do more than shop (editors, shop managers, administrators) are never signed in this way. Otherwise the shopper
  *   stays a guest with a verified link for this session, and a notice says they were recognised for this visit.
+ *
+ * When the shopper pressed the store's own sign-in button ({@see PortalSignIn}), the browser still holds the state
+ * cookie ({@see SignInState}): its value is sent with the ticket as `sso_state` (Pixalink refuses a ticket bound to a
+ * different one) and the cookie is cleared whatever happens. A member who comes back this way also gets a customer
+ * account where the store has registration off, as long as "Sign in with your member portal" is on and Pixalink has
+ * their e-mail address: they asked to sign in, so the store gives them an account to sign in to.
  */
 final class SsoLanding {
 
@@ -91,20 +98,38 @@ final class SsoLanding {
 	private Logger $logger;
 
 	/**
+	 * Option storage (the sign-in button setting).
+	 *
+	 * @var Options
+	 */
+	private Options $options;
+
+	/**
+	 * State cookie of the sign-in button.
+	 *
+	 * @var SignInState
+	 */
+	private SignInState $state;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param CustomerLinker  $linker      Linker.
-	 * @param Credentials     $credentials Outlet credentials.
-	 * @param GuestLinkStore  $guests      Guest links.
-	 * @param PhoneNormalizer $normalizer  Phone normaliser.
-	 * @param Logger          $logger      Logger.
+	 * @param CustomerLinker   $linker      Linker.
+	 * @param Credentials      $credentials Outlet credentials.
+	 * @param GuestLinkStore   $guests      Guest links.
+	 * @param PhoneNormalizer  $normalizer  Phone normaliser.
+	 * @param Logger           $logger      Logger.
+	 * @param Options|null     $options     Option storage.
+	 * @param SignInState|null $state       State cookie of the sign-in button.
 	 */
-	public function __construct( CustomerLinker $linker, Credentials $credentials, GuestLinkStore $guests, PhoneNormalizer $normalizer, Logger $logger ) {
+	public function __construct( CustomerLinker $linker, Credentials $credentials, GuestLinkStore $guests, PhoneNormalizer $normalizer, Logger $logger, ?Options $options = null, ?SignInState $state = null ) {
 		$this->linker      = $linker;
 		$this->credentials = $credentials;
 		$this->guests      = $guests;
 		$this->normalizer  = $normalizer;
 		$this->logger      = $logger;
+		$this->options     = $options ?? new Options();
+		$this->state       = $state ?? new SignInState();
 	}
 
 	/**
@@ -154,13 +179,15 @@ final class SsoLanding {
 	 */
 	public function handle( string $ticket, string $request_uri ): string {
 		$target = self::target( $request_uri );
+		// Taken (and the cookie cleared) before anything else: one try per press of the button, whatever happens.
+		$state = $this->state->take();
 
 		if ( ! $this->credentials->is_configured() ) {
 			return $target;
 		}
 
 		$user_id = get_current_user_id();
-		if ( $this->refused_staff( $user_id, $ticket ) ) {
+		if ( $this->refused_staff( $user_id, $ticket, $state ) ) {
 			return self::where_notices_show( $target );
 		}
 
@@ -171,7 +198,7 @@ final class SsoLanding {
 		}
 
 		try {
-			$customer = $this->linker->redeem_ticket( $ticket, $user_id );
+			$customer = $this->linker->redeem_ticket( $ticket, $user_id, $state );
 		} catch ( LinkException $exception ) {
 			self::notice( $exception->user_message() );
 
@@ -182,7 +209,7 @@ final class SsoLanding {
 		if ( $user_id > 0 ) {
 			$this->link_account( $user_id, $link );
 		} else {
-			$this->sign_in( $customer, $link );
+			$this->sign_in( $customer, $link, null !== $state );
 		}
 
 		return $target;
@@ -254,11 +281,12 @@ final class SsoLanding {
 	 * The ticket is still redeemed, without the account id, so it is spent (the portal mints a new one for every tap)
 	 * and the refusal can name the member.
 	 *
-	 * @param int    $user_id Logged-in user id (0 when nobody is logged in).
-	 * @param string $ticket  Ticket ('' when none is left).
+	 * @param int         $user_id Logged-in user id (0 when nobody is logged in).
+	 * @param string      $ticket  Ticket ('' when none is left).
+	 * @param string|null $state   State of the sign-in button (null when none).
 	 * @return bool Whether the ticket was refused.
 	 */
-	private function refused_staff( int $user_id, string $ticket ): bool {
+	private function refused_staff( int $user_id, string $ticket, ?string $state = null ): bool {
 		if ( ! CustomerLinker::is_staff( $user_id ) ) {
 			return false;
 		}
@@ -266,7 +294,7 @@ final class SsoLanding {
 		$customer = null;
 		if ( $this->credentials->is_configured() && 1 === preg_match( CustomerLinker::TICKET_PATTERN, $ticket ) ) {
 			try {
-				$customer = $this->linker->redeem_ticket( $ticket, 0 );
+				$customer = $this->linker->redeem_ticket( $ticket, 0, $state );
 			} catch ( LinkException $exception ) {
 				unset( $exception ); // Spent, foreign or unreachable: the refusal is the same (the linker logged the failure).
 			}
@@ -413,15 +441,16 @@ final class SsoLanding {
 	/**
 	 * Sign the member in, create their account, or keep them as a verified guest.
 	 *
-	 * @param array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null} $customer Customer.
-	 * @param Link                                                                                                                                 $link     Verified link.
+	 * @param array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null} $customer    Customer.
+	 * @param Link                                                                                                                                 $link        Verified link.
+	 * @param bool                                                                                                                                 $from_button Whether the shopper pressed the store's sign-in button.
 	 * @return void
 	 */
-	private function sign_in( array $customer, Link $link ): void {
+	private function sign_in( array $customer, Link $link, bool $from_button ): void {
 		$user    = self::linked_user( $link );
 		$created = false;
 		if ( null === $user ) {
-			$user    = $this->create_account( $customer );
+			$user    = $this->create_account( $customer, $from_button );
 			$created = null !== $user;
 		}
 
@@ -452,8 +481,9 @@ final class SsoLanding {
 		$this->logger->info(
 			'Portal sign-in.',
 			array(
-				'user_id' => $user->ID,
-				'created' => $created,
+				'user_id'     => $user->ID,
+				'created'     => $created,
+				'from_button' => $from_button,
 			)
 		);
 	}
@@ -508,24 +538,30 @@ final class SsoLanding {
 	}
 
 	/**
-	 * Create a customer account for the member when the store allows sign-ups and the e-mail is free.
+	 * Create a customer account for the member when the store allows sign-ups (or the shopper pressed the store's
+	 * sign-in button while that setting is on) and the e-mail is free.
 	 *
-	 * @param array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null} $customer Customer.
+	 * @param array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null} $customer    Customer.
+	 * @param bool                                                                                                                                 $from_button Whether the shopper pressed the store's sign-in button.
 	 * @return \WP_User|null
 	 */
-	private function create_account( array $customer ): ?\WP_User {
+	private function create_account( array $customer, bool $from_button ): ?\WP_User {
 		$email   = $customer['email'];
-		$allowed = 'yes' === get_option( 'woocommerce_enable_myaccount_registration' ) || 'yes' === get_option( 'woocommerce_enable_signup_and_login_from_checkout' );
+		$allowed = 'yes' === get_option( 'woocommerce_enable_myaccount_registration' )
+			|| 'yes' === get_option( 'woocommerce_enable_signup_and_login_from_checkout' )
+			|| ( $from_button && $this->options->get_bool( Options::PORTAL_SIGN_IN ) );
 
 		/**
 		 * Filters whether a portal sign-in may create a WooCommerce customer account.
 		 *
 		 * @since 0.1.0
 		 *
-		 * @param bool                $allowed  Default: whether the store lets shoppers register.
-		 * @param array<string,mixed> $customer The Pixalink customer `{id, phone, email, first_name, last_name}`.
+		 * @param bool                $allowed     Default: whether the store lets shoppers register, or the shopper pressed
+		 *                                         "Sign in with the member portal" while that setting is on.
+		 * @param array<string,mixed> $customer    The Pixalink customer `{id, phone, email, first_name, last_name}`.
+		 * @param bool                $from_button Whether the shopper pressed the store's sign-in button.
 		 */
-		$allowed = (bool) apply_filters( 'pixalink_loyalty_sso_create_account', $allowed, $customer );
+		$allowed = (bool) apply_filters( 'pixalink_loyalty_sso_create_account', $allowed, $customer, $from_button );
 
 		if ( ! $allowed || null === $email || false !== email_exists( $email ) || ! function_exists( 'wc_create_new_customer' ) ) {
 			return null;

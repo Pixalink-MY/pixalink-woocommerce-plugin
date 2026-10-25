@@ -20,7 +20,7 @@ defined( 'ABSPATH' ) || exit;
  *
  * Theme developers can override any of them on the same wrappers:
  *
- * - `--pxl-primary`: brand fill (member card, buttons, slider).
+ * - `--pxl-primary`: brand fill (member card, buttons, slider, the login forms' portal sign-in button).
  * - `--pxl-on-primary`: text and icons on the brand fill.
  * - `--pxl-ink`: brand colour used as text or outline on white.
  * - `--pxl-accent`: secondary colour, used for tints only (never text).
@@ -37,6 +37,11 @@ final class BrandingStyles {
 	 * Wrapper of the loyalty panel in both checkouts.
 	 */
 	public const CHECKOUT_SELECTORS = array( '.pixalink-loyalty-panel' );
+
+	/**
+	 * Wrapper of the "Sign in with the member portal" button on the login forms.
+	 */
+	public const SIGN_IN_SELECTORS = array( '.pixalink-loyalty-sign-in' );
 
 	/**
 	 * Custom property per Branding colour.

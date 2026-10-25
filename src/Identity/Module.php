@@ -183,7 +183,9 @@ final class Module {
 		$this->handoff->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();
-		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger ) )->register();
+		$sign_in_state = new SignInState();
+		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger, $this->options, $sign_in_state ) )->register();
+		( new PortalSignIn( $this->options, $this->credentials, $sign_in_state ) )->register();
 		( new InboundController( $this->credentials, $this->summaries, $this->logger ) )->register();
 
 		( new Exporter() )->register();

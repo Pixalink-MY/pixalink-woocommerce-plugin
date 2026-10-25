@@ -16,8 +16,9 @@ use Pixalink\Loyalty\Support\BrandingStyles;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers `build/account.js` (OTP link dialog, member QR code and its toggle) from its `*.asset.php` manifest, and
- * `assets/css/account.css` with the member portal's colours.
+ * Registers `build/account.js` (OTP link dialog, member QR code and its toggle) from its `*.asset.php` manifest,
+ * `assets/css/account.css` with the member portal's colours, and `assets/css/sign-in.css` for the login forms' "Sign in
+ * with the member portal" button.
  *
  * A source checkout without `build/` simply renders the server-side markup (forms still show; the QR shows its value).
  */
@@ -29,6 +30,26 @@ final class Assets {
 	 * Style handle of My Account (the Loyalty tab, the dashboard card and the shortcodes).
 	 */
 	public const ACCOUNT_STYLE = 'pixalink-loyalty-account';
+
+	/**
+	 * Style handle of the "Sign in with the member portal" button (My Account and classic checkout login forms).
+	 */
+	public const SIGN_IN_STYLE = 'pixalink-loyalty-sign-in';
+
+	/**
+	 * Enqueue the sign-in button's stylesheet once, with the portal colours when branding is on.
+	 *
+	 * @param Branding|null $branding Active branding ({@see Branding::active()}).
+	 * @return void
+	 */
+	public static function enqueue_sign_in_style( ?Branding $branding ): void {
+		if ( wp_style_is( self::SIGN_IN_STYLE, 'enqueued' ) ) {
+			return;
+		}
+
+		wp_enqueue_style( self::SIGN_IN_STYLE, PIXALINK_LOYALTY_URL . 'assets/css/sign-in.css', array(), PIXALINK_LOYALTY_VERSION );
+		BrandingStyles::attach( self::SIGN_IN_STYLE, BrandingStyles::SIGN_IN_SELECTORS, $branding );
+	}
 
 	/**
 	 * Enqueue the account stylesheet once, with the portal colours as custom properties when branding is on.

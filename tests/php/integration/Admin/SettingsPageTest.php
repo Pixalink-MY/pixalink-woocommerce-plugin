@@ -161,6 +161,16 @@ final class SettingsPageTest extends \WP_UnitTestCase {
 		$this->assertSame( 'Match your member portal', $account[ Options::PORTAL_BRANDING ]['title'] );
 		$this->assertSame( "Use the logo and colours from your Pixalink member portal on My Account and checkout. Turn off to use your theme's colours.", $account[ Options::PORTAL_BRANDING ]['desc'] );
 
+		$this->assertSame( 'checkbox', $account[ Options::PORTAL_SIGN_IN ]['type'] );
+		$this->assertSame( 'yes', $account[ Options::PORTAL_SIGN_IN ]['default'], 'Sign in with your member portal is on by default.' );
+		$this->assertSame( 'Sign in with your member portal', $account[ Options::PORTAL_SIGN_IN ]['title'] );
+		$this->assertSame( "Adds a 'Sign in with your member portal' button to the login form. Members who sign in this way get a store account if they don't have one yet (they need an e-mail address in Pixalink).", $account[ Options::PORTAL_SIGN_IN ]['desc'], 'Before the heartbeat names the portal.' );
+
+		( new \Pixalink\Loyalty\Connect\Connection( new Options() ) )->store_remote_status( \Pixalink\Loyalty\Tests\FakeServer\Responses::samples( time() )['heartbeat']['response']['body'] );
+		$account = array_column( $this->page()->get_settings_for_section( 'account' ), null, 'id' );
+		$this->assertStringStartsWith( "Adds a 'Sign in with Fake Cafe' button to the login form.", $account[ Options::PORTAL_SIGN_IN ]['desc'], 'The portal by its name.' );
+		delete_option( Options::REMOTE_STATUS );
+
 		$advanced = array_column( $this->page()->get_settings_for_section( 'advanced' ), null, 'id' );
 		$this->assertArrayHasKey( Options::DEBUG_LOGGING, $advanced );
 		$this->assertArrayHasKey( Options::DELETE_DATA_ON_UNINSTALL, $advanced );
