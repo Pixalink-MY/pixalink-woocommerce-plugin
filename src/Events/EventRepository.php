@@ -45,10 +45,11 @@ final class EventRepository implements EventStore {
 	 * @param string       $now         Creation time.
 	 * @param string|null  $outlet_id   Outlet the event is recorded for.
 	 * @param string|null  $api_base    API base the event is recorded for.
+	 * @param int          $sequence_after Last sequence the order is known to have used.
 	 * @return array{id:int,created:bool,sequence:int}
 	 * @throws \RuntimeException When the row can be neither inserted nor found.
 	 */
-	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null ): array {
+	public function insert( string $uuid, EventType $type, string $object_type, int $object_id, array $payload, string $now, ?string $outlet_id = null, ?string $api_base = null, int $sequence_after = 0 ): array {
 		global $wpdb;
 
 		$json = wp_json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
@@ -57,16 +58,18 @@ final class EventRepository implements EventStore {
 		}
 
 		if ( Event::OBJECT_ORDER === $object_type && $object_id > 0 ) {
-			// The per-order sequence is computed in the same statement, so concurrent inserts serialise on the index.
+			// The per-order sequence is computed in the same statement, so concurrent inserts serialise on the index;
+			// $sequence_after keeps it rising once the order's delivered rows were pruned.
 			$affected = $wpdb->query(
 				$wpdb->prepare(
 					"INSERT IGNORE INTO %i (uuid, type, object_type, object_id, sequence, payload, outlet_id, api_base, status, attempts, created_at)
-					SELECT %s, %s, %s, %d, COALESCE(MAX(sequence), 0) + 1, %s, NULLIF(%s, ''), NULLIF(%s, ''), 'pending', 0, %s FROM %i WHERE object_type = %s AND object_id = %d",
+					SELECT %s, %s, %s, %d, GREATEST(COALESCE(MAX(sequence), 0), %d) + 1, %s, NULLIF(%s, ''), NULLIF(%s, ''), 'pending', 0, %s FROM %i WHERE object_type = %s AND object_id = %d",
 					$this->table(),
 					$uuid,
 					$type->value,
 					$object_type,
 					$object_id,
+					max( 0, $sequence_after ),
 					$json,
 					(string) $outlet_id,
 					(string) $api_base,

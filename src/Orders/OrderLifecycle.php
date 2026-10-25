@@ -607,14 +607,16 @@ final class OrderLifecycle {
 	 * @return bool Whether a new event was recorded.
 	 */
 	private function enqueue( \WC_Order $order, EventType $type, array $data, string $discriminator = '' ): bool {
-		$stored = $this->queue->enqueue( $type, $order, $data, $discriminator );
+		// The order's last sequence outlives its pruned outbox rows, so the next one keeps rising.
+		$last   = (int) OrderMeta::get_string( $order, OrderMeta::EVENT_SEQ );
+		$stored = $this->queue->enqueue( $type, $order, $data, $discriminator, $last );
 		if ( null === $stored ) {
 			return false;
 		}
 
 		$meta = array();
 		if ( $stored['created'] ) {
-			$meta[ OrderMeta::EVENT_SEQ ] = $stored['sequence'];
+			$meta[ OrderMeta::EVENT_SEQ ] = max( $last, $stored['sequence'] );
 		}
 
 		if ( EventType::ORDER_PAID === $type ) {

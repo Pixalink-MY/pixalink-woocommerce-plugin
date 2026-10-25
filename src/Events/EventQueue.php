@@ -77,9 +77,11 @@ final class EventQueue {
 	 * @param object|null  $subject       \WC_Order for order events, \WP_User for customer events, null otherwise.
 	 * @param array<mixed> $data          Envelope `data`.
 	 * @param string       $discriminator Separates repeatable facts of one order (refund id); empty otherwise.
+	 * @param int          $sequence_after Last sequence the order used (its `_pixalink_event_seq`), so pruning delivered
+	 *                                     rows never restarts the order's sequence.
 	 * @return array{id:int,created:bool,sequence:int,uuid:string}|null Null when the subject cannot carry this event.
 	 */
-	public function enqueue( EventType $type, ?object $subject, array $data, string $discriminator = '' ): ?array {
+	public function enqueue( EventType $type, ?object $subject, array $data, string $discriminator = '', int $sequence_after = 0 ): ?array {
 		$target = self::target( $type, $subject );
 		if ( null === $target ) {
 			return null;
@@ -98,7 +100,8 @@ final class EventQueue {
 			$data,
 			gmdate( 'Y-m-d H:i:s', ( $this->now )() ),
 			isset( $destination['outlet_id'] ) && is_string( $destination['outlet_id'] ) ? $destination['outlet_id'] : null,
-			isset( $destination['api_base'] ) && is_string( $destination['api_base'] ) ? $destination['api_base'] : null
+			isset( $destination['api_base'] ) && is_string( $destination['api_base'] ) ? $destination['api_base'] : null,
+			$sequence_after
 		);
 
 		if ( $stored['created'] ) {

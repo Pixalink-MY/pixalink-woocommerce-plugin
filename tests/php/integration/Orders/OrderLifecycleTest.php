@@ -11,6 +11,7 @@ use Pixalink\Loyalty\Events\EventDeliverer;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\EventType;
 use Pixalink\Loyalty\Events\OutletResolver;
+use Pixalink\Loyalty\Events\Pruner;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
@@ -210,6 +211,27 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		do_action( 'woocommerce_refund_deleted', 987654, $order->get_id() );
 
 		$this->assertSame( array( 'order.paid' ), $this->event_types_of( $order ) );
+	}
+
+	public function test_the_order_sequence_continues_after_its_delivered_events_are_pruned(): void {
+		$order = $this->create_order();
+		$order->payment_complete();
+		$order->update_status( 'completed' );
+		$this->assertSame( array( 1, 2 ), array_map( static fn ( $event ): int => $event->sequence, $this->events_of( $order ) ) );
+		$this->deliver_all( $order );
+		( new Pruner( Plugin::instance()->events()->repository(), static fn (): int => time() + 31 * DAY_IN_SECONDS ) )->prune();
+		$this->assertSame( array(), $this->events_of( $order ), 'Delivered rows are gone after 30 days.' );
+
+		wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => '5.00',
+			)
+		);
+
+		$events = $this->events_of( $order );
+		$this->assertSame( array( 'order.refunded' ), $this->event_types_of( $order ) );
+		$this->assertSame( 3, $events[0]->sequence, 'Never 1 again: Pixalink already saw 1 and 2 for this order.' );
 	}
 
 	public function test_trashing_an_unpaid_order_releases_redemptions_once(): void {
