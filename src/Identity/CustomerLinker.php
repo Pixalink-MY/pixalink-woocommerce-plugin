@@ -27,6 +27,10 @@ defined( 'ABSPATH' ) || exit;
  *    (logged in) or a guest link for the WooCommerce session, and `pixalink_loyalty_shopper_verified` fires.
  *
  * Linking always needs a proof: an OTP here, or a ticket the Pixalink portal minted ({@see CustomerLinker::redeem_ticket()}).
+ *
+ * Staff accounts ({@see CustomerLinker::is_staff()}) are never linked: starting a link, redeeming a ticket for them and
+ * storing a link on them all fail with {@see LinkException::STAFF_ACCOUNT} before anything is sent or written, whichever
+ * screen asked.
  */
 final class CustomerLinker {
 
@@ -97,6 +101,8 @@ final class CustomerLinker {
 	 * @throws LinkException On failure.
 	 */
 	public function start( ShopperContext $shopper, PhoneNumber $phone, array $profile ): array {
+		$this->refuse_staff( $shopper->user_id() );
+
 		try {
 			$customer = $this->customers->find_by_phone( $phone->e164 );
 			if ( null === $customer ) {
@@ -190,8 +196,11 @@ final class CustomerLinker {
 	 * @param ShopperContext $shopper Shopper.
 	 * @param Link           $link    Verified link.
 	 * @return void
+	 * @throws LinkException For a staff account (nothing is stored).
 	 */
 	public function store( ShopperContext $shopper, Link $link ): void {
+		$this->refuse_staff( $shopper->user_id() );
+
 		if ( $shopper->is_logged_in() ) {
 			UserMeta::store_link( $shopper->user_id(), $link );
 		} else {
@@ -214,11 +223,13 @@ final class CustomerLinker {
 	 * Redeem a Pixalink portal sign-in ticket (single use: any ticket presented is used up).
 	 *
 	 * @param string $ticket     The `pixalink_sso` value.
-	 * @param int    $wp_user_id Logged-in user id (0 when nobody is logged in).
+	 * @param int    $wp_user_id Logged-in user id (0 when nobody is logged in); Pixalink links the member to it.
 	 * @return array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null}
-	 * @throws LinkException When the ticket is malformed, spent, foreign or did not prove the phone.
+	 * @throws LinkException When the ticket is malformed, spent, foreign or did not prove the phone, or the user is staff.
 	 */
 	public function redeem_ticket( string $ticket, int $wp_user_id ): array {
+		$this->refuse_staff( $wp_user_id );
+
 		if ( 1 !== preg_match( self::TICKET_PATTERN, $ticket ) ) {
 			$failure = new LinkException( LinkException::TICKET_INVALID );
 			throw $failure;
@@ -237,6 +248,54 @@ final class CustomerLinker {
 		}
 
 		return $customer;
+	}
+
+	/**
+	 * Whether an account can do more than shop (editors, shop managers, administrators): such accounts are never linked
+	 * to a Pixalink member, nor signed in by a portal ticket.
+	 *
+	 * @param int $user_id User id (0 for a guest, who is never staff).
+	 * @return bool
+	 */
+	public static function is_staff( int $user_id ): bool {
+		if ( $user_id < 1 ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.WP.Capabilities.Unknown -- manage_woocommerce is WooCommerce's shop manager capability.
+		$allowed = ! user_can( $user_id, 'edit_posts' ) && ! user_can( $user_id, 'manage_woocommerce' ) && ! user_can( $user_id, 'list_users' );
+		$user    = get_userdata( $user_id );
+		if ( $user instanceof \WP_User ) {
+			/**
+			 * Filters whether a Pixalink portal sign-in may log this account in, and whether the account may be linked to
+			 * a Pixalink member at all (portal ticket, one-time code or a guest link moved at login).
+			 *
+			 * @since 0.1.0
+			 *
+			 * @param bool     $allowed Default: true for accounts that can only shop.
+			 * @param \WP_User $user    The account.
+			 */
+			$allowed = (bool) apply_filters( 'pixalink_loyalty_sso_can_sign_in', $allowed, $user );
+		}
+
+		return ! $allowed;
+	}
+
+	/**
+	 * Fail for a staff account.
+	 *
+	 * @param int $user_id User id.
+	 * @return void
+	 * @throws LinkException When the account is staff.
+	 */
+	private function refuse_staff( int $user_id ): void {
+		if ( ! self::is_staff( $user_id ) ) {
+			return;
+		}
+
+		$this->logger->info( 'Refused to link a staff account to a Pixalink member.', array( 'user_id' => $user_id ) );
+		$failure = new LinkException( LinkException::STAFF_ACCOUNT );
+		throw $failure;
 	}
 
 	/**

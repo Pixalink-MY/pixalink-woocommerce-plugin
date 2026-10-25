@@ -275,7 +275,8 @@ final class Module {
 	}
 
 	/**
-	 * `wp_login` callback: a link the shopper verified as a guest in this session moves to their account.
+	 * `wp_login` callback: a link the shopper verified as a guest in this session moves to their account (never to a
+	 * staff account, which the linker refuses).
 	 *
 	 * @param mixed $user_login Login name.
 	 * @param mixed $user       User.
@@ -294,6 +295,10 @@ final class Module {
 		}
 
 		$this->guests->forget( $session_id );
-		$this->linker->store( ShopperContext::resolve( (int) $user->ID, $session_id, $this->guests ), $link );
+		try {
+			$this->linker->store( ShopperContext::resolve( (int) $user->ID, $session_id, $this->guests ), $link );
+		} catch ( LinkException $exception ) {
+			unset( $exception ); // A staff account: the linker logged the refusal.
+		}
 	}
 }

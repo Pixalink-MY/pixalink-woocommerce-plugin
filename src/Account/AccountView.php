@@ -13,7 +13,9 @@ use Pixalink\Loyalty\Fields\PhoneCountries;
 use Pixalink\Loyalty\Fields\PhoneNormalizer;
 use Pixalink\Loyalty\Identity\CustomerLinker;
 use Pixalink\Loyalty\Identity\GuestLinkStore;
+use Pixalink\Loyalty\Identity\LinkException;
 use Pixalink\Loyalty\Identity\ShopperContext;
+use Pixalink\Loyalty\Identity\SsoLanding;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Support\Options;
 
@@ -24,7 +26,9 @@ defined( 'ABSPATH' ) || exit;
  * `templates/myaccount/loyalty.php` (verified) and `templates/myaccount/link-account.php` (not verified yet). Themes
  * override them under `{theme}/pixalink-loyalty/myaccount/`.
  *
- * Unverified shoppers never see balances: they get the phone form and the one-time code dialog.
+ * Unverified shoppers never see balances: they get the phone form and the one-time code dialog. Staff accounts, which
+ * are never linked, get a notice saying so instead; a guest the portal recognised for this visit is told so above the
+ * login prompt.
  */
 final class AccountView {
 
@@ -108,7 +112,7 @@ final class AccountView {
 	public function render_current(): string {
 		$shopper = ShopperContext::current( $this->guests );
 		if ( ! $shopper->is_logged_in() ) {
-			return $this->login_prompt();
+			return $this->render_recognised_guest() . $this->login_prompt();
 		}
 
 		$user_id = $shopper->user_id();
@@ -127,7 +131,28 @@ final class AccountView {
 			}
 		}
 
+		if ( CustomerLinker::is_staff( $user_id ) ) {
+			return (string) wc_print_notice( ( new LinkException( LinkException::STAFF_ACCOUNT ) )->user_message(), 'notice', array(), true );
+		}
+
 		return $this->link_form( $shopper );
+	}
+
+	/**
+	 * "Recognised for this visit" for a logged-out shopper whose session carries a verified link ('' otherwise).
+	 *
+	 * @return string HTML.
+	 */
+	public function render_recognised_guest(): string {
+		$shopper = ShopperContext::current( $this->guests );
+		if ( $shopper->is_logged_in() || ! $shopper->is_verified() ) {
+			return '';
+		}
+
+		return sprintf(
+			'<p class="pixalink-loyalty-recognised">%s</p>',
+			wp_kses( SsoLanding::recognised_guest_message(), array( 'a' => array( 'href' => array() ) ) )
+		);
 	}
 
 	/**

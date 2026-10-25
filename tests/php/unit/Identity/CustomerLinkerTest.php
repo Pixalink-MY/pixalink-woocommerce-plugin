@@ -47,12 +47,22 @@ final class CustomerLinkerTest extends TestCase {
 
 	private GuestLinkStore $guests;
 
+	/**
+	 * Capabilities of the staff users: user id => capabilities.
+	 *
+	 * @var array<int,list<string>>
+	 */
+	private array $staff = array();
+
 	protected function set_up(): void {
 		parent::set_up();
 
 		$this->fake_pixalink();
 		$this->user_meta = array();
+		$this->staff     = array();
 		$this->guests    = new GuestLinkStore();
+		Functions\when( 'user_can' )->alias( fn ( $user_id, string $capability ): bool => in_array( $capability, $this->staff[ (int) $user_id ] ?? array(), true ) );
+		Functions\when( 'get_userdata' )->justReturn( false );
 		Functions\when( 'get_user_meta' )->alias( fn ( int $user_id, string $key = '', bool $single = false ) => $this->user_meta[ $user_id ][ $key ] ?? '' );
 		Functions\when( 'update_user_meta' )->alias(
 			function ( int $user_id, string $key, $value ): bool {
@@ -139,6 +149,55 @@ final class CustomerLinkerTest extends TestCase {
 		$this->assertSame( ShopperContextInterface::STATE_VERIFIED, ShopperContext::resolve( 17, 'session-17', $this->guests )->state() );
 		$this->assertNull( ( new PendingLinks() )->get( 'user:17' ), 'The pending link is used up.' );
 		$this->assertNull( $this->guests->get( 'session-17' ), 'Logged-in links never live in the session store.' );
+	}
+
+	/**
+	 * Capabilities that make an account staff.
+	 *
+	 * @return array<string,array{0:string}>
+	 */
+	public static function staff_capabilities(): array {
+		return array(
+			'editor or above' => array( 'edit_posts' ),
+			'shop manager'    => array( 'manage_woocommerce' ),
+			'user admin'      => array( 'list_users' ),
+		);
+	}
+
+	/**
+	 * @dataProvider staff_capabilities
+	 *
+	 * @param string $capability Capability the account has.
+	 */
+	public function test_a_staff_account_is_refused_at_every_link_step_before_anything_is_written_or_sent( string $capability ): void {
+		$this->staff[31] = array( $capability );
+		$staff           = ShopperContext::resolve( 31, 'session-31', $this->guests );
+		$link            = new Link( Responses::MEMBER_ID, Responses::MEMBER_PHONE, 'MY', '2026-10-25T03:00:00Z', Link::VIA_SSO_TICKET );
+		Actions\expectDone( 'pixalink_loyalty_shopper_verified' )->never();
+
+		$this->assertTrue( CustomerLinker::is_staff( 31 ) );
+		$this->assertFalse( CustomerLinker::is_staff( 17 ) );
+		$this->assertFalse( CustomerLinker::is_staff( 0 ), 'A guest is nobody\'s staff.' );
+
+		$steps = array(
+			'start'         => fn () => $this->linker()->start( $staff, $this->member_phone(), self::profile() ),
+			'store'         => fn () => $this->linker()->store( $staff, $link ),
+			'redeem_ticket' => fn () => $this->linker()->redeem_ticket( Responses::SSO_TICKET_MEMBER . 'abc123', 31 ),
+		);
+		foreach ( $steps as $step => $call ) {
+			try {
+				$call();
+				$this->fail( 'Expected a LinkException from ' . $step );
+			} catch ( LinkException $exception ) {
+				$this->assertSame( LinkException::STAFF_ACCOUNT, $exception->reason(), $step );
+				$this->assertSame( 403, $exception->http_status() );
+				$this->assertSame( "You're signed in to this store as staff, so a Pixalink membership can't be connected to this account. Log out to shop as a member.", $exception->user_message() );
+			}
+		}
+
+		$this->assertSame( array(), $this->user_meta, 'Nothing is written on the staff account.' );
+		$this->assertSame( array(), $this->http_requests, 'Pixalink never hears the staff account id.' );
+		$this->assertNull( ( new PendingLinks() )->get( 'user:31' ) );
 	}
 
 	public function test_a_guest_link_lives_in_the_session_store_only(): void {

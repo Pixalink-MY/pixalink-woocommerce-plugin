@@ -29,6 +29,7 @@ final class LinkException extends \RuntimeException {
 	public const TICKET_INVALID        = 'ticket_invalid';
 	public const INVALID_PHONE         = 'invalid_phone';
 	public const UNAVAILABLE           = 'unavailable';
+	public const STAFF_ACCOUNT         = 'staff_account';
 
 	private const STATUSES = array(
 		self::NOT_CONNECTED         => 503,
@@ -41,6 +42,7 @@ final class LinkException extends \RuntimeException {
 		self::TICKET_INVALID        => 410,
 		self::INVALID_PHONE         => 400,
 		self::UNAVAILABLE           => 503,
+		self::STAFF_ACCOUNT         => 403,
 	);
 
 	/**
@@ -146,6 +148,7 @@ final class LinkException extends \RuntimeException {
 			self::OTP_ATTEMPTS_EXCEEDED => __( 'Too many wrong codes. Ask for a new one.', 'pixalink-loyalty-for-woocommerce' ),
 			self::TICKET_INVALID => __( 'This sign-in link has expired or was already used. Open the store from your loyalty app again, or verify your phone number here.', 'pixalink-loyalty-for-woocommerce' ),
 			self::INVALID_PHONE => __( 'Enter a valid phone number.', 'pixalink-loyalty-for-woocommerce' ),
+			self::STAFF_ACCOUNT => __( 'You\'re signed in to this store as staff, so a Pixalink membership can\'t be connected to this account. Log out to shop as a member.', 'pixalink-loyalty-for-woocommerce' ),
 			default => __( 'Something went wrong. Please try again.', 'pixalink-loyalty-for-woocommerce' ),
 		};
 	}

@@ -19,12 +19,14 @@ use Pixalink\Loyalty\Tests\FakeServer\Server;
 use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 
 /**
- * `?pixalink_sso=` from the Pixalink portal: redeemed once, signs shoppers in (never staff), links accounts, and the
- * redirect target never carries the ticket.
+ * `?pixalink_sso=` from the Pixalink portal: redeemed once, signs shoppers in (never staff), links accounts (never
+ * staff ones), tells recognised guests they earn on this visit, and the redirect target never carries the ticket.
  *
  * @covers \Pixalink\Loyalty\Identity\SsoLanding
  * @covers \Pixalink\Loyalty\Identity\CustomerLinker::redeem_ticket
+ * @covers \Pixalink\Loyalty\Identity\CustomerLinker::is_staff
  * @covers \Pixalink\Loyalty\Identity\Module::on_shopper_verified
+ * @covers \Pixalink\Loyalty\Identity\Module::on_login
  */
 final class SsoLandingTest extends \WP_UnitTestCase {
 
@@ -113,9 +115,13 @@ final class SsoLandingTest extends \WP_UnitTestCase {
 		$this->assertNotSame( '', get_user_meta( $user->ID, UserMeta::PHONE_VERIFIED_AT, true ) );
 		$this->assertSame( 'Portal', get_user_meta( $user->ID, 'first_name', true ) );
 		$this->assertContains( 'customer.upserted', $this->outbox_types(), 'The link is reported with the WordPress user id.' );
+		$this->assertStringNotContainsString( 'for this visit', self::notices(), 'A signed-in member is no guest.' );
 	}
 
-	public function test_without_an_email_the_member_stays_a_verified_guest(): void {
+	public function test_without_an_email_the_member_stays_a_verified_guest_and_is_told_so(): void {
+		$account_page = self::factory()->post->create( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'My account' ) );
+		update_option( 'woocommerce_myaccount_page_id', $account_page );
+
 		$this->landing()->handle( Responses::SSO_TICKET_NO_EMAIL . 'abc1', '/?pixalink_sso=' . Responses::SSO_TICKET_NO_EMAIL . 'abc1' );
 
 		$this->assertSame( 0, get_current_user_id() );
@@ -123,6 +129,166 @@ final class SsoLandingTest extends \WP_UnitTestCase {
 		$this->assertNotSame( '', $session_id );
 		$this->assertSame( Responses::NEW_CUSTOMER_ID, ( new GuestLinkStore() )->get( $session_id )?->customer_id );
 		$this->assertSame( ShopperContextInterface::STATE_VERIFIED, Plugin::instance()->shopper()->state() );
+
+		$notices = self::notices();
+		$this->assertStringContainsString( "We've recognised your Pixalink membership for this visit, so you'll earn points on your order.", $notices );
+		$this->assertStringContainsString( 'href="' . esc_url( (string) get_permalink( $account_page ) ) . '">Create an account</a> to see your balance here.', $notices, 'My Account registration is on.' );
+	}
+
+	public function test_a_recognised_guest_who_then_logs_in_as_staff_does_not_link_the_staff_account(): void {
+		$this->landing()->handle( Responses::SSO_TICKET_NO_EMAIL . 'abc1', '/?pixalink_sso=x' );
+		$staff = get_userdata( $this->make_user( 'staff@example.com', 'shop_manager' ) );
+
+		do_action( 'wp_login', $staff->user_login, $staff );
+
+		$this->assertSame( '', get_user_meta( $staff->ID, UserMeta::CUSTOMER_ID, true ) );
+	}
+
+	public function test_a_guest_the_store_cannot_register_is_told_they_were_recognised_without_an_account_sentence(): void {
+		update_option( 'woocommerce_enable_myaccount_registration', 'no' );
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'no' );
+
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'abc123', '/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertFalse( email_exists( Responses::MEMBER_EMAIL ), 'No account was created.' );
+		$this->assertSame( Responses::MEMBER_ID, ( new GuestLinkStore() )->get( ShopperContext::current_session_id() )?->customer_id );
+		$notices = self::notices();
+		$this->assertStringContainsString( "Welcome back! We've recognised your Pixalink membership for this visit, so you'll earn points on your order.", $notices );
+		$this->assertStringNotContainsStringIgnoringCase( 'create an account', $notices );
+	}
+
+	public function test_a_guest_without_an_email_is_pointed_to_checkout_when_only_checkout_sign_up_is_on(): void {
+		// With an e-mail, checkout sign-up alone already lets the landing create the account; without one it cannot.
+		update_option( 'woocommerce_enable_myaccount_registration', 'no' );
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'yes' );
+
+		$this->landing()->handle( Responses::SSO_TICKET_NO_EMAIL . 'abc1', '/?pixalink_sso=x' );
+
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertSame( Responses::NEW_CUSTOMER_ID, ( new GuestLinkStore() )->get( ShopperContext::current_session_id() )?->customer_id );
+		$this->assertStringContainsString( 'recognised your Pixalink membership for this visit, so you\'ll earn points on your order. Create an account at checkout to see your balance here.', self::notices() );
+	}
+
+	/**
+	 * Accounts that can do more than shop.
+	 *
+	 * @return array<string,array{0:string}>
+	 */
+	public static function staff_roles(): array {
+		return array(
+			'administrator' => array( 'administrator' ),
+			'shop manager'  => array( 'shop_manager' ),
+			'editor'        => array( 'editor' ),
+		);
+	}
+
+	/**
+	 * @dataProvider staff_roles
+	 *
+	 * @param string $role Role of the signed-in account.
+	 */
+	public function test_a_signed_in_staff_account_is_refused_and_the_ticket_is_spent_without_its_account_id( string $role ): void {
+		$account_page = self::factory()->post->create( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'My account' ) );
+		update_option( 'woocommerce_myaccount_page_id', $account_page );
+		$staff_id = $this->make_user( 'staff@example.com', $role );
+		wp_set_current_user( $staff_id );
+		$refused = $this->record_refusals();
+
+		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'staff01', '/?pixalink_sso=x' );
+
+		foreach ( UserMeta::KEYS as $key ) {
+			$this->assertSame( '', get_user_meta( $staff_id, $key, true ), $key . ' stays empty on the staff account.' );
+		}
+		$this->assertFalse( get_transient( 'pixalink_loyalty_sso_pending_' . $staff_id ), 'No ticket waits for a confirmation.' );
+		$this->assertStringNotContainsString( 'Link my account', self::notices() );
+		$this->assertSame( $staff_id, get_current_user_id(), 'Nobody else is signed in.' );
+		$this->assertNull( ( new GuestLinkStore() )->get( ShopperContext::current_session_id() ) );
+		$this->assertStringContainsString( "You're signed in to this store as staff, so we didn't connect your Pixalink membership to this account. Log out and open the link again to shop as a member.", self::notices() );
+		$this->assertSame( array( array( $staff_id, Responses::MEMBER_ID ) ), $refused->calls );
+
+		// Spent once, and without the account id, so Pixalink links nothing to the staff account either.
+		$recorded = Server::recorded();
+		$this->assertCount( 1, $recorded );
+		$this->assertSame( 'customers', $recorded[0]['path'] );
+		$this->assertSame( 'sso_ticket', $recorded[0]['body']['verified_via'] );
+		$this->assertNull( $recorded[0]['body']['external_id'] );
+
+		$this->assertSame( get_permalink( $account_page ), $target, 'The home page prints no notices, so the shopper lands on My Account.' );
+	}
+
+	public function test_a_staff_account_already_linked_is_not_refreshed_by_a_ticket(): void {
+		$admin_id = $this->make_user( 'staff@example.com', 'administrator' );
+		$this->link_member( $admin_id );
+		wp_set_current_user( $admin_id );
+
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'staff02', '/?pixalink_sso=x' );
+
+		$this->assertSame( Link::VIA_OTP, get_user_meta( $admin_id, UserMeta::LINKED_VIA, true ), 'The link is left as it was.' );
+		$this->assertNull( Server::recorded()[0]['body']['external_id'] );
+		$this->assertStringContainsString( 'signed in to this store as staff', self::notices() );
+	}
+
+	public function test_a_refused_staff_account_stays_on_a_page_that_prints_notices(): void {
+		foreach ( array( 'cart', 'myaccount' ) as $page ) {
+			update_option( 'woocommerce_' . $page . '_page_id', self::factory()->post->create( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $page ) ) );
+		}
+		$this->go_to( (string) get_permalink( wc_get_page_id( 'cart' ) ) );
+		wp_set_current_user( $this->make_user( 'staff@example.com', 'administrator' ) );
+
+		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'staff03', '/cart/?pixalink_sso=x' );
+
+		$this->assertSame( home_url( '/cart/' ), $target );
+	}
+
+	public function test_a_confirmation_from_an_account_that_became_staff_is_refused(): void {
+		$user_id = $this->make_user( 'shopper@example.com' );
+		wp_set_current_user( $user_id );
+		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'abc123', '/cart/?pixalink_sso=x' );
+		$nonce = $this->confirmation_nonce( $this->confirmation_url() );
+		( new \WP_User( $user_id ) )->set_role( 'administrator' );
+		wc_clear_notices();
+		$refused = $this->record_refusals();
+
+		$this->landing()->confirm( $nonce, '/cart/?' . SsoLanding::CONFIRM_PARAM . '=x' );
+
+		$this->assertSame( '', get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ) );
+		$this->assertFalse( get_transient( 'pixalink_loyalty_sso_pending_' . $user_id ), 'The parked ticket is gone.' );
+		$this->assertStringContainsString( 'signed in to this store as staff', self::notices() );
+		$this->assertSame( array( array( $user_id, Responses::MEMBER_ID ) ), $refused->calls );
+		$this->assertNull( Server::recorded()[0]['body']['external_id'] );
+	}
+
+	/**
+	 * Notices queued for the next page.
+	 *
+	 * @return string
+	 */
+	private static function notices(): string {
+		return implode( ' ', array_column( wc_get_notices( 'notice' ), 'notice' ) );
+	}
+
+	/**
+	 * Record each `pixalink_loyalty_sso_refused_staff` as [user id, customer id].
+	 *
+	 * @return object{calls: list<array{0:mixed,1:mixed}>}
+	 */
+	private function record_refusals(): object {
+		$recorder = new class() {
+			/**
+			 * Calls.
+			 *
+			 * @var list<array{0:mixed,1:mixed}>
+			 */
+			public array $calls = array();
+
+			public function record( $user_id, $customer ): void {
+				$this->calls[] = array( $user_id, is_array( $customer ) ? ( $customer['id'] ?? null ) : $customer );
+			}
+		};
+		add_action( 'pixalink_loyalty_sso_refused_staff', array( $recorder, 'record' ), 10, 2 );
+
+		return $recorder;
 	}
 
 	public function test_staff_accounts_are_never_signed_in_by_a_ticket(): void {
