@@ -174,6 +174,7 @@ final class SettingsPage extends \WC_Settings_Page {
 			),
 			self::checkbox( Options::ACCOUNT_DASHBOARD_CARD, __( 'Dashboard summary', 'pixalink-loyalty-for-woocommerce' ), __( 'Show loyalty summary on the My Account dashboard', 'pixalink-loyalty-for-woocommerce' ) ),
 			self::checkbox( Options::ACCOUNT_SHOW_QR, __( 'Member QR code', 'pixalink-loyalty-for-woocommerce' ), __( 'Show a QR code members can scan at your outlets', 'pixalink-loyalty-for-woocommerce' ) ),
+			self::checkbox( Options::PORTAL_BRANDING, __( 'Match your member portal', 'pixalink-loyalty-for-woocommerce' ), __( 'Use the logo and colours from your Pixalink member portal on My Account and checkout. Turn off to use your theme\'s colours.', 'pixalink-loyalty-for-woocommerce' ) ),
 			array(
 				'type' => 'sectionend',
 				'id'   => 'pixalink_loyalty_account_section',

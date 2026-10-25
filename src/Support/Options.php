@@ -68,6 +68,11 @@ final class Options {
 	public const ACCOUNT_DASHBOARD_CARD = 'pixalink_loyalty_account_dashboard_card';
 	public const ACCOUNT_SHOW_QR        = 'pixalink_loyalty_account_show_qr';
 
+	/**
+	 * "yes" while My Account and checkout use the logo and colours of the merchant's Pixalink member portal.
+	 */
+	public const PORTAL_BRANDING = 'pixalink_loyalty_portal_branding';
+
 	// Advanced section.
 	public const DEBUG_LOGGING = 'pixalink_loyalty_debug_logging';
 
@@ -165,6 +170,7 @@ final class Options {
 			self::ACCOUNT_TAB_TITLE         => $frontend( '' ),
 			self::ACCOUNT_DASHBOARD_CARD    => $frontend( 'yes' ),
 			self::ACCOUNT_SHOW_QR           => $frontend( 'yes' ),
+			self::PORTAL_BRANDING           => $frontend( 'yes' ),
 			self::DEBUG_LOGGING             => array(
 				'default'  => 'no',
 				'autoload' => true,
