@@ -204,6 +204,28 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 		$this->assertStringContainsString( 'did not undo deleted refund', implode( "\n", $this->notes_of( $order ) ), 'The fake server answers "ignored".' );
 	}
 
+	public function test_deleting_a_reported_refund_after_its_event_was_pruned_still_records_refund_deleted(): void {
+		$order = $this->create_order();
+		$order->payment_complete();
+		$refund = wc_create_refund(
+			array(
+				'order_id' => $order->get_id(),
+				'amount'   => '5.00',
+			)
+		);
+		$this->assertInstanceOf( \WC_Order_Refund::class, $refund );
+		$refund_id = $refund->get_id();
+		$this->deliver_all( $order );
+		( new Pruner( Plugin::instance()->events()->repository(), static fn (): int => time() + 31 * DAY_IN_SECONDS ) )->prune();
+		$this->assertSame( array(), $this->events_of( $order ) );
+
+		$refund->delete( true );
+		do_action( 'woocommerce_refund_deleted', $refund_id, $order->get_id() );
+
+		$this->assertSame( array( 'order.refund_deleted' ), $this->event_types_of( $order ) );
+		$this->assertSame( $refund_id, $this->events_of( $order )[0]->payload['refund_id'] );
+	}
+
 	public function test_refund_deleted_is_skipped_for_refunds_pixalink_never_saw(): void {
 		$order = $this->create_order();
 		$order->payment_complete();

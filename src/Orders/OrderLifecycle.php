@@ -199,9 +199,10 @@ final class OrderLifecycle {
 			return;
 		}
 
-		// Only refunds Pixalink heard about need an undo.
-		$refunded = $this->events->find_by_uuid( EventQueue::event_uuid( EventType::ORDER_REFUNDED, EventQueue::site_url(), (string) $order->get_order_key(), (string) (int) $refund_id ) );
-		if ( null === $refunded ) {
+		// Only refunds Pixalink heard about need an undo; the order remembers them once their rows are pruned.
+		$reported = in_array( (int) $refund_id, self::reported_refunds( $order ), true )
+			|| null !== $this->events->find_by_uuid( EventQueue::event_uuid( EventType::ORDER_REFUNDED, EventQueue::site_url(), (string) $order->get_order_key(), (string) (int) $refund_id ) );
+		if ( ! $reported ) {
 			return;
 		}
 
@@ -623,6 +624,10 @@ final class OrderLifecycle {
 			$meta[ OrderMeta::EARN_STATE ] = $stored['created'] ? OrderMeta::EARN_QUEUED : $this->earn_state_of( $stored['id'] );
 		}
 
+		if ( EventType::ORDER_REFUNDED === $type && $stored['created'] && (int) $discriminator > 0 ) {
+			$meta[ OrderMeta::REPORTED_REFUNDS ] = array_values( array_unique( array_merge( self::reported_refunds( $order ), array( (int) $discriminator ) ) ) );
+		}
+
 		if ( array() !== $meta ) {
 			OrderMeta::update( $order, $meta );
 		}
@@ -660,6 +665,18 @@ final class OrderLifecycle {
 		}
 
 		return 1;
+	}
+
+	/**
+	 * Refund ids `order.refunded` was recorded for.
+	 *
+	 * @param \WC_Order $order Order.
+	 * @return list<int>
+	 */
+	private static function reported_refunds( \WC_Order $order ): array {
+		$ids = OrderMeta::get( $order, OrderMeta::REPORTED_REFUNDS );
+
+		return is_array( $ids ) ? array_values( array_filter( array_map( 'intval', $ids ), static fn ( int $id ): bool => $id > 0 ) ) : array();
 	}
 
 	/**
