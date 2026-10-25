@@ -1,46 +1,845 @@
 /**
- * My Account: the loyalty card on the dashboard.
+ * My Account: the Loyalty tab, the dashboard card and the phone verification form.
  *
- * Colours inherit from the theme; only spacing, the border and the progress bar width are set here. Logical
- * properties keep the layout correct in right-to-left languages.
+ * Colours come from custom properties on the plugin's own wrappers. With "Match your member portal" on, an inline rule
+ * printed after this file sets them to the merchant's portal colours; otherwise they fall back to the theme (its
+ * contrast/base presets, then its text colour). Theme developers can override them on the same wrappers:
+ *
+ *   --pxl-primary     brand fill (member card, buttons)
+ *   --pxl-on-primary  text on the brand fill
+ *   --pxl-ink         brand colour as text or outline on white
+ *   --pxl-accent      secondary colour, tints only (never text)
+ *   --pxl-tier        the member's tier colour (set on the tier badge)
+ *
+ * Cards and lists set their own white surface and dark text, so a dark theme cannot make them unreadable. Logical
+ * properties keep the layout correct in right-to-left languages; the one animation stops for reduced motion.
  */
 
-.pixalink-loyalty-dashboard-card {
-	--pixalink-loyalty-border: rgba(0, 0, 0, 0.12);
-	--pixalink-loyalty-muted: rgba(0, 0, 0, 0.62);
-	margin-block: 1.5em;
-	padding-block: 1em;
-	padding-inline: 1.25em;
-	border: 1px solid var(--pixalink-loyalty-border);
-	border-radius: 4px;
+.pixalink-loyalty-account,
+.pixalink-loyalty-dashboard-card,
+.pixalink-loyalty-link {
+	--pxl-primary: var(--wp--preset--color--contrast, #2b2f33);
+	--pxl-on-primary: var(--wp--preset--color--base, #fff);
+	--pxl-ink: currentColor;
+	--pxl-accent: currentColor;
+	--pxl-tier: currentColor;
+	--pxl-surface: #fff;
+	--pxl-text: #1f2328;
+	--pxl-muted: #59606a;
+	--pxl-line: #e2e5e9;
+	--pxl-gain: #137333;
+	--pxl-radius: 0.75rem;
+	font-size: 1rem;
+	line-height: 1.5;
 }
 
-.pixalink-loyalty-dashboard-card__title {
-	margin-block: 0 0.5em;
-	font-size: 1.1em;
+/* Member card ------------------------------------------------------------------------------------------------ */
+
+.pixalink-loyalty-card {
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	margin: 0 0 2.25rem;
+	padding: 1.25rem;
+	overflow: hidden;
+	border-radius: 1.25rem;
+	background-color: var(--pxl-primary);
+	color: var(--pxl-on-primary);
+	box-shadow:
+		0 1px 2px rgba(0, 0, 0, 0.12),
+		0 20px 40px -24px color-mix(in srgb, var(--pxl-primary) 70%, #000);
+	line-height: 1.4;
 }
 
-.pixalink-loyalty-dashboard-card p {
-	margin-block: 0 0.5em;
+/* The embossed ring of a plastic membership card. */
+.pixalink-loyalty-card::before {
+	content: "";
+	position: absolute;
+	z-index: -1;
+	inset-block-start: -7.5rem;
+	inset-inline-end: -6.5rem;
+	inline-size: 16rem;
+	aspect-ratio: 1;
+	border: 2.5rem solid color-mix(in srgb, var(--pxl-on-primary) 8%, transparent);
+	border-radius: 50%;
+	outline: 1px solid color-mix(in srgb, var(--pxl-on-primary) 14%, transparent);
+	outline-offset: 1.5rem;
+	pointer-events: none;
 }
 
-.pixalink-loyalty-dashboard-card__points-value {
-	font-size: 1.5em;
+.pixalink-loyalty-card p {
+	margin: 0;
 }
 
-.pixalink-loyalty-dashboard-card__expiring,
-.pixalink-loyalty-dashboard-card__next-tier {
-	color: var(--pixalink-loyalty-muted);
-	font-size: 0.875em;
+.pixalink-loyalty-card__top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	min-block-size: 2.25rem;
 }
 
-.pixalink-loyalty-dashboard-card__progress {
+/* Logos are drawn for light backgrounds: a white tile keeps any logo legible on any brand colour. */
+.pixalink-loyalty-card__logo {
+	display: inline-flex;
+	padding: 0.3rem 0.5rem;
+	border-radius: 0.5rem;
+	background: #fff;
+}
+
+.pixalink-loyalty-card__logo img {
+	display: block;
+	block-size: 1.75rem;
+	inline-size: auto;
+	max-inline-size: 8.5rem;
+	object-fit: contain;
+}
+
+.pixalink-loyalty-card__store {
+	min-inline-size: 0;
+	overflow: hidden;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pixalink-loyalty-tier {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: 0.45rem;
+	padding-block: 0.3rem;
+	padding-inline: 0.6rem 0.75rem;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--pxl-on-primary) 15%, transparent);
+	font-size: 0.8125rem;
+	font-weight: 600;
+	line-height: 1.2;
+	white-space: nowrap;
+}
+
+.pixalink-loyalty-tier__dot {
+	inline-size: 0.6rem;
+	block-size: 0.6rem;
+	border-radius: 50%;
+	background: var(--pxl-tier);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--pxl-on-primary) 40%, transparent);
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__balance {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 0.5rem;
+	margin-block-start: 0.75rem;
+}
+
+.pixalink-loyalty-card__points {
+	font-size: clamp(2.75rem, 2rem + 4vw, 3.75rem);
+	font-weight: 700;
+	font-variant-numeric: lining-nums tabular-nums;
+	letter-spacing: -0.03em;
+	line-height: 0.95;
+}
+
+.pixalink-loyalty-card__unit {
+	font-size: 1rem;
+	font-weight: 500;
+	opacity: 0.88;
+}
+
+.pixalink-loyalty-card__details {
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+	margin-block-start: -0.5rem;
+}
+
+.pixalink-loyalty-card__credits {
+	font-size: 1rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.pixalink-loyalty-card__expiring,
+.pixalink-loyalty-card__vouchers {
+	font-size: 0.875rem;
+	opacity: 0.88;
+}
+
+.pixalink-loyalty-progress {
+	block-size: 0.375rem;
+	overflow: hidden;
+	border-radius: 999px;
+	background: color-mix(in srgb, var(--pxl-on-primary) 24%, transparent);
+}
+
+.pixalink-loyalty-progress__bar {
+	display: block;
+	block-size: 100%;
+	max-inline-size: 100%;
+	border-radius: inherit;
+	background: var(--pxl-on-primary);
+	animation: pixalink-loyalty-grow 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) 0.2s both;
+}
+
+@keyframes pixalink-loyalty-grow {
+	from {
+		inline-size: 0;
+	}
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-progress__label {
+	margin-block-start: 0.5rem;
+	font-size: 0.8125rem;
+	opacity: 0.92;
+}
+
+.pixalink-loyalty-card__footer {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 0.75rem;
+	padding-block-start: 1rem;
+	border-block-start: 1px solid color-mix(in srgb, var(--pxl-on-primary) 20%, transparent);
+}
+
+.pixalink-loyalty-card__member {
+	min-inline-size: 0;
+	overflow: hidden;
+	font-size: 0.9375rem;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__toggle {
+	min-block-size: 0;
+	margin: 0;
+	padding: 0.45rem 0.95rem;
+	border: 1px solid color-mix(in srgb, var(--pxl-on-primary) 55%, transparent);
+	border-radius: 999px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--pxl-on-primary);
+	font: inherit;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: normal;
+	line-height: 1.2;
+	text-transform: none;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__toggle:hover {
+	background: color-mix(in srgb, var(--pxl-on-primary) 12%, transparent);
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__toggle[hidden] {
+	display: none;
+}
+
+.pixalink-loyalty-card :focus-visible {
+	outline: 2px solid var(--pxl-on-primary);
+	outline-offset: 2px;
+}
+
+.pixalink-loyalty-card__code {
+	display: grid;
+	justify-items: center;
+	gap: 0.5rem;
+	padding: 1rem;
+	border-radius: 0.875rem;
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+	text-align: center;
+}
+
+.pixalink-loyalty-card__code[hidden] {
+	display: none;
+}
+
+.pixalink-loyalty-card__code .pixalink-loyalty-qr {
+	inline-size: min(100%, 12.5rem);
+}
+
+.pixalink-loyalty-card__code .pixalink-loyalty-qr svg {
 	display: block;
 	inline-size: 100%;
-	max-inline-size: 20em;
-	margin-block: 0 0.75em;
+	block-size: auto;
 }
 
-.pixalink-loyalty-dashboard-card p.pixalink-loyalty-dashboard-card__action {
-	margin-block: 0.75em 0;
+.pixalink-loyalty-qr__fallback {
+	font-size: 1.125rem;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.04em;
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__code-hint {
+	max-inline-size: 22rem;
+	color: var(--pxl-muted);
+	font-size: 0.8125rem;
+}
+
+/* Sections --------------------------------------------------------------------------------------------------- */
+
+.pixalink-loyalty-section {
+	margin: 0 0 2rem;
+}
+
+.pixalink-loyalty-section__head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.25rem 1rem;
+	margin-block-end: 0.75rem;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-section__title {
+	margin: 0;
+	font-size: 1.125rem;
+	font-weight: 650;
+	letter-spacing: normal;
+	line-height: 1.3;
+}
+
+.pixalink-loyalty-section__link,
+.pixalink-loyalty-actions__link {
+	font-size: 0.875rem;
+	font-weight: 600;
+	text-underline-offset: 0.2em;
+}
+
+/* Vouchers: tickets with a tinted stub, torn along a perforation. */
+
+.pixalink-loyalty-account .pixalink-loyalty-account__vouchers {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+	gap: 0.75rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pixalink-loyalty-account__voucher {
+	display: flex;
+	margin: 0;
+	overflow: hidden;
+	border: 1px solid var(--pxl-line);
+	border-radius: var(--pxl-radius);
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+}
+
+.pixalink-loyalty-account__voucher-media {
+	display: grid;
+	flex: 0 0 4.75rem;
+	place-items: center;
+	border-inline-end: 2px dashed color-mix(in srgb, var(--pxl-accent) 45%, var(--pxl-surface));
+	background: color-mix(in srgb, var(--pxl-accent) 16%, var(--pxl-surface));
+	color: var(--pxl-ink);
+}
+
+.pixalink-loyalty-account__voucher-media img {
+	display: block;
+	inline-size: 100%;
+	block-size: 100%;
+	object-fit: cover;
+}
+
+.pixalink-loyalty-account__voucher-glyph {
+	inline-size: 2.25rem;
+	block-size: auto;
+	opacity: 0.7;
+}
+
+.pixalink-loyalty-account__voucher-body {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.125rem;
+	min-inline-size: 0;
+	padding: 0.875rem 1rem;
+}
+
+.pixalink-loyalty-account__voucher-title {
+	font-size: 1rem;
+	font-weight: 650;
+	line-height: 1.3;
+}
+
+.pixalink-loyalty-account__voucher-description {
+	display: -webkit-box;
+	overflow: hidden;
+	color: var(--pxl-muted);
+	font-size: 0.875rem;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.pixalink-loyalty-account__voucher-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.5rem;
+	margin-block-start: auto;
+	padding-block-start: 0.375rem;
+	color: var(--pxl-muted);
+	font-size: 0.8125rem;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.65rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 650;
+	line-height: 1.3;
+	text-decoration: none;
+	white-space: nowrap;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-chip--online {
+	background: color-mix(in srgb, var(--pxl-ink) 10%, var(--pxl-surface));
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pxl-ink) 28%, var(--pxl-surface));
+	color: var(--pxl-ink);
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-chip--online:hover {
+	background: color-mix(in srgb, var(--pxl-ink) 17%, var(--pxl-surface));
+	color: var(--pxl-ink);
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-chip--online:focus-visible {
+	outline: 2px solid var(--pxl-ink);
+	outline-offset: 2px;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-chip--store {
+	background: #f0f2f4;
+	color: var(--pxl-muted);
+}
+
+/* Lists (memberships, activity) */
+
+.pixalink-loyalty-account .pixalink-loyalty-list {
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--pxl-line);
+	border-radius: var(--pxl-radius);
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+	list-style: none;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-list__row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin: 0;
+	padding: 0.75rem 1rem;
+}
+
+.pixalink-loyalty-list__row + .pixalink-loyalty-list__row {
+	border-block-start: 1px solid var(--pxl-line);
+}
+
+.pixalink-loyalty-list__main {
+	display: flex;
+	flex-direction: column;
+	min-inline-size: 0;
+}
+
+.pixalink-loyalty-list__title {
+	font-size: 1rem;
+	font-weight: 500;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+strong.pixalink-loyalty-list__title {
+	font-weight: 650;
+}
+
+.pixalink-loyalty-list__meta {
+	color: var(--pxl-muted);
+	font-size: 0.8125rem;
+}
+
+.pixalink-loyalty-list__points {
+	flex: 0 0 auto;
+	font-size: 1rem;
+	font-variant-numeric: tabular-nums;
+	font-weight: 650;
+	white-space: nowrap;
+}
+
+.pixalink-loyalty-list__points.is-gain {
+	color: var(--pxl-gain);
+}
+
+.pixalink-loyalty-status {
+	flex: 0 0 auto;
+	padding: 0.2rem 0.6rem;
+	border-radius: 999px;
+	background: #f0f2f4;
+	color: var(--pxl-muted);
+	font-size: 0.75rem;
+	font-weight: 650;
+}
+
+.pixalink-loyalty-status.is-active {
+	background: #e7f4ea;
+	color: #146c32;
+}
+
+/* Empty states read as an invitation, not as a missing box. */
+.pixalink-loyalty-empty {
+	padding: 1.125rem 1.25rem;
+	border: 1px dashed #cdd2d8;
+	border-radius: var(--pxl-radius);
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-empty p {
+	margin: 0;
+}
+
+.pixalink-loyalty-empty__title {
+	font-weight: 650;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-empty__text {
+	margin-block-start: 0.25rem;
+	color: var(--pxl-muted);
+	font-size: 0.875rem;
+}
+
+/* Portal buttons */
+
+.pixalink-loyalty-account .pixalink-loyalty-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.25rem;
+	margin: 0;
+}
+
+.pixalink-loyalty-account .pixalink-loyalty-account__notice {
+	margin: 0;
+}
+
+/* Brand buttons (theme buttons are left alone while the portal colours are off) ------------------------------- */
+
+.pixalink-loyalty-account.is-branded .pixalink-loyalty-button,
+.pixalink-loyalty-dashboard-card.is-branded .pixalink-loyalty-button,
+.pixalink-loyalty-link.is-branded .pixalink-loyalty-button {
+	padding: 0.75em 1.5em;
+	border: 1px solid var(--pxl-primary);
+	border-radius: 999px;
+	background-color: var(--pxl-primary);
+	color: var(--pxl-on-primary);
+	font-size: 0.9375rem;
+	font-weight: 600;
+	line-height: 1.2;
+	text-decoration: none;
+}
+
+.pixalink-loyalty-account.is-branded .pixalink-loyalty-button:hover,
+.pixalink-loyalty-dashboard-card.is-branded .pixalink-loyalty-button:hover,
+.pixalink-loyalty-link.is-branded .pixalink-loyalty-button:hover {
+	border-color: color-mix(in srgb, var(--pxl-primary) 86%, #000);
+	background-color: color-mix(in srgb, var(--pxl-primary) 86%, #000);
+	color: var(--pxl-on-primary);
+}
+
+.pixalink-loyalty-account.is-branded .pixalink-loyalty-button:focus-visible,
+.pixalink-loyalty-dashboard-card.is-branded .pixalink-loyalty-button:focus-visible,
+.pixalink-loyalty-link.is-branded .pixalink-loyalty-button:focus-visible {
+	outline: 2px solid var(--pxl-primary);
+	outline-offset: 2px;
+}
+
+/* Dashboard card -------------------------------------------------------------------------------------------- */
+
+.pixalink-loyalty-dashboard-card {
+	margin-block: 1.75rem;
+}
+
+.pixalink-loyalty-dashboard-card .pixalink-loyalty-dashboard-card__title {
+	margin: 0 0 0.75rem;
+	font-size: 1.125rem;
+	font-weight: 650;
+	letter-spacing: normal;
+	line-height: 1.3;
+}
+
+.pixalink-loyalty-card--compact {
+	gap: 0.875rem;
+	max-inline-size: 32rem;
+	margin: 0;
+	padding: 1.125rem 1.25rem;
+}
+
+.pixalink-loyalty-card--compact .pixalink-loyalty-card__balance {
+	margin-block-start: 0.25rem;
+}
+
+.pixalink-loyalty-card--compact .pixalink-loyalty-card__points {
+	font-size: clamp(2.25rem, 1.8rem + 2.5vw, 2.75rem);
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-block-start: 0.25rem;
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__button {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.55rem 1.05rem;
+	border-radius: 999px;
+	background: var(--pxl-on-primary);
+	color: var(--pxl-primary);
+	font-size: 0.875rem;
+	font-weight: 650;
+	line-height: 1.2;
+	text-decoration: none;
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__button:hover {
+	background: color-mix(in srgb, var(--pxl-on-primary) 88%, var(--pxl-primary));
+	color: var(--pxl-primary);
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__button--quiet,
+.pixalink-loyalty-card .pixalink-loyalty-card__button--quiet:hover {
+	background: transparent;
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pxl-on-primary) 55%, transparent);
+	color: var(--pxl-on-primary);
+}
+
+.pixalink-loyalty-card .pixalink-loyalty-card__button--quiet:hover {
+	background: color-mix(in srgb, var(--pxl-on-primary) 12%, transparent);
+}
+
+.pixalink-loyalty-dashboard-card__invite {
+	max-inline-size: 32rem;
+	padding: 1.125rem 1.25rem;
+	border: 1px solid var(--pxl-line);
+	border-radius: var(--pxl-radius);
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+}
+
+.pixalink-loyalty-dashboard-card .pixalink-loyalty-dashboard-card__prompt {
+	margin: 0 0 0.875rem;
+}
+
+.pixalink-loyalty-dashboard-card .pixalink-loyalty-dashboard-card__invite .pixalink-loyalty-dashboard-card__action {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.25rem;
+	margin: 0;
+}
+
+.pixalink-loyalty-dashboard-card__portal {
+	color: var(--pxl-ink);
+	font-size: 0.875rem;
+	font-weight: 600;
+	text-underline-offset: 0.2em;
+}
+
+/* Phone verification ----------------------------------------------------------------------------------------- */
+
+.pixalink-loyalty-link__panel {
+	container-type: inline-size;
+	max-inline-size: 36rem;
+	padding: 1.5rem;
+	border: 1px solid var(--pxl-line);
+	border-radius: 1rem;
+	background: var(--pxl-surface);
+	color: var(--pxl-text);
+}
+
+.pixalink-loyalty-link.is-branded .pixalink-loyalty-link__panel {
+	box-shadow: inset 0 4px 0 var(--pxl-primary);
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__title {
+	margin: 0 0 0.375rem;
+	color: var(--pxl-text);
+	font-size: 1.25rem;
+	font-weight: 600;
+	letter-spacing: normal;
+	line-height: 1.3;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__intro {
+	max-inline-size: 60ch;
+	margin: 0 0 1.25rem;
+	color: var(--pxl-muted);
+	font-size: 0.9375rem;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__form {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0.875rem 1rem;
+	margin: 0;
+}
+
+@container (min-width: 30rem) {
+	.pixalink-loyalty-link .pixalink-loyalty-link__form {
+		grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+	}
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__panel .pixalink-loyalty-link__field {
+	float: none;
+	inline-size: auto;
+	margin: 0;
+	padding: 0;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__field label {
+	display: block;
+	margin-block-end: 0.375rem;
+	color: var(--pxl-text);
+	font-size: 0.875rem;
+	font-weight: 600;
+	line-height: 1.3;
+}
+
+/* Outranks WooCommerce's `.woocommerce form .form-row .input-text` so both controls share one height. */
+.pixalink-loyalty-link .pixalink-loyalty-link__field.form-row :is(input.input-text, select) {
+	box-sizing: border-box;
+	inline-size: 100%;
+	block-size: 2.875rem;
+	margin: 0;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #c3c9d0;
+	border-radius: 0.5rem;
+	background-color: #fff;
+	color: var(--pxl-text);
+	font: inherit;
+	line-height: 1.4;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__field.form-row :is(input.input-text, select):focus {
+	border-color: var(--pxl-ink);
+	outline: 2px solid color-mix(in srgb, var(--pxl-ink) 35%, transparent);
+	outline-offset: 0;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__submit,
+.pixalink-loyalty-link .pixalink-loyalty-link__form .pixalink-loyalty-link__message {
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__submit .pixalink-loyalty-button {
+	inline-size: 100%;
+	margin: 0;
+}
+
+@container (min-width: 30rem) {
+	.pixalink-loyalty-link .pixalink-loyalty-link__submit .pixalink-loyalty-button {
+		inline-size: auto;
+	}
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__message {
+	color: var(--pxl-text);
+	font-size: 0.875rem;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__message:empty {
+	display: none;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__portal {
+	max-inline-size: 36rem;
+	margin: 1rem 0 0;
+	font-size: 0.875rem;
+}
+
+.pixalink-loyalty-link__dialog {
+	box-sizing: border-box;
+	inline-size: min(26rem, calc(100vw - 2rem));
+	padding: 1.5rem;
+	border: 0;
+	border-radius: 1rem;
+	background: var(--pxl-surface);
+	box-shadow: 0 28px 64px -24px rgba(0, 0, 0, 0.5);
+	color: var(--pxl-text);
+}
+
+.pixalink-loyalty-link__dialog::backdrop {
+	background: rgba(17, 20, 24, 0.55);
+}
+
+.pixalink-loyalty-link__dialog .pixalink-loyalty-link__field {
+	margin-block-end: 0.75rem;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__field.form-row input.pixalink-loyalty-link__code {
+	font-size: 1.5rem;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.3em;
+	text-align: center;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__dialog-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.25rem;
+	margin: 0.75rem 0 0;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__text-button {
+	min-block-size: 0;
+	margin: 0;
+	padding: 0.25rem 0;
+	border: 0;
+	background: none;
+	box-shadow: none;
+	color: var(--pxl-ink);
+	font: inherit;
+	font-size: 0.875rem;
+	font-weight: 600;
+	text-decoration: underline;
+	text-transform: none;
+	text-underline-offset: 0.2em;
+	cursor: pointer;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__text-button:disabled {
+	color: var(--pxl-muted);
+	text-decoration: none;
+	cursor: default;
+}
+
+.pixalink-loyalty-link__dialog .pixalink-loyalty-link__message {
+	margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.pixalink-loyalty-progress__bar {
+		animation: none;
+	}
 }

@@ -10,17 +10,43 @@ declare( strict_types=1 );
 namespace Pixalink\Loyalty\Account;
 
 use Pixalink\Loyalty\Identity\RestController;
+use Pixalink\Loyalty\Support\Branding;
+use Pixalink\Loyalty\Support\BrandingStyles;
 
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Registers `build/account.js` (OTP link dialog and member QR code) from its `*.asset.php` manifest.
+ * Registers `build/account.js` (OTP link dialog, member QR code and its toggle) from its `*.asset.php` manifest, and
+ * `assets/css/account.css` with the member portal's colours.
  *
  * A source checkout without `build/` simply renders the server-side markup (forms still show; the QR shows its value).
  */
 final class Assets {
 
 	public const ACCOUNT_HANDLE = 'pixalink-loyalty-account';
+
+	/**
+	 * Style handle of My Account (the Loyalty tab, the dashboard card and the shortcodes).
+	 */
+	public const ACCOUNT_STYLE = 'pixalink-loyalty-account';
+
+	/**
+	 * Enqueue the account stylesheet once, with the portal colours as custom properties when branding is on.
+	 *
+	 * Enqueued on `wp_enqueue_scripts` for My Account pages (so it prints in the head); the templates call it again
+	 * for the shortcodes, which can sit on any page (it then prints in the footer).
+	 *
+	 * @param Branding|null $branding Active branding ({@see Branding::active()}).
+	 * @return void
+	 */
+	public static function enqueue_account_style( ?Branding $branding ): void {
+		if ( wp_style_is( self::ACCOUNT_STYLE, 'enqueued' ) ) {
+			return;
+		}
+
+		wp_enqueue_style( self::ACCOUNT_STYLE, PIXALINK_LOYALTY_URL . 'assets/css/account.css', array(), PIXALINK_LOYALTY_VERSION );
+		BrandingStyles::attach( self::ACCOUNT_STYLE, BrandingStyles::ACCOUNT_SELECTORS, $branding );
+	}
 
 	/**
 	 * Enqueue the account script once, with its REST settings and strings.
