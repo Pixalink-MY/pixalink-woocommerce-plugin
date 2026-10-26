@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Pixalink\Loyalty\Account;
 
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Fields\PhoneCountries;
 use Pixalink\Loyalty\Fields\PhoneNormalizer;
 use Pixalink\Loyalty\Identity\CustomerLinker;
@@ -34,6 +35,9 @@ defined( 'ABSPATH' ) || exit;
  *
  * Verified members' portal buttons point at {@see PortalHandoff} (signed in); everyone else gets the plain, signed-out
  * portal address. With "Match your member portal" on, the templates carry the portal logo and `is-branded`.
+ *
+ * While Pixalink staff have paused the store, everyone gets one line saying loyalty is paused instead: no balances,
+ * vouchers, QR code or verification form, and no call to Pixalink.
  */
 final class AccountView {
 
@@ -96,6 +100,13 @@ final class AccountView {
 	private PortalHandoff $handoff;
 
 	/**
+	 * Connection state (store paused by Pixalink).
+	 *
+	 * @var Connection|null
+	 */
+	private ?Connection $connection;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param SummaryService  $summaries  Summaries.
@@ -106,8 +117,9 @@ final class AccountView {
 	 * @param CustomerLinker  $linker     Linker.
 	 * @param GuestLinkStore  $guests     Guest links.
 	 * @param PortalHandoff   $handoff    Signed-in portal links.
+	 * @param Connection|null $connection Connection state (store paused by Pixalink).
 	 */
-	public function __construct( SummaryService $summaries, QrService $qr, Options $options, PhoneCountries $countries, PhoneNormalizer $normalizer, CustomerLinker $linker, GuestLinkStore $guests, PortalHandoff $handoff ) {
+	public function __construct( SummaryService $summaries, QrService $qr, Options $options, PhoneCountries $countries, PhoneNormalizer $normalizer, CustomerLinker $linker, GuestLinkStore $guests, PortalHandoff $handoff, ?Connection $connection = null ) {
 		$this->summaries  = $summaries;
 		$this->qr         = $qr;
 		$this->options    = $options;
@@ -116,6 +128,7 @@ final class AccountView {
 		$this->linker     = $linker;
 		$this->guests     = $guests;
 		$this->handoff    = $handoff;
+		$this->connection = $connection;
 	}
 
 	/**
@@ -124,6 +137,10 @@ final class AccountView {
 	 * @return string HTML.
 	 */
 	public function render_current(): string {
+		if ( $this->is_store_paused() ) {
+			return self::paused_notice();
+		}
+
 		$shopper = ShopperContext::current( $this->guests );
 		if ( ! $shopper->is_logged_in() ) {
 			return $this->render_recognised_guest() . $this->login_prompt();
@@ -238,7 +255,7 @@ final class AccountView {
 	 */
 	public function render_recognised_guest(): string {
 		$shopper = ShopperContext::current( $this->guests );
-		if ( $shopper->is_logged_in() || ! $shopper->is_verified() ) {
+		if ( $shopper->is_logged_in() || ! $shopper->is_verified() || $this->is_store_paused() ) {
 			return '';
 		}
 
@@ -258,7 +275,7 @@ final class AccountView {
 	 */
 	public function render_qr(): string {
 		$shopper = ShopperContext::current( $this->guests );
-		if ( ! $shopper->is_logged_in() || ! $shopper->is_verified() ) {
+		if ( ! $shopper->is_logged_in() || ! $shopper->is_verified() || $this->is_store_paused() ) {
 			return '';
 		}
 
@@ -295,6 +312,24 @@ final class AccountView {
 				'portal_url' => $this->handoff->portal_url( 0 ),
 			)
 		);
+	}
+
+	/**
+	 * Whether Pixalink staff paused the store (nothing about loyalty works until they turn it back on).
+	 *
+	 * @return bool
+	 */
+	public function is_store_paused(): bool {
+		return null !== $this->connection && $this->connection->is_commerce_paused();
+	}
+
+	/**
+	 * The one line shoppers see while the store is paused.
+	 *
+	 * @return string HTML.
+	 */
+	private static function paused_notice(): string {
+		return (string) wc_print_notice( __( 'Loyalty rewards are paused at the moment. Your points and vouchers are kept and will show here again when rewards resume.', 'pixalink-loyalty-for-woocommerce' ), 'notice', array(), true );
 	}
 
 	/**

@@ -30,7 +30,7 @@ defined( 'ABSPATH' ) || exit;
  * Builds and registers the outbox services and exposes the operations the admin screens and other units use.
  *
  * Queue depth for `POST connection/heartbeat` is available as `apply_filters( 'pixalink_loyalty_queue_stats', … )`
- * or {@see Module::queue_stats()}.
+ * or {@see Module::queue_stats()}, and fills the heartbeat's own `pixalink_loyalty_heartbeat_queue_stats`.
  */
 final class Module {
 
@@ -180,6 +180,8 @@ final class Module {
 		$this->pruner->register();
 
 		add_filter( 'pixalink_loyalty_queue_stats', array( $this, 'filter_queue_stats' ), 10, 1 );
+		add_filter( 'pixalink_loyalty_heartbeat_queue_stats', array( $this, 'filter_queue_stats' ), 10, 1 );
+		add_action( 'pixalink_loyalty_heartbeat_received', array( $this, 'on_heartbeat' ), 10, 1 );
 
 		// New or removed credentials: forget the cached outlet and resume a paused queue.
 		foreach ( array( 'add_option_', 'update_option_', 'delete_option_' ) as $prefix ) {
@@ -217,6 +219,19 @@ final class Module {
 		unset( $stats );
 
 		return $this->queue_stats();
+	}
+
+	/**
+	 * `pixalink_loyalty_heartbeat_received` callback: once Pixalink reports the store active again, send what waited
+	 * while it was paused.
+	 *
+	 * @param mixed $response Heartbeat response.
+	 * @return void
+	 */
+	public function on_heartbeat( $response ): void {
+		if ( is_array( $response ) && Connection::REMOTE_ACTIVE === ( $response['status'] ?? null ) ) {
+			$this->deliverer->resume_commerce();
+		}
 	}
 
 	/**
@@ -330,14 +345,18 @@ final class Module {
 	/**
 	 * Everything the health panel, system status report and Site Health test show.
 	 *
-	 * @return array{connected:bool,paused:string,stats:array{pending:int,sending:int,retry:int,delivered:int,dead:int,cancelled:int,oldest_open_at:string|null},last_delivered:Event|null,overdue_actions:int,cron_disabled:bool,cron_stalled:bool}
+	 * `store_paused`: Pixalink staff paused the store (the last heartbeat, a 403 since, or the pause that caused).
+	 *
+	 * @return array{connected:bool,paused:string,store_paused:bool,stats:array{pending:int,sending:int,retry:int,delivered:int,dead:int,cancelled:int,oldest_open_at:string|null},last_delivered:Event|null,overdue_actions:int,cron_disabled:bool,cron_stalled:bool}
 	 */
 	public function health(): array {
 		$next_queue_run = function_exists( 'wp_next_scheduled' ) ? wp_next_scheduled( 'action_scheduler_run_queue' ) : false;
+		$paused         = $this->deliverer->pause_reason();
 
 		return array(
 			'connected'       => $this->credentials->is_configured(),
-			'paused'          => $this->deliverer->pause_reason(),
+			'paused'          => $paused,
+			'store_paused'    => EventDeliverer::PAUSE_COMMERCE_PAUSED === $paused || $this->connection->is_commerce_paused(),
 			'stats'           => $this->repository->stats(),
 			'last_delivered'  => $this->repository->last_delivered(),
 			'overdue_actions' => $this->scheduler->overdue_count(),

@@ -11,6 +11,8 @@ use Pixalink\Loyalty\Admin\Notices;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
+use Pixalink\Loyalty\Tests\FakeServer\Server;
+use Pixalink\Loyalty\Tests\FakeServer\Signature;
 
 /**
  * Which admin screens show which notices, through the real `admin_notices` hook.
@@ -84,6 +86,31 @@ final class NoticesTest extends \WP_UnitTestCase {
 		update_option( 'woocommerce_enable_coupons', 'no' );
 
 		$this->assertSame( array( Notices::AUTH_FAILED, Notices::COUPONS_DISABLED ), $this->notices_on( 'edit-shop_order' ) );
+	}
+
+	public function test_a_heartbeat_from_a_store_pixalink_paused_shows_why_until_it_is_back_on(): void {
+		Server::reset();
+		Server::set_commerce_paused( true );
+		Plugin::instance()->credentials()->store( Signature::FAKE_API_KEY );
+		Plugin::instance()->connection()->mark_connected( array(), array( 'id' => '101' ), 1, Connection::METHOD_HOSTED, null, null );
+
+		try {
+			Plugin::instance()->heartbeat()->run();
+
+			$this->assertSame( array( Notices::COMMERCE_PAUSED ), $this->notices_on( 'plugins' ) );
+			set_current_screen( 'woocommerce_page_wc-orders' );
+			ob_start();
+			Plugin::instance()->notices()->render();
+			$this->assertStringContainsString( 'Pixalink has paused this store. Points and vouchers are off until Pixalink turns it back on. Contact Pixalink support.', (string) ob_get_clean() );
+
+			Server::set_commerce_paused( false );
+			Plugin::instance()->heartbeat()->run();
+
+			$this->assertSame( array(), $this->notices_on( 'plugins' ) );
+		} finally {
+			Plugin::instance()->credentials()->clear();
+			Server::reset();
+		}
 	}
 
 	public function test_the_settings_tab_shows_the_result_of_the_last_action(): void {

@@ -26,6 +26,7 @@ final class ConnectException extends \RuntimeException {
 	public const KEY_REJECTED           = 'key_rejected';
 	public const SITE_ALREADY_CONNECTED = 'site_already_connected';
 	public const ACCOUNT_INACTIVE       = 'account_inactive';
+	public const STORE_PAUSED           = 'store_paused';
 	public const NETWORK_ERROR          = 'network_error';
 	public const SERVER_ERROR           = 'server_error';
 	public const INVALID_RESPONSE       = 'invalid_response';
@@ -44,6 +45,7 @@ final class ConnectException extends \RuntimeException {
 		self::KEY_REJECTED,
 		self::SITE_ALREADY_CONNECTED,
 		self::ACCOUNT_INACTIVE,
+		self::STORE_PAUSED,
 		self::NETWORK_ERROR,
 		self::SERVER_ERROR,
 		self::INVALID_RESPONSE,
@@ -87,7 +89,9 @@ final class ConnectException extends \RuntimeException {
 			$reason = self::INVALID_RESPONSE;
 		} elseif ( self::SITE_ALREADY_CONNECTED === $code ) {
 			$reason = self::SITE_ALREADY_CONNECTED;
-		} elseif ( 403 === $status && in_array( $code, Heartbeat::ACCOUNT_STATE_CODES, true ) ) {
+		} elseif ( $exception->is_commerce_paused() ) {
+			$reason = self::STORE_PAUSED;
+		} elseif ( $exception->is_account_state() ) {
 			$reason = self::ACCOUNT_INACTIVE;
 		} elseif ( $exception->is_auth_failure() ) {
 			$reason = self::KEY_REJECTED;

@@ -130,7 +130,7 @@ final class Options {
 				'autoload' => false,
 				'seed'     => false,
 			),
-			// Why event delivery is paused ("auth_failed" | "not_connected"); empty while delivering.
+			// Why event delivery is paused ("auth_failed" | "not_connected" | "commerce_paused"); empty while delivering.
 			self::DELIVERY_PAUSED                => array(
 				'default'  => '',
 				'autoload' => false,

@@ -21,6 +21,9 @@ namespace Pixalink\Loyalty\Tests\FakeServer;
  *   server saw before, context `ticket_used`) is 410 ticket_invalid.
  * - One-time codes: {@see Responses::OTP_CODE} verifies; {@see Responses::OTP_CODE_EXPIRED} and
  *   {@see Responses::OTP_CODE_EXHAUSTED} produce otp_expired / otp_attempts_exceeded; any other code otp_invalid.
+ *
+ * Context `commerce_paused` plays a store Pixalink staff paused: every signed route but the heartbeat and disconnect
+ * answers 403 commerce_paused, and the heartbeat reports `status: commerce_paused` with every feature off.
  */
 final class Responses {
 
@@ -120,13 +123,18 @@ final class Responses {
 	 * @param array<string,mixed> $params  Path parameters (id, order_ref).
 	 * @param array<string,mixed> $query   Query parameters.
 	 * @param array<mixed>        $body    Decoded JSON body.
-	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool, connected_site:string, ticket_used:bool}.
+	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool, connected_site:string, ticket_used:bool, commerce_paused:bool}.
 	 * @return array{status:int,body:mixed}
 	 */
 	public static function respond( string $method, string $route, array $params, array $query, array $body, array $context ): array {
 		$now     = isset( $context['now'] ) && is_int( $context['now'] ) ? $context['now'] : time();
 		$api_key = isset( $context['api_key'] ) && is_string( $context['api_key'] ) ? $context['api_key'] : Signature::FAKE_API_KEY;
 		$key     = strtoupper( $method ) . ' ' . $route;
+		$paused  = true === ( $context['commerce_paused'] ?? false );
+
+		if ( $paused && ! in_array( $route, array( 'connect/exchange', 'connection/heartbeat', 'connection/disconnect' ), true ) ) {
+			return self::error( 403, 'commerce_paused', 'This store is paused in Pixalink.' );
+		}
 
 		switch ( $key ) {
 			case 'POST connect/exchange':
@@ -142,7 +150,7 @@ final class Responses {
 				if ( '' !== $connected_site && $connected_site !== $site ) {
 					return self::error( 409, 'site_already_connected', 'This outlet is already connected to another WooCommerce store.' );
 				}
-				return self::ok( self::heartbeat( $now ) );
+				return self::ok( $paused ? self::paused_heartbeat( $now ) : self::heartbeat( $now ) );
 
 			case 'POST connection/disconnect':
 				return array(
@@ -316,6 +324,8 @@ final class Responses {
 				),
 				'error.response.json',
 			),
+			'heartbeat paused'       => array( self::respond( 'POST', 'connection/heartbeat', array(), array(), array(), array( 'commerce_paused' => true ) + $context ), 'connection-heartbeat.response.json' ),
+			'event paused'           => array( self::respond( 'POST', 'events', array(), array(), $ping, array( 'commerce_paused' => true ) + $context ), 'error.response.json' ),
 			'outlet'                 => array( self::respond( 'GET', 'outlet', array(), array(), array(), $context ), 'outlet.response.json' ),
 			'lookup hit'             => array( self::respond( 'GET', 'customers', array(), array( 'phone' => self::MEMBER_PHONE ), array(), $context ), 'customers-lookup.response.json' ),
 			'lookup miss'            => array( self::respond( 'GET', 'customers', array(), array( 'phone' => '+60199999999' ), array(), $context ), 'error.response.json' ),
@@ -562,6 +572,26 @@ final class Responses {
 				'sign_in_url'       => self::SIGN_IN_URL,
 			),
 		);
+	}
+
+	/**
+	 * Heartbeat body while Pixalink staff have paused the store: every feature off.
+	 *
+	 * @param int $now Unix time.
+	 * @return array<string,mixed>
+	 */
+	private static function paused_heartbeat( int $now ): array {
+		$heartbeat             = self::heartbeat( $now );
+		$heartbeat['status']   = 'commerce_paused';
+		$heartbeat['features'] = array(
+			'earn'              => false,
+			'vouchers'          => false,
+			'points_redemption' => false,
+			'credits'           => false,
+			'otp_channels'      => array(),
+		);
+
+		return $heartbeat;
 	}
 
 	/**

@@ -22,7 +22,9 @@ defined( 'ABSPATH' ) || exit;
  * the view model the templates render.
  *
  * Unverified shoppers never trigger a call. A 403 `verification_required` or 404 means the server no longer accepts the
- * link, so it is dropped (the phone stays as the user's unverified number). Outages are reported, never cached.
+ * link, so it is dropped (the phone stays as the user's unverified number). A 403 about the Pixalink account
+ * (`commerce_paused`, `subscription_inactive`, `commerce_not_enabled`) says nothing about the link: it is kept and the
+ * summary reported unavailable, like an outage. Outages are reported, never cached.
  */
 final class SummaryService {
 
@@ -82,7 +84,7 @@ final class SummaryService {
 		try {
 			$summary = self::normalize( $this->customers->summary( $link->customer_id ) );
 		} catch ( ApiException $exception ) {
-			if ( in_array( $exception->http_status(), array( 403, 404 ), true ) ) {
+			if ( in_array( $exception->http_status(), array( 403, 404 ), true ) && ! $exception->is_account_state() ) {
 				$this->logger->info(
 					'Pixalink no longer accepts this account link; it was removed.',
 					array(

@@ -128,6 +128,15 @@ final class SummaryServiceTest extends TestCase {
 		$this->assertSame( Responses::MEMBER_PHONE, $this->user_meta[17][ UserMeta::PHONE_E164 ], 'The number stays, unverified.' );
 	}
 
+	public function test_a_store_paused_by_pixalink_keeps_the_link(): void {
+		$this->verify_user( 17 );
+		$this->script_http( 'GET', 'customers/*', 403, array( 'message' => 'This store is paused in Pixalink.', 'code' => 'commerce_paused' ) );
+
+		$this->assertSame( SummaryService::UNAVAILABLE, $this->service()->for_user( 17 )['state'] );
+		$this->assertTrue( UserMeta::is_verified( 17 ), 'The member stays verified for when Pixalink resumes the store.' );
+		$this->assertArrayNotHasKey( SummaryService::key( 17 ), $this->transients );
+	}
+
 	public function test_an_outage_is_reported_and_not_cached(): void {
 		$this->verify_user( 17 );
 		$this->script_http( 'GET', 'customers/*', 503, array( 'message' => 'Down.', 'code' => 'maintenance' ) );

@@ -301,6 +301,17 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 		$this->assertSame( array(), Server::recorded() );
 	}
 
+	public function test_nothing_renders_while_pixalink_has_paused_the_store(): void {
+		$this->cache_heartbeat( array( 'status' => 'commerce_paused' ) + self::heartbeat() );
+		$this->verified_member();
+
+		$html = self::dashboard();
+
+		$this->assertStringContainsString( 'From your account dashboard', $html );
+		$this->assertStringNotContainsString( 'pixalink-loyalty', $html );
+		$this->assertSame( array(), Server::recorded(), 'No summary call while the store is paused.' );
+	}
+
 	public function test_a_template_in_the_theme_overrides_the_card(): void {
 		add_filter( 'stylesheet_directory', array( self::class, 'theme_dir' ) );
 		wp_set_template_globals();

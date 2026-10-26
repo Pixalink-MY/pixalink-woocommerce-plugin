@@ -571,6 +571,41 @@ final class ConnectServiceTest extends TestCase {
 		$this->assert_reason( ConnectException::NOT_CONNECTED, fn () => $this->graph()['service']->test() );
 	}
 
+	public function test_test_connection_on_a_store_pixalink_paused_says_so_and_keeps_the_connection(): void {
+		$graph = $this->graph();
+		$graph['credentials']->store( self::API_KEY );
+		$graph['connection']->mark_connected( array( 'name' => 'Demo Cafe' ), array( 'id' => '101' ), self::USER_ID, Connection::METHOD_HOSTED, null, null );
+		$this->respond(
+			200,
+			array(
+				'status'             => 'commerce_paused',
+				'features'           => array(
+					'earn'              => false,
+					'vouchers'          => false,
+					'points_redemption' => false,
+					'credits'           => false,
+					'otp_channels'      => array(),
+				),
+				'redemption_rules'   => new \stdClass(),
+				'earn_on'            => 'paid',
+				'min_plugin_version' => '0.1.0',
+				'server_time'        => self::NOW,
+			)
+		);
+		$this->respond(
+			403,
+			array(
+				'message' => 'This store is paused in Pixalink.',
+				'code'    => 'commerce_paused',
+			)
+		);
+
+		$this->assert_reason( ConnectException::STORE_PAUSED, fn () => $graph['service']->test() );
+
+		$this->assertSame( Connection::STATUS_CONNECTED, $graph['connection']->status() );
+		$this->assertTrue( $graph['connection']->is_commerce_paused() );
+	}
+
 	public function test_the_web_base_follows_a_dedicated_api_base(): void {
 		$graph = $this->graph();
 		$graph['options']->set( Options::API_BASE, 'https://loyalty.example.com/api/commerce/v1' );

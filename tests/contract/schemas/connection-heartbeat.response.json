@@ -6,7 +6,7 @@
 	"type": "object",
 	"required": [ "status", "outlet", "features", "redemption_rules", "earn_on", "min_plugin_version", "server_time" ],
 	"properties": {
-		"status": { "enum": [ "active", "subscription_inactive", "commerce_not_enabled" ] },
+		"status": { "enum": [ "active", "subscription_inactive", "commerce_not_enabled", "commerce_paused" ] },
 		"outlet": { "$ref": "common.json#/$defs/outlet" },
 		"features": {
 			"type": "object",

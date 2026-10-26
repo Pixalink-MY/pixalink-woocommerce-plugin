@@ -278,6 +278,7 @@ final class EventDelivererTest extends TestCase {
 			'401 repeated clock skew'  => array( static fn () => self::error( 401, 'timestamp_skew' ), EventDeliverer::OUTCOME_RETRY, 'retry', 1 ),
 			'401 unauthenticated'      => array( static fn () => self::error( 401, 'unauthenticated' ), EventDeliverer::OUTCOME_PAUSE, 'pending', 0 ),
 			'403 outlet key required'  => array( static fn () => self::error( 403, 'outlet_key_required' ), EventDeliverer::OUTCOME_PAUSE, 'pending', 0 ),
+			'403 store paused'         => array( static fn () => self::error( 403, 'commerce_paused' ), EventDeliverer::OUTCOME_PAUSE, 'pending', 0 ),
 			'not connected'            => array( static fn () => ApiException::not_connected(), EventDeliverer::OUTCOME_PAUSE, 'pending', 0 ),
 			'400 bad request'          => array( static fn () => self::error( 400, 'invalid_request' ), EventDeliverer::OUTCOME_DEAD, 'dead', 1 ),
 			'404 order not found'      => array( static fn () => self::error( 404, 'not_found' ), EventDeliverer::OUTCOME_DEAD, 'dead', 1 ),
@@ -389,6 +390,59 @@ final class EventDelivererTest extends TestCase {
 		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $deliverer->deliver( $ping, true ) );
 		$this->assertFalse( $deliverer->is_paused() );
 		$this->assertContains( array( Scheduler::SWEEP_HOOK, array(), 'pixalink-loyalty', true ), $this->enqueued );
+	}
+
+	public function test_a_store_paused_by_pixalink_queues_events_until_it_is_active_again(): void {
+		$paid           = $this->event();
+		$other          = $this->event( EventType::ORDER_PAID, 1002, 'paid-2' );
+		$this->script[] = self::error( 403, 'commerce_paused' );
+
+		Actions\expectDone( 'pixalink_loyalty_delivery_paused' )->once()->with( EventDeliverer::PAUSE_COMMERCE_PAUSED );
+		Actions\expectDone( 'pixalink_loyalty_event_dead' )->never();
+
+		$deliverer = $this->deliverer();
+		$this->assertSame( EventDeliverer::OUTCOME_PAUSE, $deliverer->deliver( $paid ) );
+		$this->assertSame( EventDeliverer::PAUSE_COMMERCE_PAUSED, $deliverer->pause_reason() );
+		$row = $this->store->rows[ $paid ];
+		$this->assertSame( 'pending', $row['status'], 'Queued, not dead.' );
+		$this->assertSame( 0, $row['attempts'], 'A paused store does not use up attempts.' );
+		$this->assertStringStartsWith( 'commerce_paused: commerce_paused (HTTP 403)', (string) $row['last_error'] );
+		$this->assertSame( array(), $this->scheduled, 'No retry is scheduled.' );
+
+		// No tight loop: nothing is attempted or re-enqueued while paused, however often the actions fire.
+		for ( $i = 0; $i < 5; $i++ ) {
+			$this->assertNull( $deliverer->deliver( $paid ) );
+			$this->assertNull( $deliverer->deliver( $other ) );
+			$this->assertSame( 0, $deliverer->sweep() );
+		}
+		$this->assertCount( 1, $this->sent );
+		$this->assertSame( array(), $this->enqueued );
+
+		// The heartbeat reports the store active again: delivery resumes and kicks the sweep.
+		Actions\expectDone( 'pixalink_loyalty_delivery_resumed' )->once();
+		$deliverer->resume_commerce();
+
+		$this->assertFalse( $deliverer->is_paused() );
+		$this->assertContains( array( Scheduler::SWEEP_HOOK, array(), 'pixalink-loyalty', true ), $this->enqueued );
+
+		$this->script[] = $this->processed();
+		$this->script[] = $this->processed();
+		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $deliverer->deliver( $paid ) );
+		$this->assertSame( EventDeliverer::OUTCOME_DELIVERED, $deliverer->deliver( $other ) );
+		$this->assertSame( 'delivered', $this->store->rows[ $paid ]['status'] );
+		$this->assertSame( 1, $this->store->rows[ $paid ]['attempts'] );
+	}
+
+	public function test_an_active_store_does_not_lift_a_pause_for_a_rejected_key(): void {
+		$id             = $this->event();
+		$this->script[] = self::error( 401, 'unauthenticated' );
+		$deliverer      = $this->deliverer();
+		$deliverer->deliver( $id );
+
+		Actions\expectDone( 'pixalink_loyalty_delivery_resumed' )->never();
+		$deliverer->resume_commerce();
+
+		$this->assertSame( EventDeliverer::PAUSE_AUTH_FAILED, $deliverer->pause_reason(), 'A rejected key still needs reconnecting.' );
 	}
 
 	public function test_a_later_event_waits_for_an_earlier_open_event_of_the_same_order(): void {

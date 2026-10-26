@@ -131,3 +131,4 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 * Members the portal recognises but who have no account on the store (or cannot get one automatically) are told they will earn points on this visit, and how to create an account where the store allows it.
 * My Account and checkout match the member portal's logo and colours ("Match your member portal", on by default); the Loyalty tab and dashboard card show a member card, and portal buttons open the member portal already signed in.
 * "Sign in from Customer Portal" on the My Account and classic checkout login forms: members sign in through the portal and come back signed in, with a store account created for them when they have none ("Sign in from Customer Portal" setting, on by default).
+* When Pixalink pauses a store, points and vouchers switch off and the store admin is told why; orders placed meanwhile are kept and sent to Pixalink automatically once the store is turned back on.

@@ -428,6 +428,44 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		$this->assertStringNotContainsString( 'Verify your phone', $html, 'An outage never unlinks.' );
 	}
 
+	public function test_while_pixalink_has_paused_the_store_shoppers_see_one_line_and_no_balances_or_forms(): void {
+		$member_id = $this->verified_member();
+		$this->cache_heartbeat( array( 'status' => 'commerce_paused' ) + self::heartbeat() );
+
+		$html = self::tab();
+
+		$this->assertStringContainsString( 'Loyalty rewards are paused at the moment.', $html );
+		$this->assertStringNotContainsString( 'pixalink-loyalty-card', $html );
+		$this->assertStringNotContainsString( '1,250', $html );
+		$this->assertStringNotContainsString( 'RM10 off', $html );
+		$this->assertSame( '', do_shortcode( '[' . LoyaltyEndpoint::QR_SHORTCODE . ']' ) );
+		$this->assertStringContainsString( 'Loyalty rewards are paused', do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' ) );
+		$this->assertSame( array(), Server::recorded(), 'No call to Pixalink while the store is paused.' );
+		$this->assertTrue( UserMeta::is_verified( $member_id ), 'The member stays verified for when the store is back on.' );
+
+		wp_set_current_user( $this->make_user( 'unlinked@example.com' ) );
+		$html = self::tab();
+
+		$this->assertStringContainsString( 'Loyalty rewards are paused', $html );
+		$this->assertStringNotContainsString( 'data-pixalink-link-form', $html, 'No verification form that could not work.' );
+	}
+
+	public function test_the_first_paused_answer_keeps_the_member_verified_and_switches_the_tab_to_the_paused_line(): void {
+		Plugin::instance()->connection()->mark_connected( array(), array( 'id' => Responses::OUTLET_ID ), 1, Connection::METHOD_HOSTED, null, null );
+		$this->cache_heartbeat( self::heartbeat() );
+		$member_id = $this->verified_member();
+		Server::set_commerce_paused( true );
+
+		$first = self::tab();
+
+		$this->assertStringContainsString( 'temporarily unavailable', $first );
+		$this->assertTrue( UserMeta::is_verified( $member_id ), 'A paused store never unlinks a member.' );
+		$this->assertTrue( Plugin::instance()->connection()->is_commerce_paused(), 'The 403 marks the store paused at once.' );
+
+		$this->assertStringContainsString( 'Loyalty rewards are paused', self::tab() );
+		$this->assertCount( 1, Server::recorded(), 'Only the first view asked Pixalink.' );
+	}
+
 	public function test_templates_can_be_overridden_by_the_theme(): void {
 		$this->verified_member();
 		add_filter(

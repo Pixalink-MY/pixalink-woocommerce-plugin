@@ -9,19 +9,15 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-24T15:23:14+00:00\n"
+"POT-Creation-Date: 2026-10-26T08:15:50+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: pixalink-loyalty-for-woocommerce\n"
 
 #. Plugin Name of the plugin
 #: pixalink-loyalty-for-woocommerce.php
+#: src/Privacy/PolicyText.php:35
 msgid "Pixalink Loyalty for WooCommerce"
-msgstr ""
-
-#. Plugin URI of the plugin
-#: pixalink-loyalty-for-woocommerce.php
-msgid "https://pixalink.io/woocommerce"
 msgstr ""
 
 #. Description of the plugin
@@ -40,9 +36,1767 @@ msgid "https://pixalink.io"
 msgstr ""
 
 #. translators: 1: required PHP version, 2: current PHP version.
-#: pixalink-loyalty-for-woocommerce.php:37
+#: pixalink-loyalty-for-woocommerce.php:36
 #, php-format
 msgid "Pixalink Loyalty for WooCommerce requires PHP %1$s or newer. This site runs PHP %2$s."
+msgstr ""
+
+#: src/Account/AccountView.php:248
+msgid "Please verify your phone number again to open the member portal."
+msgstr ""
+
+#: src/Account/AccountView.php:267
+#: templates/myaccount/dashboard-card.php:38
+#: templates/myaccount/dashboard-card.php:123
+#: templates/myaccount/link-account.php:51
+msgid "Open member portal"
+msgstr ""
+
+#: src/Account/AccountView.php:332
+msgid "Loyalty rewards are paused at the moment. Your points and vouchers are kept and will show here again when rewards resume."
+msgstr ""
+
+#. translators: %s: URL of the login page.
+#: src/Account/AccountView.php:348
+#, php-format
+msgid "<a href=\"%s\">Log in</a> to see your points and vouchers."
+msgstr ""
+
+#. translators: %s: masked phone number such as +*******6789.
+#: src/Account/Assets.php:136
+#, php-format
+msgid "We sent a code by WhatsApp to %s."
+msgstr ""
+
+#. translators: %s: masked phone number such as +*******6789.
+#: src/Account/Assets.php:138
+#, php-format
+msgid "We sent a code by SMS to %s."
+msgstr ""
+
+#. translators: %d: seconds until another code can be requested.
+#: src/Account/Assets.php:140
+#, php-format
+msgid "You can ask for a new code in %d s."
+msgstr ""
+
+#: src/Account/Assets.php:141
+#: templates/myaccount/link-account.php:66
+msgid "Send a new code"
+msgstr ""
+
+#: src/Account/Assets.php:142
+msgid "Your phone number is verified. Loading your points…"
+msgstr ""
+
+#: src/Account/Assets.php:143
+#: src/Checkout/Strings.php:56
+#: src/Identity/LinkException.php:152
+msgid "Something went wrong. Please try again."
+msgstr ""
+
+#: src/Account/Assets.php:144
+#: src/Admin/SettingsPage.php:176
+msgid "Member QR code"
+msgstr ""
+
+#: src/Account/LoyaltyEndpoint.php:83
+#: src/Admin/SettingsPage.php:173
+#: src/Fields/AccountFields.php:192
+msgid "Loyalty"
+msgstr ""
+
+#: src/Account/PortalHandoff.php:238
+msgid "This link has expired. Go back to your account and try again."
+msgstr ""
+
+#: src/Account/PortalHandoff.php:239
+msgid "Member portal"
+msgstr ""
+
+#: src/Account/QrService.php:43
+msgid "Member QR code to scan at our outlets"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:187
+msgid "Connect your store to Pixalink"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:188
+msgid "Once connected, shoppers earn points on every paid order and verified members can use their vouchers and points at checkout."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:203
+#: src/Admin/Notices.php:139
+msgid "Reconnect to Pixalink"
+msgstr ""
+
+#. translators: %s: outlet name.
+#: src/Admin/ConnectionField.php:207
+#, php-format
+msgid "Pixalink no longer accepts this store's key for %s. Orders are kept and sent once you reconnect. The key may have been rotated or the connection removed in Pixalink."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:215
+#: src/Admin/ConnectionField.php:265
+msgid "Test connection"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:229
+#: src/Admin/ConnectionField.php:235
+#: src/Admin/SystemStatus.php:62
+msgid "Connected"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:233
+msgid "Organisation"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:234
+msgid "Outlet"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:236
+msgid "Last heartbeat"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:237
+msgid "Pixalink status"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:238
+msgid "Features"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:239
+msgid "Points are earned"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:239
+msgid "when the order is completed"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:239
+msgid "when the order is paid"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:240
+msgid "Clock offset"
+msgstr ""
+
+#. translators: %d: seconds between this server's clock and Pixalink's.
+#: src/Admin/ConnectionField.php:243
+#, php-format
+msgid "%d second"
+msgid_plural "%d seconds"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/ConnectionField.php:247
+#: src/Admin/SettingsPage.php:61
+#: src/Admin/SettingsPage.php:113
+msgid "Checkout"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:248
+msgid "API key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:250
+msgid "Set in wp-config.php"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:251
+msgid "Stored encrypted on this site"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:268
+msgid "Open Pixalink"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:283
+msgid "An outlet API key is set in wp-config.php (PIXALINK_LOYALTY_API_KEY). Verify it to finish connecting."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:284
+msgid "Verify wp-config key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:293
+msgid "Connect existing Pixalink account"
+msgstr ""
+
+#. translators: %s: Pixalink host name, e.g. explore.pixalink.io.
+#: src/Admin/ConnectionField.php:304
+#, php-format
+msgid "You sign in on %s and choose the outlet that represents this online store. Your Pixalink password is never entered on this site."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:310
+msgid "I have an outlet API key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:311
+msgid "Outlet API key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:313
+msgid "Create the key in Pixalink under Outlets › your online-store outlet › WooCommerce › Generate key for manual setup."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:314
+msgid "This site's address:"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:315
+msgid "Copy"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:317
+msgid "Connect with key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:330
+msgid "Connecting sends this site's address and the plugin, WordPress and WooCommerce versions to Pixalink. Once connected, paid, cancelled and refunded orders (totals, items, and the shopper's name, e-mail, phone and marketing choice) are sent to run your loyalty programme."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:331
+msgid "Privacy policy"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:336
+msgid "(optional)"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:349
+msgid "Not on Pixalink yet?"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:352
+msgid "Request access"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:359
+msgid "Requesting access shares your store name, this site's address, your name and e-mail, and your store's country, currency and checkout type with Pixalink's team so they can contact you."
+msgstr ""
+
+#. translators: 1: outlet name, 2: organisation name, 3: date.
+#: src/Admin/ConnectionField.php:376
+#, php-format
+msgid "Previously connected to %1$s (%2$s); disconnected on %3$s."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:397
+msgid "This store still sends orders to Pixalink through the old WooCommerce webhooks below. Pause them so orders are not counted twice."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:405
+msgid "Pause legacy Pixalink webhooks"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:408
+msgid "Pause legacy Pixalink webhooks when connected (recommended)"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:421
+msgid "Disconnect"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:424
+msgid "Disconnect this store from Pixalink? Shoppers stop earning points until you connect again. Order history is kept."
+msgstr ""
+
+#: src/Admin/ConnectionField.php:484
+msgid "unknown user"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:485
+msgid "outlet API key"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:485
+msgid "Pixalink sign-in"
+msgstr ""
+
+#. translators: 1: date and time, 2: user display name, 3: connection method.
+#: src/Admin/ConnectionField.php:488
+#, php-format
+msgid "%1$s by %2$s (%3$s)"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:500
+msgid "Not yet"
+msgstr ""
+
+#. translators: %s: human-readable time difference, e.g. "5 mins".
+#: src/Admin/ConnectionField.php:502
+#, php-format
+msgid "%s ago"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:505
+msgid "not scheduled"
+msgstr ""
+
+#. translators: %s: machine error code.
+#: src/Admin/ConnectionField.php:511
+#, php-format
+msgid "Last attempt failed: %s"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:524
+msgid "Earn points"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:525
+#: src/Admin/SettingsPage.php:119
+msgid "Vouchers"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:526
+msgid "Points at checkout"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:527
+#: src/Admin/SettingsPage.php:121
+#: src/Orders/ThankYou.php:194
+#: templates/myaccount/loyalty.php:266
+msgid "Credits"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:531
+msgid "Known after the first heartbeat"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:537
+msgid "on"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:537
+msgid "off"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:550
+msgid "Checkout block"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:551
+msgid "Classic checkout"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:552
+msgid "No checkout page set"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:556
+msgid "High-Performance Order Storage"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:557
+msgid "Posts order storage"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:569
+#: templates/myaccount/loyalty.php:215
+msgid "Active"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:571
+msgid "Subscription inactive: loyalty is paused"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:573
+msgid "Online store integration is not enabled for this organisation"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:575
+msgid "Paused by Pixalink: points and vouchers are off until Pixalink turns this store back on"
+msgstr ""
+
+#: src/Admin/ConnectionField.php:577
+msgid "Unknown"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:70
+msgid "Pixalink events"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:93
+msgid "Updates sent to Pixalink"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:94
+msgid "Every paid, completed, cancelled or refunded order is sent to Pixalink from here. Failed updates can be retried; nothing is ever counted twice."
+msgstr ""
+
+#: src/Admin/EventsListTable.php:102
+msgid "Search by order or event id"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:128
+#: src/Admin/HealthPanel.php:312
+msgid "You are not allowed to manage Pixalink Loyalty."
+msgstr ""
+
+#. translators: %s: number of updates.
+#: src/Admin/EventsListTable.php:141
+#, php-format
+msgid "%s update will be sent again."
+msgid_plural "%s updates will be sent again."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: number of updates.
+#: src/Admin/EventsListTable.php:143
+#, php-format
+msgid "%s update cancelled."
+msgid_plural "%s updates cancelled."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/EventsListTable.php:158
+msgid "Update"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:159
+msgid "Order"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:160
+msgid "Status"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:161
+msgid "Attempts"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:162
+msgid "Recorded"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:163
+msgid "Result"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:164
+msgid "Details"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:189
+msgid "Retry"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:190
+#: src/Admin/EventsListTable.php:290
+#: templates/myaccount/link-account.php:67
+msgid "Cancel"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:204
+msgid "All"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:259
+msgid "No updates yet. They appear here as soon as an order is paid."
+msgstr ""
+
+#: src/Admin/EventsListTable.php:287
+msgid "Retry now"
+msgstr ""
+
+#. translators: %d: per-order sequence number.
+#: src/Admin/EventsListTable.php:319
+#, php-format
+msgid "update %d"
+msgstr ""
+
+#. translators: %s: time until the next attempt, such as "5 mins".
+#: src/Admin/EventsListTable.php:342
+#, php-format
+msgid "next try in %s"
+msgstr ""
+
+#. translators: 1: delivery time, 2: Pixalink's answer such as "processed".
+#: src/Admin/EventsListTable.php:380
+#, php-format
+msgid "%1$s (%2$s)"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:399
+msgid "View payload"
+msgstr ""
+
+#: src/Admin/EventsListTable.php:402
+msgid "Response"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:81
+#: src/Admin/SystemStatus.php:63
+msgid "Event delivery"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:103
+msgid "This store is not connected to Pixalink yet, so orders are not being sent. Connect it to start earning points."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:105
+msgid "Pixalink rejected this store's key, so sending is paused. Reconnect the store; waiting orders are sent automatically afterwards."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:107
+msgid "Sending is paused because the store's Pixalink key is missing. Reconnect the store to resume."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:109
+msgid "Pixalink has paused this store, so points and vouchers are off and order updates wait here. They are sent automatically once Pixalink turns the store back on. Contact Pixalink support."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:115
+msgid "Last order update sent"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:117
+msgid "None yet"
+msgstr ""
+
+#. translators: 1: event label such as "Order paid", 2: time ago such as "5 mins".
+#: src/Admin/HealthPanel.php:119
+#, php-format
+msgid "%1$s, %2$s ago"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:124
+#: src/Admin/SystemStatus.php:64
+msgid "Waiting to send"
+msgstr ""
+
+#. translators: 1: events waiting, 2: of which retrying.
+#: src/Admin/HealthPanel.php:127
+#, php-format
+msgid "%1$s (%2$s retrying)"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:132
+#: src/Admin/SystemStatus.php:66
+msgid "Oldest waiting update"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:136
+#: src/Admin/SystemStatus.php:65
+#: src/Events/EventStatus.php:55
+msgid "Failed"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:138
+#: src/Admin/SystemStatus.php:68
+msgid "Overdue background tasks"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:143
+msgid "WordPress background tasks are not running: DISABLE_WP_CRON is set but no server cron job calls wp-cron.php. Ask your host to run it every minute, otherwise points are added late."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:145
+msgid "WordPress background tasks look stalled, so updates to Pixalink may be delayed. A server cron job that calls wp-cron.php every minute fixes this on low-traffic stores."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:149
+msgid "Send test ping"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:150
+msgid "Retry failed"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:151
+msgid "Resend last 7 days"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:152
+msgid "Resend last 30 days"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:153
+msgid "View all updates"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:155
+msgid "Resending only sends what Pixalink has not received yet, so points are never added twice."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:183
+msgid "Test ping delivered. This store is talking to Pixalink."
+msgstr ""
+
+#. translators: %s: error details.
+#: src/Admin/HealthPanel.php:189
+#, php-format
+msgid "Test ping failed: %s"
+msgstr ""
+
+#: src/Admin/HealthPanel.php:190
+msgid "the store is not connected."
+msgstr ""
+
+#. translators: %s: number of updates.
+#: src/Admin/HealthPanel.php:208
+#, php-format
+msgid "%s failed update will be retried."
+msgid_plural "%s failed updates will be retried."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of days.
+#: src/Admin/HealthPanel.php:226
+#, php-format
+msgid "Resending orders paid in the last %d day in the background."
+msgid_plural "Resending orders paid in the last %d days in the background."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/HealthPanel.php:241
+msgid "The update will be sent again shortly."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:243
+msgid "This update cannot be retried (it was already delivered or is being sent)."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:259
+msgid "The update was cancelled and will not be sent."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:261
+msgid "This update cannot be cancelled."
+msgstr ""
+
+#. translators: %s: link to the plugin settings.
+#: src/Admin/Notices.php:126
+#, php-format
+msgid "Pixalink Loyalty is installed but not connected yet. %s to let shoppers earn points on their orders."
+msgstr ""
+
+#: src/Admin/Notices.php:127
+msgid "Connect your store"
+msgstr ""
+
+#. translators: %s: link to the plugin settings.
+#: src/Admin/Notices.php:138
+#, php-format
+msgid "Pixalink no longer accepts this store's connection, so orders are not earning points. %s."
+msgstr ""
+
+#. translators: 1: installed version, 2: minimum version.
+#: src/Admin/Notices.php:154
+#, php-format
+msgid "Pixalink needs Pixalink Loyalty for WooCommerce %2$s or newer (this site runs %1$s). Update the plugin so loyalty keeps working."
+msgstr ""
+
+#: src/Admin/Notices.php:167
+msgid "Pixalink reports that loyalty for this online store is paused (subscription inactive or online-store integration switched off). Contact Pixalink to resume it."
+msgstr ""
+
+#. translators: %s: link to WooCommerce general settings.
+#: src/Admin/Notices.php:177
+#, php-format
+msgid "Pixalink vouchers and points are applied as coupons, but coupons are disabled on this store. %s."
+msgstr ""
+
+#: src/Admin/Notices.php:178
+msgid "Enable the use of coupon codes"
+msgstr ""
+
+#: src/Admin/Notices.php:194
+msgid "Your store is connected to Pixalink. Shoppers now earn points on their orders."
+msgstr ""
+
+#: src/Admin/Notices.php:195
+msgid "Your store is connected to Pixalink, and the old Pixalink webhooks were paused so orders are not counted twice."
+msgstr ""
+
+#: src/Admin/Notices.php:196
+msgid "Thanks! Pixalink's team will contact you to set up your account. Come back here to connect once you have access."
+msgstr ""
+
+#: src/Admin/Notices.php:197
+msgid "Connecting was cancelled on Pixalink. Nothing was changed."
+msgstr ""
+
+#: src/Admin/Notices.php:198
+msgid "Your store is disconnected from Pixalink and its key was removed from this site."
+msgstr ""
+
+#: src/Admin/Notices.php:199
+msgid "Your store is disconnected on this site, but Pixalink could not be told. Remove the WooCommerce connection from the outlet in Pixalink as well."
+msgstr ""
+
+#: src/Admin/Notices.php:200
+msgid "The connection to Pixalink works."
+msgstr ""
+
+#: src/Admin/Notices.php:201
+msgid "The old Pixalink webhooks were paused."
+msgstr ""
+
+#: src/Admin/Notices.php:202
+msgid "No active legacy Pixalink webhooks were found."
+msgstr ""
+
+#: src/Admin/Notices.php:228
+msgid "The connection attempt expired or was started in another browser. Please try again."
+msgstr ""
+
+#: src/Admin/Notices.php:230
+msgid "Pixalink did not accept the connection code (it may have expired). Please try again."
+msgstr ""
+
+#: src/Admin/Notices.php:232
+msgid "Pixalink could not start connecting this site. Check that the site address uses https and try again."
+msgstr ""
+
+#: src/Admin/Notices.php:234
+msgid "That does not look like an outlet API key. Copy the whole key from Pixalink, including the part before the \"|\"."
+msgstr ""
+
+#: src/Admin/Notices.php:236
+msgid "Pixalink did not accept this API key. Check that it belongs to the right outlet and has not been rotated."
+msgstr ""
+
+#: src/Admin/Notices.php:238
+msgid "This outlet is already connected to another WooCommerce store. Disconnect it there first, or use a different outlet."
+msgstr ""
+
+#: src/Admin/Notices.php:240
+msgid "Pixalink accepted the key, but the organisation's subscription or online-store integration is not active."
+msgstr ""
+
+#: src/Admin/Notices.php:244
+msgid "Pixalink could not be reached from this server. Try again in a few minutes; if it keeps failing, ask your host whether outgoing HTTPS requests are allowed."
+msgstr ""
+
+#: src/Admin/Notices.php:246
+msgid "This store is not connected to Pixalink."
+msgstr ""
+
+#: src/Admin/Notices.php:248
+msgid "The API key is set in wp-config.php (PIXALINK_LOYALTY_API_KEY). Remove the constant to connect another way."
+msgstr ""
+
+#: src/Admin/Notices.php:250
+msgid "Pixalink returned an unexpected error. Please try again; if it keeps happening, contact Pixalink support."
+msgstr ""
+
+#: src/Admin/Notices.php:260
+msgid "Pixalink has paused this store. Points and vouchers are off until Pixalink turns it back on. Contact Pixalink support."
+msgstr ""
+
+#: src/Admin/Notices.php:272
+msgid "This notice cannot be dismissed."
+msgstr ""
+
+#: src/Admin/Notices.php:362
+msgid "Don't show again"
+msgstr ""
+
+#: src/Admin/PluginLinks.php:69
+msgid "Settings"
+msgstr ""
+
+#: src/Admin/PluginLinks.php:70
+msgid "Connect"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:35
+#: src/Admin/SiteHealth.php:158
+#: src/Admin/SiteHealth.php:179
+#: src/Admin/SystemStatus.php:80
+#: src/Orders/OrderAdmin.php:87
+msgid "Pixalink Loyalty"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:60
+msgid "Connection & Health"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:62
+#: src/Admin/SettingsPage.php:162
+msgid "My Account"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:63
+#: src/Admin/SettingsPage.php:198
+msgid "Advanced"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:89
+msgid "Connection"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:115
+msgid "Redemption options appear only for shoppers who verified their phone number, and only while Pixalink keeps the matching feature switched on."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:118
+msgid "Loyalty panel"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:118
+msgid "Show members their points, credits and vouchers at checkout"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:119
+msgid "Let members apply their Pixalink vouchers"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:120
+#: src/Orders/ThankYou.php:188
+msgid "Points"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:120
+msgid "Let members turn points into a discount"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:121
+msgid "Let members pay part of an order with their Pixalink credits (applied as a discount; credit-paid spend earns no points)"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:123
+msgid "Phone number"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:129
+msgid "Optional"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:130
+msgid "Required"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:132
+msgid "Points are credited to the phone number entered at checkout. Shoppers without one cannot earn."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:135
+#: src/Privacy/Exporter.php:75
+msgid "Marketing consent"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:135
+msgid "Ask shoppers at checkout and sign-up whether they want to receive offers (the box is never ticked for them)"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:137
+msgid "Consent text"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:143
+msgid "Leave empty to use the default. The exact text shown is recorded with each shopper's choice."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:166
+msgid "Loyalty tab"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:166
+msgid "Add a tab with balance, tier and vouchers to My Account"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:168
+msgid "Tab title"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:175
+msgid "Dashboard summary"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:175
+msgid "Show loyalty summary on the My Account dashboard"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:176
+msgid "Show a QR code members can scan at your outlets"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:177
+msgid "Match your member portal"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:177
+msgid "Use the logo and colours from your Pixalink member portal on My Account and checkout. Turn off to use your theme's colours."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:180
+#: src/Identity/PortalSignIn.php:178
+msgid "Sign in from Customer Portal"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:181
+msgid "Adds a 'Sign in from Customer Portal' button to the login form. Members who sign in this way get a store account if they don't have one yet (they need an e-mail address in Pixalink)."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:202
+msgid "Debug log"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:202
+msgid "Log every Pixalink request to WooCommerce › Status › Logs (secrets and contact details are masked)"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:203
+msgid "Uninstall"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:203
+msgid "Delete all plugin data when the plugin is deleted (order history is always kept)"
+msgstr ""
+
+#: src/Admin/SettingsPage.php:234
+msgid "Pixalink confirms whether this is available for your store after the first connection check."
+msgstr ""
+
+#: src/Admin/SettingsPage.php:236
+msgid "currently switched off by Pixalink for your account"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:71
+msgid "Pixalink loyalty updates"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:87
+msgid "View Pixalink updates"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:92
+msgid "Pixalink Loyalty is not connected"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:93
+msgid "Orders are not sent to Pixalink until the store is connected, so customers do not earn points yet."
+msgstr ""
+
+#: src/Admin/SiteHealth.php:94
+msgid "Connect to Pixalink"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:101
+msgid "Pixalink rejected this store's key"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:102
+msgid "Sending order updates to Pixalink is paused, so points are not being added. Reconnect the store; waiting updates are sent automatically afterwards."
+msgstr ""
+
+#: src/Admin/SiteHealth.php:103
+msgid "Reconnect"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:110
+msgid "Pixalink has paused this store"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:111
+msgid "Points and vouchers are off until Pixalink turns the store back on. Order updates wait on this site and are sent automatically then. Contact Pixalink support."
+msgstr ""
+
+#. translators: %s: number of updates.
+#: src/Admin/SiteHealth.php:119
+#, php-format
+msgid "%s update could not be delivered."
+msgid_plural "%s updates could not be delivered."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: age such as "3 hours".
+#: src/Admin/SiteHealth.php:123
+#, php-format
+msgid "The oldest waiting update is %s old."
+msgstr ""
+
+#: src/Admin/SiteHealth.php:127
+msgid "DISABLE_WP_CRON is set but background tasks are not running: a server cron job must call wp-cron.php every minute."
+msgstr ""
+
+#: src/Admin/SiteHealth.php:128
+msgid "WordPress background tasks are running late. On low-traffic stores, a server cron job that calls wp-cron.php every minute fixes this."
+msgstr ""
+
+#: src/Admin/SiteHealth.php:132
+msgid "Some Pixalink loyalty updates are delayed"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:135
+msgid "Pixalink loyalty updates are being delivered"
+msgstr ""
+
+#: src/Admin/SiteHealth.php:135
+msgid "Paid, completed, cancelled and refunded orders reach Pixalink."
+msgstr ""
+
+#: src/Admin/SystemStatus.php:61
+msgid "Version"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:62
+msgid "Yes"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:62
+msgid "No"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:63
+msgid "Running"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:63
+msgid "Paused"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:67
+msgid "Last delivered"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:70
+msgid "Order storage"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:70
+msgid "High-performance order storage"
+msgstr ""
+
+#: src/Admin/SystemStatus.php:70
+msgid "WordPress posts"
+msgstr ""
+
+#. translators: %s: points balance, formatted.
+#: src/Checkout/PanelData.php:210
+#, php-format
+msgid "%s point"
+msgid_plural "%s points"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: expiry date.
+#: src/Checkout/PanelData.php:288
+#, php-format
+msgid "Expires %s"
+msgstr ""
+
+#: src/Checkout/Strings.php:27
+msgid "Your rewards"
+msgstr ""
+
+#. translators: %s: balances such as "1,250 points · 25.00 credits".
+#: src/Checkout/Strings.php:29
+#, php-format
+msgid "You have %s"
+msgstr ""
+
+#: src/Checkout/Strings.php:30
+msgctxt "between balances"
+msgid " · "
+msgstr ""
+
+#: src/Checkout/Strings.php:31
+#: templates/myaccount/loyalty.php:145
+msgid "Your vouchers"
+msgstr ""
+
+#: src/Checkout/Strings.php:32
+msgid "Apply"
+msgstr ""
+
+#: src/Checkout/Strings.php:33
+msgid "Remove"
+msgstr ""
+
+#. translators: %s: voucher title.
+#: src/Checkout/Strings.php:35
+#, php-format
+msgid "Apply %s"
+msgstr ""
+
+#. translators: %s: voucher title.
+#: src/Checkout/Strings.php:37
+#, php-format
+msgid "Remove %s"
+msgstr ""
+
+#: src/Checkout/Strings.php:38
+msgid "Pay with points"
+msgstr ""
+
+#: src/Checkout/Strings.php:39
+msgid "Points to use"
+msgstr ""
+
+#: src/Checkout/Strings.php:40
+msgid "Use points"
+msgstr ""
+
+#: src/Checkout/Strings.php:41
+msgid "Remove points"
+msgstr ""
+
+#. translators: 1: number of points, 2: discount such as "RM10.00".
+#: src/Checkout/Strings.php:43
+#, php-format
+msgid "%1$s points = %2$s off"
+msgstr ""
+
+#. translators: %s: smallest number of points that can be used.
+#: src/Checkout/Strings.php:45
+#, php-format
+msgid "Paying with points starts at %s points."
+msgstr ""
+
+#: src/Checkout/Strings.php:46
+msgid "Pay with credits"
+msgstr ""
+
+#: src/Checkout/Strings.php:47
+msgid "Credits to use"
+msgstr ""
+
+#: src/Checkout/Strings.php:48
+msgid "Use credits"
+msgstr ""
+
+#: src/Checkout/Strings.php:49
+msgid "Remove credits"
+msgstr ""
+
+#. translators: %s: most credits usable, such as "25.00".
+#: src/Checkout/Strings.php:51
+#, php-format
+msgid "Up to %s credits on this order"
+msgstr ""
+
+#. translators: %s: number of points.
+#: src/Checkout/Strings.php:53
+#, php-format
+msgid "You will earn about %s points with this order."
+msgstr ""
+
+#: src/Checkout/Strings.php:54
+msgid "Updating your rewards…"
+msgstr ""
+
+#: src/Checkout/Strings.php:55
+msgid "We could not load your rewards right now. Please try again in a moment."
+msgstr ""
+
+#: src/Checkout/Strings.php:57
+msgid "You have no rewards to use on this order yet."
+msgstr ""
+
+#: src/Checkout/Strings.php:58
+msgid "Verify now"
+msgstr ""
+
+#: src/Connect/ConnectController.php:193
+msgid "You are not allowed to connect this store to Pixalink."
+msgstr ""
+
+#: src/Connect/ConnectController.php:325
+msgid "You are not allowed to manage the Pixalink connection."
+msgstr ""
+
+#: src/Connect/ConnectService.php:600
+msgid "Pixalink may e-mail me about product updates, tips and offers. I can unsubscribe at any time."
+msgstr ""
+
+#: src/Events/EventStatus.php:51
+msgid "Pending"
+msgstr ""
+
+#: src/Events/EventStatus.php:52
+msgid "Sending"
+msgstr ""
+
+#: src/Events/EventStatus.php:53
+msgid "Retrying"
+msgstr ""
+
+#: src/Events/EventStatus.php:54
+msgid "Delivered"
+msgstr ""
+
+#: src/Events/EventStatus.php:56
+#: templates/myaccount/loyalty.php:217
+msgid "Cancelled"
+msgstr ""
+
+#: src/Events/EventType.php:64
+msgid "Order paid"
+msgstr ""
+
+#: src/Events/EventType.php:65
+msgid "Order completed"
+msgstr ""
+
+#: src/Events/EventType.php:66
+msgid "Order cancelled"
+msgstr ""
+
+#: src/Events/EventType.php:67
+msgid "Order refunded"
+msgstr ""
+
+#: src/Events/EventType.php:68
+msgid "Refund deleted"
+msgstr ""
+
+#: src/Events/EventType.php:69
+msgid "Redemptions released"
+msgstr ""
+
+#: src/Events/EventType.php:70
+msgid "Customer updated"
+msgstr ""
+
+#: src/Events/EventType.php:71
+msgid "Test ping"
+msgstr ""
+
+#: src/Fields/AccountFields.php:297
+#: src/Fields/CheckoutFields.php:167
+#: src/Fields/CheckoutFields.php:168
+#: src/Fields/CheckoutFields.php:313
+#: src/Privacy/Exporter.php:71
+#: templates/myaccount/link-account.php:30
+msgid "Phone country"
+msgstr ""
+
+#: src/Fields/AccountFields.php:309
+#: src/Fields/CheckoutFields.php:180
+#: src/Fields/CheckoutFields.php:322
+msgid "Mobile number for loyalty points"
+msgstr ""
+
+#: src/Fields/AccountFields.php:313
+msgid "Verified with Pixalink. To use a different number, verify it on the Loyalty tab."
+msgstr ""
+
+#: src/Fields/CheckoutFields.php:181
+msgid "Mobile number for loyalty points (optional)"
+msgstr ""
+
+#: src/Fields/ConsentText.php:46
+msgid "Send me offers and news by WhatsApp, SMS and e-mail. I can opt out at any time."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:61
+msgid "Enter your phone number."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:62
+msgid "A phone number can only contain digits, spaces, dashes, brackets and a leading +."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:63
+msgid "Choose the country of your phone number."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:64
+msgid "The country code of this phone number is not recognised."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:65
+msgid "This phone number is too short."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:66
+msgid "This phone number is too long."
+msgstr ""
+
+#: src/Fields/InvalidPhoneNumber.php:67
+#: src/Identity/LinkException.php:150
+msgid "Enter a valid phone number."
+msgstr ""
+
+#. translators: 1: country name, 2: calling code such as 60.
+#: src/Fields/PhoneCountries.php:122
+#, php-format
+msgid "%1$s (+%2$s)"
+msgstr ""
+
+#: src/Identity/LinkException.php:139
+#: src/Identity/RestController.php:281
+msgid "Loyalty is temporarily unavailable. Please try again in a few minutes."
+msgstr ""
+
+#: src/Identity/LinkException.php:140
+msgid "Your code has expired. Enter your phone number again to get a new one."
+msgstr ""
+
+#. translators: %d: seconds to wait.
+#: src/Identity/LinkException.php:143
+#, php-format
+msgid "Please wait %d second before asking for another code."
+msgid_plural "Please wait %d seconds before asking for another code."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Identity/LinkException.php:146
+msgid "That code is not right. Check the message and try again."
+msgstr ""
+
+#: src/Identity/LinkException.php:147
+msgid "That code has expired. Ask for a new one."
+msgstr ""
+
+#: src/Identity/LinkException.php:148
+msgid "Too many wrong codes. Ask for a new one."
+msgstr ""
+
+#: src/Identity/LinkException.php:149
+msgid "This sign-in link has expired or was already used. Open the store from your loyalty app again, or verify your phone number here."
+msgstr ""
+
+#: src/Identity/LinkException.php:151
+msgid "You're signed in to this store as staff, so a Pixalink membership can't be connected to this account. Log out to shop as a member."
+msgstr ""
+
+#: src/Identity/PortalSignIn.php:220
+msgid "Signing in with the member portal isn't available right now. Log in with your password, or try again later."
+msgstr ""
+
+#: src/Identity/RestController.php:181
+msgid "Please log in again."
+msgstr ""
+
+#: src/Identity/RestController.php:278
+msgid "Verify your phone number to see your points."
+msgstr ""
+
+#: src/Identity/SsoLanding.php:310
+msgid "You're signed in to this store as staff, so we didn't connect your Pixalink membership to this account. Log out and open the link again to shop as a member."
+msgstr ""
+
+#: src/Identity/SsoLanding.php:351
+msgid "Welcome back! We've recognised your Pixalink membership for this visit, so you'll earn points on your order."
+msgstr ""
+
+#: src/Identity/SsoLanding.php:354
+msgid "Create an account at checkout to see your balance here."
+msgstr ""
+
+#. translators: %s: URL of My Account, where shoppers register.
+#: src/Identity/SsoLanding.php:361
+#, php-format
+msgid "<a href=\"%s\">Create an account</a> to see your balance here."
+msgstr ""
+
+#. translators: %s: link that confirms.
+#: src/Identity/SsoLanding.php:390
+#, php-format
+msgid "Link this account to your loyalty membership? %s"
+msgstr ""
+
+#: src/Identity/SsoLanding.php:391
+msgid "Link my account"
+msgstr ""
+
+#: src/Identity/SsoLanding.php:429
+msgid "This account is already linked to a different loyalty member, so nothing was changed."
+msgstr ""
+
+#: src/Identity/SsoLanding.php:460
+msgid "Welcome back! Log in to your account to see your points."
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:113
+msgid "Pixalink customer"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:114
+msgid "Not linked"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:117
+msgid "Points earned"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:126
+msgid "No events sent to Pixalink for this order yet."
+msgstr ""
+
+#. translators: %d: number of delivery attempts.
+#: src/Orders/OrderAdmin.php:138
+#, php-format
+msgid "%d attempt"
+msgid_plural "%d attempts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Orders/OrderAdmin.php:151
+msgid "View all events"
+msgstr ""
+
+#. translators: 1: state such as "Held", 2: date and time.
+#: src/Orders/OrderAdmin.php:167
+#, php-format
+msgid "%1$s until %2$s"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:170
+msgid "Redemptions"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:205
+msgid "Held"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:206
+msgid "Settled"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:207
+msgid "Released"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:220
+msgid "Resend to Pixalink"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:241
+msgid "Resend to Pixalink: every event of this order is already delivered or on its way."
+msgstr ""
+
+#. translators: %d: number of events.
+#: src/Orders/OrderAdmin.php:243
+#, php-format
+msgid "Resend to Pixalink: %d event queued."
+msgid_plural "Resend to Pixalink: %d events queued."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Orders/OrderAdmin.php:257
+msgid "Sending to Pixalink…"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:258
+msgid "Recorded (no points reported)"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:259
+msgid "Not recorded: delivery failed"
+msgstr ""
+
+#: src/Orders/OrderAdmin.php:260
+msgid "Not sent"
+msgstr ""
+
+#. translators: %d: points earned.
+#: src/Orders/OrderLifecycle.php:510
+#, php-format
+msgid "Pixalink: %d point earned on completion."
+msgid_plural "Pixalink: %d points earned on completion."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Orders/OrderLifecycle.php:519
+msgid "Pixalink recorded the cancellation. Any points or vouchers held for this order were released."
+msgstr ""
+
+#. translators: %d: refund id.
+#: src/Orders/OrderLifecycle.php:533
+#, php-format
+msgid "Pixalink did not undo deleted refund #%d. If points were reversed for it, adjust the customer in Pixalink."
+msgstr ""
+
+#. translators: 1: event label such as "Order paid", 2: machine error code.
+#: src/Orders/OrderLifecycle.php:583
+#, php-format
+msgid "Pixalink could not record \"%1$s\" for this order (%2$s). Use \"Resend to Pixalink\" in the order actions, or retry it under WooCommerce › Status › Pixalink events."
+msgstr ""
+
+#. translators: %s: machine reason code.
+#: src/Orders/OrderLifecycle.php:737
+#, php-format
+msgid "Pixalink did not record this order (%s)."
+msgstr ""
+
+#: src/Orders/OrderLifecycle.php:744
+msgid "Pixalink recorded the order. Points will be added when the order is completed."
+msgstr ""
+
+#: src/Orders/OrderLifecycle.php:748
+msgid "Pixalink recorded the order. No points were earned for it."
+msgstr ""
+
+#. translators: %d: points earned.
+#: src/Orders/OrderLifecycle.php:753
+#, php-format
+msgid "Pixalink: %d point earned."
+msgid_plural "Pixalink: %d points earned."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Orders/OrderLifecycle.php:756
+msgid "Pixalink recorded the order."
+msgstr ""
+
+#. translators: %d: points.
+#: src/Orders/OrderLifecycle.php:780
+#, php-format
+msgid "%d point"
+msgid_plural "%d points"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: credit amount such as "2.50".
+#. translators: %s: credit amount such as "10.00".
+#. translators: %s: credit balance such as 15.00 (credits are not money).
+#: src/Orders/OrderLifecycle.php:784
+#: src/Redemption/Labels.php:53
+#: templates/myaccount/loyalty.php:78
+#, php-format
+msgid "%s credits"
+msgstr ""
+
+#. translators: %d: number of vouchers.
+#: src/Orders/OrderLifecycle.php:788
+#, php-format
+msgid "%d voucher"
+msgid_plural "%d vouchers"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: refund id.
+#: src/Orders/OrderLifecycle.php:793
+#, php-format
+msgid "Pixalink recorded refund #%d."
+msgstr ""
+
+#. translators: 1: refund id, 2: list such as "50 points, 2.50 credits".
+#: src/Orders/OrderLifecycle.php:797
+#, php-format
+msgid "Pixalink recorded refund #%1$d and returned %2$s to the customer."
+msgstr ""
+
+#. translators: %s: number of loyalty points.
+#: src/Orders/ThankYou.php:103
+#, php-format
+msgid "You earned %s loyalty point with this order."
+msgid_plural "You earned %s loyalty points with this order."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Orders/ThankYou.php:116
+msgid "Loyalty points for this order will be added to your account when your order is completed."
+msgstr ""
+
+#: src/Orders/ThankYou.php:119
+msgid "Loyalty points for this order will be added to your account once your payment is confirmed."
+msgstr ""
+
+#: src/Orders/ThankYou.php:138
+msgid "Rewards used"
+msgstr ""
+
+#: src/Privacy/Eraser.php:49
+#: src/Privacy/Exporter.php:42
+#: src/Privacy/Exporter.php:103
+msgid "Pixalink loyalty"
+msgstr ""
+
+#: src/Privacy/Eraser.php:97
+msgid "The Pixalink loyalty link was removed from this account. Points and vouchers held by Pixalink are not affected; erase them in Pixalink."
+msgstr ""
+
+#: src/Privacy/Exporter.php:69
+msgid "Pixalink customer id"
+msgstr ""
+
+#: src/Privacy/Exporter.php:70
+msgid "Loyalty phone number"
+msgstr ""
+
+#: src/Privacy/Exporter.php:72
+msgid "Phone verified at"
+msgstr ""
+
+#: src/Privacy/Exporter.php:73
+msgid "Linked to Pixalink at"
+msgstr ""
+
+#: src/Privacy/Exporter.php:74
+msgid "Linked by"
+msgstr ""
+
+#: src/Privacy/Exporter.php:76
+msgid "Marketing consent recorded at"
+msgstr ""
+
+#: src/Privacy/Exporter.php:77
+msgid "Marketing consent given on"
+msgstr ""
+
+#: src/Privacy/Exporter.php:78
+msgid "Marketing consent wording (SHA-256)"
+msgstr ""
+
+#: src/Privacy/Exporter.php:104
+msgid "How this account is linked to the store's Pixalink loyalty programme. Points, vouchers and history are held by Pixalink."
+msgstr ""
+
+#: src/Privacy/PolicyText.php:48
+msgid "Loyalty programme"
+msgstr ""
+
+#: src/Privacy/PolicyText.php:49
+msgid "Our loyalty programme is run with Pixalink. When you place an order we send Pixalink your name, e-mail address, the mobile number you enter for loyalty points, your account number on this site (if you have one), the order details and your marketing choice, so that you earn points and can use your vouchers in our outlets and online."
+msgstr ""
+
+#: src/Privacy/PolicyText.php:50
+msgid "When you verify your mobile number, Pixalink sends you a one-time code by WhatsApp or SMS. Your points, vouchers and loyalty history are kept by Pixalink; this site only stores your loyalty member number, your mobile number and when it was verified."
+msgstr ""
+
+#: src/Privacy/PolicyText.php:51
+msgid "We only send you offers if you tick the marketing box. We record when you agreed and the exact wording you saw. You can withdraw at any time under My Account › Account details."
+msgstr ""
+
+#. translators: %s: Pixalink privacy policy URL.
+#: src/Privacy/PolicyText.php:54
+#, php-format
+msgid "Pixalink's privacy policy: %s"
+msgstr ""
+
+#: src/Redemption/CartActions.php:124
+msgid "Unknown Pixalink action."
+msgstr ""
+
+#. translators: %s: minimum number of points, formatted.
+#: src/Redemption/CartActions.php:158
+#, php-format
+msgid "Paying with points starts at %s points, which this cart or your balance does not reach."
+msgstr ""
+
+#. translators: %s: minimum number of points, formatted.
+#: src/Redemption/CartActions.php:168
+#, php-format
+msgid "Use at least %s points."
+msgstr ""
+
+#: src/Redemption/CartActions.php:205
+msgid "There is nothing left for credits to pay for in this cart."
+msgstr ""
+
+#: src/Redemption/CartActions.php:227
+#: src/Redemption/CartActions.php:250
+#: src/Redemption/VirtualCoupons.php:236
+msgid "This Pixalink voucher is not available for your account."
+msgstr ""
+
+#: src/Redemption/CartActions.php:341
+msgid "We could not load your Pixalink rewards right now. Please try again in a moment."
+msgstr ""
+
+#: src/Redemption/CartActions.php:367
+msgid "Cart unavailable."
+msgstr ""
+
+#. translators: %s: Pixalink error code.
+#: src/Redemption/HoldCoordinator.php:528
+#, php-format
+msgid "Pixalink: the points, vouchers or credits on this order could not be held again before payment (%s), so they were removed and the total was recalculated."
+msgstr ""
+
+#: src/Redemption/HoldSweeper.php:188
+msgid "Pixalink: the points, vouchers or credits held for this unpaid order were released because it was abandoned."
+msgstr ""
+
+#. translators: %s: number of points, formatted.
+#: src/Redemption/Labels.php:31
+#, php-format
+msgid "Points (%s pts)"
+msgstr ""
+
+#. translators: %s: credits, formatted such as "10.00 credits".
+#: src/Redemption/Labels.php:42
+#, php-format
+msgid "Credits (%s)"
+msgstr ""
+
+#. translators: %s: voucher title.
+#: src/Redemption/Labels.php:64
+#, php-format
+msgid "Voucher: %s"
+msgstr ""
+
+#: src/Redemption/Labels.php:73
+msgid "Verify your phone to use your rewards."
+msgstr ""
+
+#: src/Redemption/Labels.php:85
+msgid "Paying with Pixalink points is temporarily unavailable."
+msgstr ""
+
+#: src/Redemption/Labels.php:87
+msgid "Paying with Pixalink credits is temporarily unavailable."
+msgstr ""
+
+#: src/Redemption/Labels.php:90
+msgid "Pixalink vouchers are temporarily unavailable."
+msgstr ""
+
+#: src/Redemption/Labels.php:102
+msgid "Your Pixalink points discount was removed."
+msgstr ""
+
+#: src/Redemption/Labels.php:104
+msgid "Your Pixalink credits discount was removed."
+msgstr ""
+
+#: src/Redemption/Labels.php:107
+msgid "Your Pixalink voucher was removed."
+msgstr ""
+
+#: src/Redemption/Labels.php:116
+msgid "Your Pixalink rewards could not be reserved again for this order, so they were removed. Please check the new order total and pay again."
+msgstr ""
+
+#: src/Redemption/Labels.php:128
+msgid "Your Pixalink points balance changed, so we updated your points discount. Please check your order total and place the order again."
+msgstr ""
+
+#: src/Redemption/Labels.php:130
+msgid "Your Pixalink credits balance changed, so we updated your credits discount. Please check your order total and place the order again."
+msgstr ""
+
+#: src/Redemption/Labels.php:132
+msgid "One of your Pixalink vouchers can no longer be used. Please check your order total and place the order again."
+msgstr ""
+
+#: src/Redemption/Labels.php:134
+msgid "Your Pixalink rewards were updated. Please check your order total and place the order again."
+msgstr ""
+
+#: src/Redemption/Labels.php:139
+msgid "We could not reserve your Pixalink rewards. Please try again, or remove them to place the order without them."
+msgstr ""
+
+#: src/Redemption/VirtualCoupons.php:223
+msgid "Choose how many points to use first."
+msgstr ""
+
+#: src/Redemption/VirtualCoupons.php:231
+msgid "Choose how many credits to use first."
+msgstr ""
+
+#: src/Redemption/VirtualCoupons.php:240
+msgid "This voucher can only be redeemed in store."
+msgstr ""
+
+#: src/Redemption/VirtualCoupons.php:246
+msgid "This voucher cannot be used for this cart."
+msgstr ""
+
+#: src/Redemption/VirtualCoupons.php:250
+msgid "This voucher does not apply to any product sold in this store."
 msgstr ""
 
 #: src/Requirements.php:78
@@ -67,4 +1821,185 @@ msgstr ""
 #: src/Requirements.php:104
 #, php-format
 msgid "It requires WooCommerce %1$s or newer; this site runs WooCommerce %2$s."
+msgstr ""
+
+#: templates/global/portal-sign-in.php:21
+msgctxt "between the password login and the member portal sign-in"
+msgid "or"
+msgstr ""
+
+#: templates/myaccount/dashboard-card.php:34
+msgid "Link your Pixalink membership to see your points and vouchers."
+msgstr ""
+
+#: templates/myaccount/dashboard-card.php:36
+msgid "Link your membership"
+msgstr ""
+
+#: templates/myaccount/dashboard-card.php:60
+#: templates/myaccount/loyalty.php:67
+msgid "point"
+msgid_plural "points"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: 1: number of points, 2: expiry date.
+#: templates/myaccount/dashboard-card.php:72
+#: templates/myaccount/loyalty.php:91
+#, php-format
+msgid "%1$s point expires on %2$s."
+msgid_plural "%1$s points expire on %2$s."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: number of vouchers.
+#: templates/myaccount/dashboard-card.php:86
+#, php-format
+msgid "%s voucher ready"
+msgid_plural "%s vouchers ready"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: next tier name.
+#: templates/myaccount/dashboard-card.php:99
+#: templates/myaccount/loyalty.php:105
+#, php-format
+msgid "Progress to %s"
+msgstr ""
+
+#. translators: %s: next tier name.
+#: templates/myaccount/dashboard-card.php:99
+#: templates/myaccount/loyalty.php:105
+msgid "Tier progress"
+msgstr ""
+
+#. translators: 1: amount left, 2: next tier name.
+#: templates/myaccount/dashboard-card.php:109
+#: templates/myaccount/loyalty.php:115
+#, php-format
+msgid "%1$s more to reach %2$s."
+msgstr ""
+
+#: templates/myaccount/dashboard-card.php:121
+msgid "View points and vouchers"
+msgstr ""
+
+#: templates/myaccount/link-account.php:25
+msgid "Verify your phone to see your points"
+msgstr ""
+
+#: templates/myaccount/link-account.php:26
+msgid "Enter the mobile number you use for our loyalty programme. We will send you a one-time code to confirm it is yours."
+msgstr ""
+
+#: templates/myaccount/link-account.php:38
+msgid "Mobile number"
+msgstr ""
+
+#: templates/myaccount/link-account.php:42
+msgid "Send code"
+msgstr ""
+
+#: templates/myaccount/link-account.php:50
+msgid "You can also sign in to our member portal with this number."
+msgstr ""
+
+#: templates/myaccount/link-account.php:57
+msgid "Enter your code"
+msgstr ""
+
+#: templates/myaccount/link-account.php:60
+msgid "One-time code"
+msgstr ""
+
+#: templates/myaccount/link-account.php:65
+msgid "Verify"
+msgstr ""
+
+#: templates/myaccount/link-account.php:72
+msgid "Turn on JavaScript in your browser to verify your phone number."
+msgstr ""
+
+#: templates/myaccount/loyalty.php:43
+msgid "Your points are temporarily unavailable. Please check again in a few minutes."
+msgstr ""
+
+#: templates/myaccount/loyalty.php:49
+msgid "Your membership"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:130
+msgid "Show member code"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:130
+msgid "Hide member code"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:138
+msgid "Show this code at our outlets to earn and use your points."
+msgstr ""
+
+#: templates/myaccount/loyalty.php:149
+msgid "No vouchers yet"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:150
+msgid "Vouchers you earn or claim with your points show up here, ready to use."
+msgstr ""
+
+#: templates/myaccount/loyalty.php:173
+msgid "No expiry date"
+msgstr ""
+
+#. translators: %s: expiry date.
+#: templates/myaccount/loyalty.php:175
+#, php-format
+msgid "Valid until %s"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:180
+msgid "Use at checkout"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:182
+msgid "In store only"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:195
+msgid "Memberships"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:206
+msgid "No end date"
+msgstr ""
+
+#. translators: %s: expiry date.
+#: templates/myaccount/loyalty.php:208
+#, php-format
+msgid "Until %s"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:216
+msgid "Expired"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:231
+msgid "Recent activity"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:233
+msgid "Full points history"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:238
+msgid "No activity yet"
+msgstr ""
+
+#: templates/myaccount/loyalty.php:239
+msgid "Points you earn on orders and spend on rewards appear here."
+msgstr ""
+
+#: templates/myaccount/loyalty.php:263
+msgid "View all rewards"
 msgstr ""

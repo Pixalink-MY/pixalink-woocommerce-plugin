@@ -413,6 +413,20 @@ final class Client {
 			)
 		);
 
+		if ( $exception->is_commerce_paused() ) {
+			/**
+			 * Fires when Pixalink answers 403 `commerce_paused`: staff paused this outlet's store.
+			 *
+			 * The heartbeat keeps the paused state ({@see \Pixalink\Loyalty\Connect\Heartbeat}) until it reports the
+			 * store active again.
+			 *
+			 * @since 0.3.0
+			 *
+			 * @param string $path Request path relative to the API base.
+			 */
+			do_action( 'pixalink_loyalty_commerce_paused', $path );
+		}
+
 		throw $exception;
 	}
 

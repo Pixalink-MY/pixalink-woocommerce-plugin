@@ -37,6 +37,7 @@ final class Server {
 	private const CODES_TRANSIENT    = 'pixalink_loyalty_fake_connect_codes';
 	private const OUTCOME_TRANSIENT  = 'pixalink_loyalty_fake_hosted_outcome';
 	private const BALANCE_TRANSIENT  = 'pixalink_loyalty_fake_points_balance';
+	private const PAUSED_TRANSIENT   = 'pixalink_loyalty_fake_commerce_paused';
 	private const MAX_RECORDED       = 200;
 
 	/**
@@ -194,6 +195,19 @@ final class Server {
 
 		register_rest_route(
 			self::CONTROL_NAMESPACE,
+			'/paused',
+			array(
+				'methods'             => 'POST',
+				'callback'            => static function ( \WP_REST_Request $request ): \WP_REST_Response {
+					self::set_commerce_paused( wp_validate_boolean( $request->get_param( 'paused' ) ) );
+					return new \WP_REST_Response( array( 'paused' => self::is_commerce_paused() ) );
+				},
+				'permission_callback' => $admin_only,
+			)
+		);
+
+		register_rest_route(
+			self::CONTROL_NAMESPACE,
 			'/clock',
 			array(
 				'methods'             => 'POST',
@@ -276,12 +290,13 @@ final class Server {
 				$result = Responses::error( 400, 'invalid_grant', 'The authorisation code is invalid or expired.' );
 			} else {
 				$context = array(
-					'now'            => self::now(),
-					'points_balance' => self::points_balance(),
-					'api_key'        => self::api_key(),
-					'event_seen'     => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
-					'ticket_used'    => 'customers' === $route && self::ticket_used( $body ),
-					'connected_site' => (string) get_transient( self::SITE_TRANSIENT ),
+					'now'             => self::now(),
+					'points_balance'  => self::points_balance(),
+					'api_key'         => self::api_key(),
+					'event_seen'      => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
+					'ticket_used'     => 'customers' === $route && self::ticket_used( $body ),
+					'connected_site'  => (string) get_transient( self::SITE_TRANSIENT ),
+					'commerce_paused' => self::is_commerce_paused(),
 				);
 				$result  = Responses::respond( $method, $route, $request->get_url_params(), $query, $body, $context );
 			}
@@ -584,6 +599,7 @@ final class Server {
 		delete_transient( self::CODES_TRANSIENT );
 		delete_transient( self::OUTCOME_TRANSIENT );
 		delete_transient( self::BALANCE_TRANSIENT );
+		delete_transient( self::PAUSED_TRANSIENT );
 	}
 
 	/**
@@ -605,6 +621,30 @@ final class Server {
 	 */
 	public static function set_points_balance( int $points ): void {
 		set_transient( self::BALANCE_TRANSIENT, max( 0, $points ), HOUR_IN_SECONDS );
+	}
+
+	/**
+	 * Whether the fake server plays a store Pixalink staff paused ({@see Responses::respond()}, context `commerce_paused`).
+	 *
+	 * @return bool
+	 */
+	public static function is_commerce_paused(): bool {
+		return (bool) get_transient( self::PAUSED_TRANSIENT );
+	}
+
+	/**
+	 * Pause or resume the store, as Pixalink staff would (POST /fake-pixalink/v1/paused {paused}).
+	 *
+	 * @param bool $paused Whether the store is paused.
+	 * @return void
+	 */
+	public static function set_commerce_paused( bool $paused ): void {
+		if ( $paused ) {
+			set_transient( self::PAUSED_TRANSIENT, 1, HOUR_IN_SECONDS );
+			return;
+		}
+
+		delete_transient( self::PAUSED_TRANSIENT );
 	}
 
 	/**

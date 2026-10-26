@@ -130,6 +130,13 @@ final class Module {
 	private PortalHandoff $handoff;
 
 	/**
+	 * Connection state (store paused by Pixalink).
+	 *
+	 * @var Connection
+	 */
+	private Connection $connection;
+
+	/**
 	 * Whether register() already ran.
 	 *
 	 * @var bool
@@ -155,11 +162,12 @@ final class Module {
 		$this->consent_text = new ConsentText( $options );
 		$this->sync         = new BillingPhoneSync();
 
-		$customers       = new Customers( $client );
-		$this->linker    = new CustomerLinker( $customers, new PendingLinks(), $this->guests, $logger );
-		$this->summaries = new SummaryService( $customers, $logger );
-		$this->events    = new CustomerEvents( $queue, $credentials, new CustomerPayloadBuilder( new OrderPayloadBuilder() ) );
-		$this->handoff   = new PortalHandoff( $customers, $this->summaries, $options, new Connection( $options ), $this->guests, $logger );
+		$customers        = new Customers( $client );
+		$this->linker     = new CustomerLinker( $customers, new PendingLinks(), $this->guests, $logger );
+		$this->summaries  = new SummaryService( $customers, $logger );
+		$this->events     = new CustomerEvents( $queue, $credentials, new CustomerPayloadBuilder( new OrderPayloadBuilder() ) );
+		$this->connection = new Connection( $options );
+		$this->handoff    = new PortalHandoff( $customers, $this->summaries, $options, $this->connection, $this->guests, $logger );
 	}
 
 	/**
@@ -176,10 +184,10 @@ final class Module {
 		( new CheckoutFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, new OrderIdentity( $this->events, $this->sync ), $this->guests ) )->register();
 		( new AccountFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, $this->sync, $this->events ) )->register();
 
-		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff );
+		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff, $this->connection );
 		$endpoint = new LoyaltyEndpoint( $this->options, $view );
 		$endpoint->register();
-		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff ) )->register();
+		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff, $this->connection ) )->register();
 		$this->handoff->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();

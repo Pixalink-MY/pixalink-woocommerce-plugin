@@ -105,6 +105,8 @@ final class HealthPanel {
 			self::inline_notice( 'error', __( 'Pixalink rejected this store\'s key, so sending is paused. Reconnect the store; waiting orders are sent automatically afterwards.', 'pixalink-loyalty-for-woocommerce' ) );
 		} elseif ( EventDeliverer::PAUSE_NOT_CONNECTED === $health['paused'] ) {
 			self::inline_notice( 'error', __( 'Sending is paused because the store\'s Pixalink key is missing. Reconnect the store to resume.', 'pixalink-loyalty-for-woocommerce' ) );
+		} elseif ( $health['store_paused'] ) {
+			self::inline_notice( 'warning', __( 'Pixalink has paused this store, so points and vouchers are off and order updates wait here. They are sent automatically once Pixalink turns the store back on. Contact Pixalink support.', 'pixalink-loyalty-for-woocommerce' ) );
 		}
 
 		echo '<table class="widefat striped" style="margin:0 0 12px"><tbody>';

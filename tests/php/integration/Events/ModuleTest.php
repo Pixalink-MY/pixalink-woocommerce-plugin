@@ -7,6 +7,7 @@
 
 namespace Pixalink\Loyalty\Tests\Integration\Events;
 
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Events\EventDeliverer;
 use Pixalink\Loyalty\Events\Scheduler;
 use Pixalink\Loyalty\Plugin;
@@ -45,6 +46,8 @@ final class ModuleTest extends \WP_UnitTestCase {
 		$this->assertNotFalse( has_action( Scheduler::RESEND_HOOK ) );
 		$this->assertNotFalse( has_action( 'woocommerce_payment_complete' ) );
 		$this->assertNotFalse( has_filter( 'pixalink_loyalty_queue_stats' ) );
+		$this->assertNotFalse( has_filter( 'pixalink_loyalty_heartbeat_queue_stats' ), 'The heartbeat reports the outbox.' );
+		$this->assertNotFalse( has_action( 'pixalink_loyalty_heartbeat_received' ) );
 	}
 
 	public function test_queue_stats_filter_feeds_the_heartbeat(): void {
@@ -117,11 +120,61 @@ final class ModuleTest extends \WP_UnitTestCase {
 		$this->assertFalse( Plugin::instance()->events()->deliverer()->is_paused() );
 	}
 
+	public function test_a_store_pixalink_paused_keeps_its_updates_queued_and_sends_them_once_a_heartbeat_reports_it_active(): void {
+		$connection = Plugin::instance()->connection();
+		$connection->mark_connected( array( 'name' => 'Fake Cafe' ), array( 'id' => '101' ), 1, Connection::METHOD_HOSTED, null, null );
+		Server::set_commerce_paused( true );
+		$order = $this->create_order();
+		$order->payment_complete();
+		$event      = $this->events_of( $order )[0];
+		$deliverer  = Plugin::instance()->events()->deliverer();
+		$repository = Plugin::instance()->events()->repository();
+
+		$this->assertSame( EventDeliverer::OUTCOME_PAUSE, $deliverer->deliver( $event->id ) );
+
+		$this->assertSame( EventDeliverer::PAUSE_COMMERCE_PAUSED, $deliverer->pause_reason() );
+		$this->assertSame( 'pending', $repository->find( $event->id )?->status->value, 'Queued, not dead.' );
+		$this->assertSame( 0, $repository->find( $event->id )?->attempts );
+		$this->assertTrue( $connection->is_commerce_paused(), 'The 403 marks the store paused before the next heartbeat.' );
+		$this->assertSame( Connection::STATUS_CONNECTED, $connection->status(), 'The key is still good.' );
+		$this->assertFalse( Plugin::instance()->features()->any_enabled(), 'No points or vouchers at checkout.' );
+		$this->assertTrue( Plugin::instance()->events()->health()['store_paused'] );
+
+		// Still paused: the heartbeat says so (and tells Pixalink what waits), and nothing is sent however often
+		// delivery is attempted.
+		Plugin::instance()->heartbeat()->run();
+		$this->assertSame( EventDeliverer::PAUSE_COMMERCE_PAUSED, $deliverer->pause_reason() );
+		$heartbeats = array_values( array_filter( Server::recorded(), static fn ( array $request ): bool => 'connection/heartbeat' === $request['path'] ) );
+		$this->assertSame( 1, end( $heartbeats )['body']['pending'] ?? null, 'The heartbeat reports the waiting update.' );
+		$requests = count( Server::recorded() );
+		$this->assertNull( $deliverer->deliver( $event->id ) );
+		$this->assertSame( 0, $deliverer->sweep() );
+		$this->assertCount( $requests, Server::recorded(), 'No request while paused.' );
+
+		// Pixalink turns the store back on: the next heartbeat resumes delivery, with no merchant action.
+		Server::set_commerce_paused( false );
+		$resumed = did_action( 'pixalink_loyalty_delivery_resumed' );
+		Plugin::instance()->heartbeat()->run();
+
+		$this->assertSame( $resumed + 1, did_action( 'pixalink_loyalty_delivery_resumed' ) );
+		$this->assertFalse( $deliverer->is_paused() );
+		$this->assertFalse( $connection->is_commerce_paused() );
+		$this->assertFalse( Plugin::instance()->events()->health()['store_paused'] );
+		$this->assertGreaterThanOrEqual( 1, $deliverer->sweep(), 'The waiting update is due again.' );
+
+		do_action( Scheduler::DELIVER_HOOK, $event->id );
+
+		$this->assertSame( 'delivered', $repository->find( $event->id )?->status->value );
+		$sent = array_values( array_filter( Server::recorded(), static fn ( array $request ): bool => 'events' === $request['path'] ) );
+		$this->assertSame( 200, end( $sent )['status'] ?? null );
+	}
+
 	public function test_health_snapshot(): void {
 		$health = Plugin::instance()->events()->health();
 
 		$this->assertTrue( $health['connected'] );
 		$this->assertSame( '', $health['paused'] );
+		$this->assertFalse( $health['store_paused'] );
 		$this->assertSame( 0, $health['stats']['dead'] );
 		$this->assertIsInt( $health['overdue_actions'] );
 		$this->assertIsBool( $health['cron_stalled'] );

@@ -20,12 +20,27 @@ defined( 'ABSPATH' ) || exit;
  * States: `disconnected` (default, and after a disconnect; organisation/outlet/connected_* are kept as history),
  * `connected`, and `auth_failed` (Pixalink rejected the key; a later successful heartbeat restores `connected`).
  * Secrets never live here; the API key is in {@see \Pixalink\Loyalty\Api\Credentials}.
+ *
+ * The state of the Pixalink account is the remote status `status` from the last heartbeat: `active`, or one of
+ * {@see Connection::PAUSED_STATUSES}, which keep the connection `connected` (the key is still good). A 403
+ * `commerce_paused` on any call records `commerce_paused` there too ({@see Connection::mark_commerce_paused()}), so
+ * the store stops offering loyalty before the next heartbeat; the next heartbeat replaces it.
  */
 final class Connection {
 
 	public const STATUS_DISCONNECTED = 'disconnected';
 	public const STATUS_CONNECTED    = 'connected';
 	public const STATUS_AUTH_FAILED  = 'auth_failed';
+
+	public const REMOTE_ACTIVE                = 'active';
+	public const REMOTE_SUBSCRIPTION_INACTIVE = 'subscription_inactive';
+	public const REMOTE_COMMERCE_NOT_ENABLED  = 'commerce_not_enabled';
+	public const REMOTE_COMMERCE_PAUSED       = 'commerce_paused';
+
+	/**
+	 * Heartbeat statuses that pause the whole programme.
+	 */
+	public const PAUSED_STATUSES = array( self::REMOTE_SUBSCRIPTION_INACTIVE, self::REMOTE_COMMERCE_NOT_ENABLED, self::REMOTE_COMMERCE_PAUSED );
 
 	public const METHOD_HOSTED  = 'hosted';
 	public const METHOD_API_KEY = 'api_key';
@@ -256,6 +271,52 @@ final class Connection {
 			'at'     => $this->now(),
 		);
 		$this->options->set( Options::REMOTE_STATUS, $status );
+	}
+
+	/**
+	 * Pixalink answered 403 `commerce_paused`: record the store as paused, every remote feature off, until the next
+	 * heartbeat says otherwise. The last heartbeat's other details (earn timing, branding, ...) are kept.
+	 *
+	 * @return void
+	 */
+	public function mark_commerce_paused(): void {
+		if ( ! $this->exists() ) {
+			return;
+		}
+
+		$status   = $this->remote_status();
+		$features = is_array( $status['features'] ?? null ) ? $status['features'] : array();
+		foreach ( $features as $feature => $value ) {
+			if ( is_bool( $value ) ) {
+				$features[ $feature ] = false;
+			}
+		}
+
+		if ( self::REMOTE_COMMERCE_PAUSED === ( $status['status'] ?? null ) && ( $status['features'] ?? array() ) === $features ) {
+			return;
+		}
+
+		$status['status']   = self::REMOTE_COMMERCE_PAUSED;
+		$status['features'] = $features;
+		$this->options->set( Options::REMOTE_STATUS, $status );
+	}
+
+	/**
+	 * Whether Pixalink staff paused this store (last heartbeat, or a 403 `commerce_paused` since).
+	 *
+	 * @return bool
+	 */
+	public function is_commerce_paused(): bool {
+		return self::REMOTE_COMMERCE_PAUSED === ( $this->remote_status()['status'] ?? null );
+	}
+
+	/**
+	 * Whether Pixalink reports the account paused: subscription inactive, integration not enabled, or store paused.
+	 *
+	 * @return bool
+	 */
+	public function is_account_paused(): bool {
+		return in_array( $this->remote_status()['status'] ?? null, self::PAUSED_STATUSES, true );
 	}
 
 	/**

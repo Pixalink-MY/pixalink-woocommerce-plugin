@@ -81,6 +81,43 @@ final class FakeServerResponsesTest extends TestCase {
 		$this->assertSame( 'site_already_connected', $samples['heartbeat other site']['response']['body']['code'] );
 	}
 
+	public function test_a_paused_store_answers_403_on_every_signed_endpoint_but_the_heartbeat_and_disconnect(): void {
+		$context = array(
+			'now'             => 1761300000,
+			'commerce_paused' => true,
+		);
+
+		foreach ( ContractValidator::endpoints() as $endpoint ) {
+			if ( 'signed' !== $endpoint['auth'] ) {
+				continue;
+			}
+
+			$name     = $endpoint['method'] . ' ' . $endpoint['path'];
+			$response = Responses::respond( $endpoint['method'], $endpoint['path'], array(), array(), array(), $context );
+			if ( 'connection/heartbeat' === $endpoint['path'] ) {
+				$this->assertSame( 200, $response['status'], $name );
+				$this->assertSame( 'commerce_paused', $response['body']['status'] );
+				$this->assertSame( array( false, false, false, false ), array( $response['body']['features']['earn'], $response['body']['features']['vouchers'], $response['body']['features']['points_redemption'], $response['body']['features']['credits'] ) );
+				$this->assertSame( array(), ContractValidator::validate( 'connection-heartbeat.response.json', $response['body'] ) );
+			} elseif ( 'connection/disconnect' === $endpoint['path'] ) {
+				$this->assertSame( 204, $response['status'], $name );
+			} else {
+				$this->assertSame( 403, $response['status'], $name );
+				$this->assertSame( 'commerce_paused', $response['body']['code'], $name );
+				$this->assertSame( array(), ContractValidator::validate( 'error.response.json', $response['body'] ), $name );
+			}
+		}
+
+		$this->assertContains(
+			array(
+				'status' => 403,
+				'code'   => 'commerce_paused',
+			),
+			array_map( static fn ( array $error ): array => array_intersect_key( $error, array_flip( array( 'status', 'code' ) ) ), ContractValidator::documented_errors() ),
+			'endpoints.json documents the 403 for every signed endpoint.'
+		);
+	}
+
 	public function test_holds_echo_the_coupon_codes_in_request_order(): void {
 		$held = Responses::samples( 1761300000 )['hold']['response']['body']['redemptions'];
 

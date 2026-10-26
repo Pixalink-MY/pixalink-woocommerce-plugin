@@ -7,6 +7,7 @@
 
 namespace Pixalink\Loyalty\Tests\Integration\Orders;
 
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Orders\ThankYou;
 use Pixalink\Loyalty\Tests\Integration\Redemption\RedemptionTestCase;
@@ -31,6 +32,19 @@ final class ThankYouTest extends RedemptionTestCase {
 
 		$this->switch_features( true, true, true, 'completed' );
 		$this->assertSame( 'Loyalty points for this order will be added to your account when your order is completed.', $this->thank_you()->message( $order ) );
+	}
+
+	public function test_no_points_are_promised_while_pixalink_has_paused_the_store(): void {
+		$order = $this->order_with_rewards();
+		$this->switch_features( true, true, true );
+		$connection = \Pixalink\Loyalty\Plugin::instance()->connection();
+		$connection->mark_connected( array(), array( 'id' => '101' ), 1, Connection::METHOD_HOSTED, null, null );
+		$connection->mark_commerce_paused();
+
+		$this->assertSame( '', $this->thank_you()->message( $order ) );
+
+		OrderMeta::update( $order, array( OrderMeta::POINTS_EARNED => '145' ) );
+		$this->assertSame( 'You earned 145 loyalty points with this order.', $this->thank_you()->message( $order ), 'Points already earned are still shown.' );
 	}
 
 	public function test_the_rewards_used_are_listed_below_the_order_details(): void {
