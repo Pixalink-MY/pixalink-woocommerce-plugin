@@ -104,6 +104,15 @@ final class SiteHealth {
 			);
 		}
 
+		if ( $health['store_paused'] ) {
+			return $this->result(
+				'recommended',
+				__( 'Pixalink has paused this store', 'pixalink-loyalty-for-woocommerce' ),
+				__( 'Points and vouchers are off until Pixalink turns the store back on. Order updates wait on this site and are sent automatically then. Contact Pixalink support.', 'pixalink-loyalty-for-woocommerce' ),
+				$actions
+			);
+		}
+
 		$problems = array();
 		if ( $stats['dead'] > 0 ) {
 			/* translators: %s: number of updates. */

@@ -13,7 +13,8 @@
 		{ "status": 401, "code": "unauthenticated" },
 		{ "status": 401, "code": "signature_invalid" },
 		{ "status": 401, "code": "timestamp_skew", "carries": [ "server_time" ] },
-		{ "status": 422, "code": "validation_failed", "carries": [ "errors" ] }
+		{ "status": 422, "code": "validation_failed", "carries": [ "errors" ] },
+		{ "status": 403, "code": "commerce_paused", "$comment": "Pixalink paused the outlet's store: every signed endpoint but connection/heartbeat (which reports status commerce_paused) and connection/disconnect." }
 	],
 	"endpoints": [
 		{ "method": "POST", "path": "connect/exchange", "auth": "none", "nonce": null, "request": "connect-exchange.request.json", "response": "connect-exchange.response.json", "errors": [ { "status": 400, "code": "invalid_grant" } ] },

@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Pixalink\Loyalty\Account;
 
 use Pixalink\Loyalty\Api\Credentials;
+use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Identity\GuestLinkStore;
 use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Support\Branding;
@@ -27,8 +28,8 @@ defined( 'ABSPATH' ) || exit;
  * store) with "Open member portal", which signs them in through {@see PortalHandoff}; logged-in shoppers who have not
  * verified their phone get one line that opens the Loyalty tab, where the one-time code flow lives, and the signed-out
  * portal link. The summary comes from {@see SummaryService} and its per-user cache, so an unverified shopper causes no call.
- * Nothing renders while the setting or the Loyalty tab is off, the store is not connected, or the summary cannot be
- * loaded: the dashboard never shows an error for it.
+ * Nothing renders while the setting or the Loyalty tab is off, the store is not connected or paused by Pixalink, or the
+ * summary cannot be loaded: the dashboard never shows an error for it.
  */
 final class DashboardCard {
 
@@ -86,6 +87,13 @@ final class DashboardCard {
 	private PortalHandoff $handoff;
 
 	/**
+	 * Connection state (store paused by Pixalink).
+	 *
+	 * @var Connection|null
+	 */
+	private ?Connection $connection;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param LoyaltyEndpoint $endpoint    The Loyalty tab.
@@ -95,8 +103,9 @@ final class DashboardCard {
 	 * @param GuestLinkStore  $guests      Guest links.
 	 * @param Logger          $logger      Logger.
 	 * @param PortalHandoff   $handoff     Portal links.
+	 * @param Connection|null $connection  Connection state (store paused by Pixalink).
 	 */
-	public function __construct( LoyaltyEndpoint $endpoint, SummaryService $summaries, Options $options, Credentials $credentials, GuestLinkStore $guests, Logger $logger, PortalHandoff $handoff ) {
+	public function __construct( LoyaltyEndpoint $endpoint, SummaryService $summaries, Options $options, Credentials $credentials, GuestLinkStore $guests, Logger $logger, PortalHandoff $handoff, ?Connection $connection = null ) {
 		$this->endpoint    = $endpoint;
 		$this->summaries   = $summaries;
 		$this->options     = $options;
@@ -104,6 +113,7 @@ final class DashboardCard {
 		$this->guests      = $guests;
 		$this->logger      = $logger;
 		$this->handoff     = $handoff;
+		$this->connection  = $connection;
 	}
 
 	/**
@@ -137,6 +147,10 @@ final class DashboardCard {
 	 */
 	private function template_args(): ?array {
 		if ( ! $this->options->get_bool( Options::ACCOUNT_DASHBOARD_CARD ) || ! $this->options->get_bool( Options::ACCOUNT_TAB_ENABLED ) || ! $this->credentials->is_configured() ) {
+			return null;
+		}
+
+		if ( null !== $this->connection && $this->connection->is_commerce_paused() ) {
 			return null;
 		}
 

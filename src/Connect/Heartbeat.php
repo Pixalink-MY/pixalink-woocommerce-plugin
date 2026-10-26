@@ -24,6 +24,10 @@ defined( 'ABSPATH' ) || exit;
  * A successful response is cached in `pixalink_loyalty_remote_status` (remote kill switches, earn timing,
  * minimum plugin version) and re-aligns {@see Clock} from `server_time`. A rejected key (401, or a 403 other than
  * a subscription/feature state) marks the connection `auth_failed`; the next accepted heartbeat restores it.
+ *
+ * Pixalink can pause one outlet's store: the heartbeat then answers `status: commerce_paused` with every feature off,
+ * and every other signed call 403 `commerce_paused` ({@see Heartbeat::on_commerce_paused()} records that at once). The
+ * first heartbeat that reports `active` again fires `pixalink_loyalty_heartbeat_received`, which resumes event delivery.
  */
 final class Heartbeat {
 
@@ -37,7 +41,7 @@ final class Heartbeat {
 	/**
 	 * 403 codes that describe the Pixalink account rather than the key; the connection stays `connected`.
 	 */
-	public const ACCOUNT_STATE_CODES = array( 'subscription_inactive', 'commerce_not_enabled' );
+	public const ACCOUNT_STATE_CODES = ApiException::ACCOUNT_STATE_CODES;
 
 	/**
 	 * Connect API resource.
@@ -108,6 +112,17 @@ final class Heartbeat {
 	public function register(): void {
 		add_action( self::HOOK, array( $this, 'handle_scheduled' ) );
 		add_action( 'admin_init', array( $this, 'ensure_scheduled' ) );
+		add_action( 'pixalink_loyalty_commerce_paused', array( $this, 'on_commerce_paused' ), 10, 0 );
+	}
+
+	/**
+	 * `pixalink_loyalty_commerce_paused` callback: a call came back 403 `commerce_paused`, so stop offering loyalty now
+	 * rather than at the next heartbeat (which keeps the state, or clears it once Pixalink resumes the store).
+	 *
+	 * @return void
+	 */
+	public function on_commerce_paused(): void {
+		$this->connection->mark_commerce_paused();
 	}
 
 	/**
@@ -229,6 +244,16 @@ final class Heartbeat {
 		if ( isset( $response['outlet'] ) && is_array( $response['outlet'] ) ) {
 			$this->connection->update_details( self::string_keys( $response['outlet'] ), null );
 		}
+
+		/**
+		 * Fires after an accepted heartbeat was stored (the events unit resumes delivery Pixalink paused once the
+		 * status is `active` again).
+		 *
+		 * @since 0.3.0
+		 *
+		 * @param array<mixed> $response Heartbeat response (`status`, `features`, `earn_on`, ...).
+		 */
+		do_action( 'pixalink_loyalty_heartbeat_received', $response );
 	}
 
 	/**
@@ -273,11 +298,7 @@ final class Heartbeat {
 	 * @return bool
 	 */
 	public static function is_key_rejection( ApiException $exception ): bool {
-		if ( ! $exception->is_auth_failure() ) {
-			return false;
-		}
-
-		return ! ( 403 === $exception->http_status() && in_array( $exception->error_code(), self::ACCOUNT_STATE_CODES, true ) );
+		return $exception->is_auth_failure() && ! $exception->is_account_state();
 	}
 
 	/**

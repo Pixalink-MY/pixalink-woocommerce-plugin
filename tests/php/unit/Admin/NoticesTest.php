@@ -136,6 +136,33 @@ final class NoticesTest extends TestCase {
 		$this->assertStringContainsString( '0.3.0', $notices[0]['message'] );
 	}
 
+	public function test_a_store_paused_by_pixalink_is_explained_until_pixalink_turns_it_back_on(): void {
+		$message = 'Pixalink has paused this store. Points and vouchers are off until Pixalink turns it back on. Contact Pixalink support.';
+		$this->connect();
+		$this->connection->store_remote_status(
+			array(
+				'status'   => 'commerce_paused',
+				'features' => array(
+					'earn'     => false,
+					'vouchers' => false,
+				),
+			)
+		);
+
+		$notices = $this->notices()->notices_for_screen( 'woocommerce_page_wc-settings', true );
+
+		$this->assertSame( array( Notices::COMMERCE_PAUSED ), array_column( $notices, 'id' ), 'Shown on the plugin tab too, instead of the generic inactive-account notice.' );
+		$this->assertSame( 'warning', $notices[0]['type'] );
+		$this->assertFalse( $notices[0]['dismissible'] );
+		$this->assertSame( $message, $notices[0]['message'] );
+		$this->assertSame( array( Notices::COMMERCE_PAUSED ), $this->ids( 'plugins' ) );
+		$this->assertSame( $message, Notices::result_notice( 'error_' . ConnectException::STORE_PAUSED )['message'] ?? null, 'Test connection says the same.' );
+
+		$this->connection->store_remote_status( array( 'status' => 'active' ) );
+
+		$this->assertSame( array(), $this->ids( 'plugins' ) );
+	}
+
 	public function test_disabled_coupons_are_flagged_while_connected(): void {
 		$this->coupons_enabled = false;
 		$this->assertNotContains( Notices::COUPONS_DISABLED, $this->ids( 'plugins' ), 'Irrelevant before connecting.' );

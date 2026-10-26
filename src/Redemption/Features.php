@@ -20,7 +20,8 @@ defined( 'ABSPATH' ) || exit;
  * WooCommerce › Settings › Pixalink Loyalty › Checkout can only switch a redemption off, never on.
  *
  * Nothing is offered before the first heartbeat confirmed the feature ({@see Connection::feature()}), while the
- * store is disconnected, or while Pixalink reports the account paused.
+ * store is disconnected, or while Pixalink reports the account paused (subscription inactive, integration not
+ * enabled, or the store paused by Pixalink staff: {@see Connection::PAUSED_STATUSES}).
  */
 final class Features {
 
@@ -41,11 +42,6 @@ final class Features {
 		CouponMapper::KIND_POINTS  => Options::POINTS_REDEMPTION_ENABLED,
 		CouponMapper::KIND_CREDIT  => Options::CREDITS_ENABLED,
 	);
-
-	/**
-	 * Heartbeat statuses that pause the whole programme.
-	 */
-	private const PAUSED_STATUSES = array( 'subscription_inactive', 'commerce_not_enabled' );
 
 	/**
 	 * Connection state.
@@ -136,7 +132,7 @@ final class Features {
 			return false;
 		}
 
-		if ( in_array( $this->connection->remote_status()['status'] ?? null, self::PAUSED_STATUSES, true ) ) {
+		if ( $this->connection->is_account_paused() ) {
 			return false;
 		}
 

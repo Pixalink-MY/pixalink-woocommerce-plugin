@@ -19,7 +19,7 @@ defined( 'ABSPATH' ) || exit;
 /**
  * One line on the order-received page about points: earned when Pixalink already answered, otherwise when they
  * will be added (on payment or on completion, the outlet's `earn_on` from the heartbeat). Shown only when the
- * order can earn (connected store, a known member or phone number).
+ * order can earn (connected store, a known member or phone number), and not while Pixalink has paused the store.
  *
  * Below the order details (order-received and My Account › View order), the Pixalink rewards the order used.
  */
@@ -105,6 +105,10 @@ final class ThankYou {
 
 		$can_earn = '' !== OrderMeta::get_string( $order, OrderMeta::CUSTOMER_ID ) || '' !== OrderMeta::get_string( $order, OrderMeta::PHONE_E164 );
 		if ( ! $this->credentials->is_configured() || ! $can_earn || OrderMeta::EARN_DEAD === OrderMeta::earn_state( $order ) ) {
+			return '';
+		}
+
+		if ( null !== $this->connection && $this->connection->is_commerce_paused() ) {
 			return '';
 		}
 

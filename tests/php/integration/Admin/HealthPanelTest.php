@@ -68,6 +68,26 @@ final class HealthPanelTest extends \WP_UnitTestCase {
 		$this->assertStringContainsString( 'sending is paused', $this->render() );
 	}
 
+	public function test_says_pixalink_paused_the_store_while_delivery_waits(): void {
+		update_option( Options::DELIVERY_PAUSED, EventDeliverer::PAUSE_COMMERCE_PAUSED );
+
+		$html = $this->render();
+
+		$this->assertStringContainsString( 'Pixalink has paused this store, so points and vouchers are off and order updates wait here.', $html );
+		$this->assertStringContainsString( 'Contact Pixalink support.', $html );
+		$this->assertStringNotContainsString( 'rejected', $html, 'Not a key problem: nothing to reconnect.' );
+	}
+
+	public function test_says_pixalink_paused_the_store_before_any_update_waits(): void {
+		update_option( Options::REMOTE_STATUS, array( 'status' => 'commerce_paused' ) );
+
+		$this->assertStringContainsString( 'Pixalink has paused this store', $this->render() );
+
+		update_option( Options::REMOTE_STATUS, array( 'status' => 'active' ) );
+
+		$this->assertStringNotContainsString( 'Pixalink has paused this store', $this->render() );
+	}
+
 	public function test_warns_when_not_connected(): void {
 		$this->disconnect_store();
 

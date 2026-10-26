@@ -35,6 +35,17 @@ final class ApiException extends \RuntimeException {
 	public const NOT_CONNECTED = 'not_connected';
 
 	/**
+	 * 403 from every signed endpoint but the heartbeat and disconnect while Pixalink staff have paused the outlet's
+	 * store (the heartbeat reports the same as `status: commerce_paused`).
+	 */
+	public const COMMERCE_PAUSED = 'commerce_paused';
+
+	/**
+	 * 403 codes that describe the Pixalink account rather than the key or the request: the key is still good.
+	 */
+	public const ACCOUNT_STATE_CODES = array( 'subscription_inactive', 'commerce_not_enabled', self::COMMERCE_PAUSED );
+
+	/**
 	 * Stable machine error code.
 	 *
 	 * @var string
@@ -193,5 +204,23 @@ final class ApiException extends \RuntimeException {
 	 */
 	public function is_auth_failure(): bool {
 		return in_array( $this->http_status, array( 401, 403 ), true ) && 'timestamp_skew' !== $this->error_code;
+	}
+
+	/**
+	 * Whether Pixalink paused the outlet's store (403 `commerce_paused`): nothing works until Pixalink turns it back on.
+	 *
+	 * @return bool
+	 */
+	public function is_commerce_paused(): bool {
+		return 403 === $this->http_status && self::COMMERCE_PAUSED === $this->error_code;
+	}
+
+	/**
+	 * Whether a 403 describes the Pixalink account (subscription, integration switched off or paused), not the key.
+	 *
+	 * @return bool
+	 */
+	public function is_account_state(): bool {
+		return 403 === $this->http_status && in_array( $this->error_code, self::ACCOUNT_STATE_CODES, true );
 	}
 }

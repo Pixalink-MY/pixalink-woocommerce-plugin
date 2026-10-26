@@ -23,6 +23,8 @@ defined( 'ABSPATH' ) || exit;
  * - 2xx (`processed`, `duplicate`, `accepted`, `ignored`) and 409 duplicate → delivered;
  * - 401/403 (except `timestamp_skew`) or missing credentials → delivery paused for every event until the
  *   credentials change or a manual ping succeeds; the attempt is not counted;
+ * - 403 `commerce_paused` (Pixalink staff paused the store) → delivery paused the same way, and also resumed by the
+ *   first heartbeat that reports the store `active` again ({@see EventDeliverer::resume_commerce()});
  * - 400/404/422 and other client errors → dead;
  * - 408/409/425/429/5xx, transport errors and a repeated `timestamp_skew` → retried per {@see RetryPolicy};
  * - recorded for another outlet or API base than the store is connected to now (it was reconnected since) → dead
@@ -40,8 +42,9 @@ final class EventDeliverer {
 	public const OUTCOME_PAUSE     = 'pause';
 	public const OUTCOME_DEFERRED  = 'deferred';
 
-	public const PAUSE_AUTH_FAILED   = 'auth_failed';
-	public const PAUSE_NOT_CONNECTED = 'not_connected';
+	public const PAUSE_AUTH_FAILED     = 'auth_failed';
+	public const PAUSE_NOT_CONNECTED   = 'not_connected';
+	public const PAUSE_COMMERCE_PAUSED = 'commerce_paused';
 
 	/**
 	 * Error code of rows recorded for a connection the store no longer has.
@@ -294,7 +297,7 @@ final class EventDeliverer {
 			return self::OUTCOME_DELIVERED;
 		}
 
-		if ( $exception->is_auth_failure() ) {
+		if ( $exception->is_commerce_paused() || $exception->is_auth_failure() ) {
 			return self::OUTCOME_PAUSE;
 		}
 
@@ -321,6 +324,19 @@ final class EventDeliverer {
 	 */
 	public function pause_reason(): string {
 		return $this->options->get_string( Options::DELIVERY_PAUSED );
+	}
+
+	/**
+	 * Pixalink reports the store active again: lift a pause that `commerce_paused` caused and send what waited.
+	 *
+	 * A pause for a rejected or missing key is left alone; it needs the credentials to change.
+	 *
+	 * @return void
+	 */
+	public function resume_commerce(): void {
+		if ( self::PAUSE_COMMERCE_PAUSED === $this->pause_reason() ) {
+			$this->resume();
+		}
 	}
 
 	/**
@@ -378,7 +394,7 @@ final class EventDeliverer {
 				return $outcome;
 
 			case self::OUTCOME_PAUSE:
-				$reason = ApiException::NOT_CONNECTED === $exception->error_code() ? self::PAUSE_NOT_CONNECTED : self::PAUSE_AUTH_FAILED;
+				$reason = self::pause_reason_for( $exception );
 				$this->store->defer( $event->id, self::utc_datetime( $now ), $reason . ': ' . $error );
 				$this->pause( $reason, $error );
 				return $outcome;
@@ -512,7 +528,9 @@ final class EventDeliverer {
 
 		$this->options->set( Options::DELIVERY_PAUSED, $reason );
 		$this->logger->error(
-			'Pixalink event delivery paused until the store is reconnected.',
+			self::PAUSE_COMMERCE_PAUSED === $reason
+				? 'Pixalink paused this store; event delivery waits until a heartbeat reports it active again.'
+				: 'Pixalink event delivery paused until the store is reconnected.',
 			array(
 				'reason' => $reason,
 				'error'  => $error,
@@ -520,13 +538,27 @@ final class EventDeliverer {
 		);
 
 		/**
-		 * Fires when event delivery pauses (rejected or missing credentials).
+		 * Fires when event delivery pauses (rejected or missing credentials, or the store paused by Pixalink).
 		 *
 		 * @since 0.1.0
 		 *
-		 * @param string $reason "auth_failed" or "not_connected".
+		 * @param string $reason "auth_failed", "not_connected" or "commerce_paused".
 		 */
 		do_action( 'pixalink_loyalty_delivery_paused', $reason );
+	}
+
+	/**
+	 * Pause reason for a failure classified {@see EventDeliverer::OUTCOME_PAUSE}.
+	 *
+	 * @param ApiException $exception Failure.
+	 * @return string One of the PAUSE_* constants.
+	 */
+	private static function pause_reason_for( ApiException $exception ): string {
+		if ( ApiException::NOT_CONNECTED === $exception->error_code() ) {
+			return self::PAUSE_NOT_CONNECTED;
+		}
+
+		return $exception->is_commerce_paused() ? self::PAUSE_COMMERCE_PAUSED : self::PAUSE_AUTH_FAILED;
 	}
 
 	/**

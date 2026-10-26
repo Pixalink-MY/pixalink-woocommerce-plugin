@@ -7,6 +7,7 @@
 
 namespace Pixalink\Loyalty\Tests\Unit\Connect;
 
+use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use Pixalink\Loyalty\Api\ApiException;
@@ -16,6 +17,8 @@ use Pixalink\Loyalty\Api\Resources\Connect;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Connect\Heartbeat;
 use Pixalink\Loyalty\Install\Installer;
+use Pixalink\Loyalty\Redemption\CouponMapper;
+use Pixalink\Loyalty\Redemption\Features;
 use Pixalink\Loyalty\Support\Clock;
 use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Support\Logger;
@@ -25,6 +28,7 @@ use Pixalink\Loyalty\Tests\Unit\TestCase;
 /**
  * @covers \Pixalink\Loyalty\Connect\Heartbeat
  * @covers \Pixalink\Loyalty\Connect\Connection
+ * @covers \Pixalink\Loyalty\Redemption\Features
  */
 final class HeartbeatTest extends TestCase {
 
@@ -293,6 +297,112 @@ final class HeartbeatTest extends TestCase {
 
 		$this->assertSame( Connection::STATUS_CONNECTED, $this->connection->status() );
 		$this->assertSame( 'subscription_inactive', $this->connection->remote_status()['last_error']['code'] );
+	}
+
+	/**
+	 * Heartbeat body while Pixalink staff have paused the store.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private static function paused_response(): array {
+		return self::response(
+			array(
+				'status'   => 'commerce_paused',
+				'features' => array(
+					'earn'              => false,
+					'vouchers'          => false,
+					'points_redemption' => false,
+					'credits'           => false,
+					'otp_channels'      => array(),
+				),
+			)
+		);
+	}
+
+	public function test_a_paused_heartbeat_keeps_the_connection_and_switches_loyalty_off(): void {
+		$this->connect();
+		$this->store->set( Options::POINTS_REDEMPTION_ENABLED, 'yes' );
+		$this->respond( 200, self::response() );
+		$this->heartbeat()->run();
+		$features = new Features( $this->connection, $this->store, $this->credentials );
+		$this->assertTrue( $features->enabled( CouponMapper::KIND_POINTS ), 'Points are on while the store is active.' );
+
+		$this->respond( 200, self::paused_response() );
+		Actions\expectDone( 'pixalink_loyalty_heartbeat_received' )->once()->with( \Mockery::on( static fn ( array $response ): bool => 'commerce_paused' === $response['status'] ) );
+
+		$this->heartbeat()->run();
+
+		$this->assertSame( Connection::STATUS_CONNECTED, $this->connection->status(), 'The key is still good.' );
+		$this->assertTrue( $this->connection->is_commerce_paused() );
+		$this->assertTrue( $this->connection->is_account_paused() );
+		$this->assertFalse( $this->connection->feature( 'earn' ) );
+		$this->assertFalse( $features->enabled( CouponMapper::KIND_POINTS ) );
+		$this->assertFalse( $features->any_enabled() );
+	}
+
+	public function test_a_commerce_paused_403_marks_the_store_paused_without_rejecting_the_key(): void {
+		$this->connect();
+		$this->respond( 200, self::response() );
+		$this->heartbeat()->run();
+		$this->respond(
+			403,
+			array(
+				'message' => 'This store is paused in Pixalink.',
+				'code'    => 'commerce_paused',
+			)
+		);
+		Actions\expectDone( 'pixalink_loyalty_commerce_paused' )->once()->with( 'connection/heartbeat' );
+
+		try {
+			$this->heartbeat()->run();
+			$this->fail( 'Expected ApiException.' );
+		} catch ( ApiException $exception ) {
+			$this->assertTrue( $exception->is_commerce_paused() );
+			$this->assertFalse( Heartbeat::is_key_rejection( $exception ) );
+		}
+		$this->assertSame( Connection::STATUS_CONNECTED, $this->connection->status() );
+
+		// What the `pixalink_loyalty_commerce_paused` listener does (Brain Monkey does not run listeners).
+		$this->heartbeat()->on_commerce_paused();
+
+		$this->assertTrue( $this->connection->is_commerce_paused() );
+		$remote = $this->connection->remote_status();
+		$this->assertSame(
+			array(
+				'earn'              => false,
+				'vouchers'          => false,
+				'points_redemption' => false,
+				'credits'           => false,
+				'otp_channels'      => array( 'whatsapp', 'sms' ),
+			),
+			$remote['features'],
+			'Every switch is off; other details of the last heartbeat stay.'
+		);
+		$this->assertSame( 'completed', $remote['earn_on'] );
+		$this->assertSame( 'commerce_paused', $remote['last_error']['code'] );
+	}
+
+	public function test_an_active_heartbeat_clears_the_paused_state(): void {
+		$this->connect();
+		$this->respond( 200, self::paused_response() );
+		$this->heartbeat()->run();
+		$this->assertTrue( $this->connection->is_commerce_paused() );
+
+		$this->respond( 200, self::response() );
+		Actions\expectDone( 'pixalink_loyalty_heartbeat_received' )->once()->with( \Mockery::on( static fn ( array $response ): bool => 'active' === $response['status'] ) );
+
+		$this->heartbeat()->run();
+
+		$this->assertFalse( $this->connection->is_commerce_paused() );
+		$this->assertFalse( $this->connection->is_account_paused() );
+		$this->assertTrue( $this->connection->feature( 'earn' ) );
+	}
+
+	public function test_a_paused_403_before_connecting_records_nothing(): void {
+		$this->connection->mark_commerce_paused();
+
+		$this->assertSame( array(), $this->connection->remote_status() );
+		$this->assertFalse( $this->connection->is_commerce_paused() );
 	}
 
 	public function test_an_accepted_heartbeat_recovers_from_auth_failed(): void {

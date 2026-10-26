@@ -571,6 +571,8 @@ final class ConnectionField {
 				return __( 'Subscription inactive: loyalty is paused', 'pixalink-loyalty-for-woocommerce' );
 			case 'commerce_not_enabled':
 				return __( 'Online store integration is not enabled for this organisation', 'pixalink-loyalty-for-woocommerce' );
+			case 'commerce_paused':
+				return __( 'Paused by Pixalink: points and vouchers are off until Pixalink turns this store back on', 'pixalink-loyalty-for-woocommerce' );
 			default:
 				return __( 'Unknown', 'pixalink-loyalty-for-woocommerce' );
 		}

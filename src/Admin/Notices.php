@@ -16,8 +16,8 @@ use Pixalink\Loyalty\Connect\Connection;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * State notices (not connected, key rejected, plugin too old, account inactive, coupons disabled) and the one-shot
- * result notice after a Connect action (`?pixalink_notice={code}`).
+ * State notices (not connected, key rejected, plugin too old, account inactive, store paused by Pixalink, coupons
+ * disabled) and the one-shot result notice after a Connect action (`?pixalink_notice={code}`).
  *
  * State notices show only on the Plugins screen and WooCommerce screens, to users who can manage
  * WooCommerce. "Not connected" and "coupons disabled" can be dismissed per user.
@@ -28,6 +28,7 @@ final class Notices {
 	public const AUTH_FAILED      = 'auth_failed';
 	public const PLUGIN_OUTDATED  = 'plugin_outdated';
 	public const ACCOUNT_INACTIVE = 'account_inactive';
+	public const COMMERCE_PAUSED  = 'commerce_paused';
 	public const COUPONS_DISABLED = 'coupons_disabled';
 
 	public const DISMISSIBLE = array( self::NOT_CONNECTED, self::COUPONS_DISABLED );
@@ -157,7 +158,9 @@ final class Notices {
 			);
 		}
 
-		if ( in_array( $this->connection->remote_status()['status'] ?? null, array( 'subscription_inactive', 'commerce_not_enabled' ), true ) ) {
+		if ( $this->connection->is_commerce_paused() ) {
+			$notices[] = self::notice( self::COMMERCE_PAUSED, 'warning', esc_html( self::store_paused_message() ) );
+		} elseif ( $this->connection->is_account_paused() ) {
 			$notices[] = self::notice(
 				self::ACCOUNT_INACTIVE,
 				'warning',
@@ -235,6 +238,8 @@ final class Notices {
 				return __( 'This outlet is already connected to another WooCommerce store. Disconnect it there first, or use a different outlet.', 'pixalink-loyalty-for-woocommerce' );
 			case ConnectException::ACCOUNT_INACTIVE:
 				return __( 'Pixalink accepted the key, but the organisation\'s subscription or online-store integration is not active.', 'pixalink-loyalty-for-woocommerce' );
+			case ConnectException::STORE_PAUSED:
+				return self::store_paused_message();
 			case ConnectException::NETWORK_ERROR:
 				return __( 'Pixalink could not be reached from this server. Try again in a few minutes; if it keeps failing, ask your host whether outgoing HTTPS requests are allowed.', 'pixalink-loyalty-for-woocommerce' );
 			case ConnectException::NOT_CONNECTED:
@@ -244,6 +249,15 @@ final class Notices {
 			default:
 				return __( 'Pixalink returned an unexpected error. Please try again; if it keeps happening, contact Pixalink support.', 'pixalink-loyalty-for-woocommerce' );
 		}
+	}
+
+	/**
+	 * What the merchant is told while Pixalink staff have paused the store (notice, health panel, Test connection).
+	 *
+	 * @return string
+	 */
+	public static function store_paused_message(): string {
+		return __( 'Pixalink has paused this store. Points and vouchers are off until Pixalink turns it back on. Contact Pixalink support.', 'pixalink-loyalty-for-woocommerce' );
 	}
 
 	/**
