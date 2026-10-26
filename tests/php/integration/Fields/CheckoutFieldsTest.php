@@ -133,7 +133,10 @@ final class CheckoutFieldsTest extends \WP_UnitTestCase {
 
 		$customer = new \WC_Customer( $user_id );
 		$service  = BlocksPackage::container()->get( BlocksCheckoutFields::class );
-		$this->assertFalse( $service->get_field_from_object( CheckoutFields::BLOCKS_CONSENT, $customer, 'other' ), 'The consent answer is not kept on the profile.' );
+		$this->assertFalse( $customer->meta_exists( BlocksCheckoutFields::OTHER_FIELDS_PREFIX . CheckoutFields::BLOCKS_CONSENT ), 'The consent answer is not kept on the profile.' );
+		$this->assertArrayNotHasKey( CheckoutFields::BLOCKS_CONSENT, $service->get_all_fields_from_object( $customer, 'other' ), 'The next checkout gets no consent value to pre-fill.' );
+		// An unanswered checkbox reads as false before WooCommerce 11.3 and as '' (not set) from 11.3 (woocommerce#68780).
+		$this->assertContains( $service->get_field_from_object( CheckoutFields::BLOCKS_CONSENT, $customer, 'other' ), array( false, '' ), 'The box is not shown ticked.' );
 		$this->assertSame( '0123456789', $service->get_field_from_object( CheckoutFields::BLOCKS_PHONE, $customer, 'other' ), 'The typed number is kept for the next checkout.' );
 	}
 
