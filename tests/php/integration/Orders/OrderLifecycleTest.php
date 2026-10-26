@@ -10,7 +10,6 @@ namespace Pixalink\Loyalty\Tests\Integration\Orders;
 use Pixalink\Loyalty\Events\EventDeliverer;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\EventType;
-use Pixalink\Loyalty\Events\OutletResolver;
 use Pixalink\Loyalty\Events\Pruner;
 use Pixalink\Loyalty\Orders\OrderMeta;
 use Pixalink\Loyalty\Plugin;
@@ -354,7 +353,7 @@ final class OrderLifecycleTest extends \WP_UnitTestCase {
 	}
 
 	public function test_an_event_queued_before_reconnecting_to_another_outlet_is_never_sent_there(): void {
-		set_transient( OutletResolver::TRANSIENT, Responses::OUTLET_ID, DAY_IN_SECONDS );
+		Plugin::instance()->events()->outlet_resolver()->remember( Responses::OUTLET_ID );
 		$order = $this->create_order();
 		$order->payment_complete();
 		$event = $this->events_of( $order )[0];

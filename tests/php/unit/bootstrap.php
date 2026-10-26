@@ -21,6 +21,11 @@ if ( ! defined( 'PIXALINK_LOYALTY_VERSION' ) ) {
 	define( 'PIXALINK_LOYALTY_DISTRIBUTION', 'dev' );
 }
 
+// Time constants wp-includes/default-constants.php defines.
+if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+	define( 'DAY_IN_SECONDS', 86400 );
+}
+
 // Cookie constants wp_cookie_constants() defines (a site at the domain root, host-only cookies).
 if ( ! defined( 'COOKIEPATH' ) ) {
 	define( 'COOKIEPATH', '/' );

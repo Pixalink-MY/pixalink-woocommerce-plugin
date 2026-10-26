@@ -7,6 +7,7 @@
 
 namespace Pixalink\Loyalty\Tests\Unit\Connect;
 
+use Brain\Monkey\Actions;
 use Brain\Monkey\Functions;
 use Pixalink\Loyalty\Admin\Notices;
 use Pixalink\Loyalty\Api\Client;
@@ -19,6 +20,7 @@ use Pixalink\Loyalty\Connect\Heartbeat;
 use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\LegacyWebhookDetector;
 use Pixalink\Loyalty\Connect\PkceState;
+use Pixalink\Loyalty\Events\OutletResolver;
 use Pixalink\Loyalty\Support\Clock;
 use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Support\Logger;
@@ -511,6 +513,29 @@ final class ConnectServiceTest extends TestCase {
 		$this->assert_reason( ConnectException::CREDENTIALS_OVERRIDDEN, fn () => $service->start_hosted( self::USER_ID ) );
 		$this->assert_reason( ConnectException::CREDENTIALS_OVERRIDDEN, fn () => $service->connect_with_key( self::USER_ID, self::OLD_KEY ) );
 		$this->assertStringContainsString( 'request_access', $service->start_hosted( self::USER_ID, Connect::INTENT_REQUEST_ACCESS ), 'Requesting access stays possible.' );
+	}
+
+	public function test_adopting_the_wp_config_key_for_another_outlet_forgets_the_cached_outlet(): void {
+		$options     = new Options();
+		$credentials = new Credentials( new Crypto( 'salts' ), $options, static fn ( string $name ) => Credentials::API_KEY_CONSTANT === $name ? self::API_KEY : null );
+		$clock       = new Clock( $options, static fn (): int => self::NOW );
+		$client      = new Client( $credentials, $clock, new Logger(), $options, '0.1.0' );
+		$api         = new Connect( $client );
+		$connection  = new Connection( $options );
+		$service     = new ConnectService( $api, $credentials, $connection, new PkceState(), new Heartbeat( $api, $credentials, $connection, $clock, new Logger(), '0.1.0' ), new LegacyWebhookDetector(), new LeadPayload( '0.1.0' ), $options, new Logger(), '0.1.0' );
+
+		// Events were going to outlet 11; the key in wp-config.php now belongs to outlet 101, with the same API base.
+		$resolver = new OutletResolver( $client, static fn (): string => 'fingerprint-of-the-new-key' );
+		$resolver->remember( '11' );
+		Actions\expectDone( Connection::CREDENTIALS_CHANGED_ACTION )->once()->whenHappen( static fn () => $resolver->forget() );
+		$this->respond_heartbeat();
+		$this->respond( 200, array( 'outlet' => array( 'id' => '101' ) ) );
+
+		$service->adopt_configured_key( self::USER_ID );
+
+		$this->assertSame( '101', $connection->data()['outlet']['id'] );
+		$this->assertNull( $resolver->known_outlet_id(), 'The next event looks the outlet up again.' );
+		$this->assertArrayNotHasKey( OutletResolver::TRANSIENT, $this->transients );
 	}
 
 	public function test_disconnect_tells_pixalink_and_clears_credentials_but_keeps_history(): void {

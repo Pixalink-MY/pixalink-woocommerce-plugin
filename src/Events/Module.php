@@ -141,7 +141,7 @@ final class Module {
 		$this->connection  = new Connection( $options );
 		$this->repository  = new EventRepository();
 		$this->scheduler   = new Scheduler();
-		$this->outlet      = new OutletResolver( $client );
+		$this->outlet      = new OutletResolver( $client, static fn (): string => OutletResolver::fingerprint( $credentials->api_key(), $client->base_url() ) );
 		$policy            = new RetryPolicy();
 		$outlet_id         = fn (): string => $this->outlet->outlet_id();
 		$api_base          = static fn (): string => $client->base_url();
@@ -175,7 +175,9 @@ final class Module {
 			$this->scheduler,
 			null,
 			fn (): array => array(
-				'outlet_id' => $this->outlet->known_outlet_id() ?? $this->connected_outlet_id(),
+				// A cache made for other credentials means the connection record may predate the change too: leave the
+				// outlet unknown rather than stamp the old one (the deliverer then sends to the outlet it resolves).
+				'outlet_id' => $this->outlet->known_outlet_id() ?? ( $this->outlet->is_stale() ? null : $this->connected_outlet_id() ),
 				'api_base'  => $client->base_url(),
 			),
 			$this->immediate
@@ -212,6 +214,8 @@ final class Module {
 		foreach ( array( 'add_option_', 'update_option_', 'delete_option_' ) as $prefix ) {
 			add_action( $prefix . Options::CREDENTIALS, array( $this, 'on_credentials_changed' ), 10, 0 );
 		}
+		// A connection recorded (hosted sign-in, pasted key, or the wp-config.php key adopted): same, whichever key.
+		add_action( Connection::CREDENTIALS_CHANGED_ACTION, array( $this, 'on_credentials_changed' ), 10, 0 );
 
 		( new ThankYou( $this->credentials, $this->connection ) )->register();
 
@@ -247,14 +251,23 @@ final class Module {
 	}
 
 	/**
-	 * `pixalink_loyalty_heartbeat_received` callback: once Pixalink reports the store active again, send what waited
-	 * while it was paused.
+	 * `pixalink_loyalty_heartbeat_received` callback: drop a cached outlet id the key no longer belongs to, and once
+	 * Pixalink reports the store active again, send what waited while it was paused.
 	 *
 	 * @param mixed $response Heartbeat response.
 	 * @return void
 	 */
 	public function on_heartbeat( $response ): void {
-		if ( is_array( $response ) && Connection::REMOTE_ACTIVE === ( $response['status'] ?? null ) ) {
+		if ( ! is_array( $response ) ) {
+			return;
+		}
+
+		$reported = is_array( $response['outlet'] ?? null ) ? ( $response['outlet']['id'] ?? null ) : null;
+		if ( is_scalar( $reported ) ) {
+			$this->outlet->forget_unless( (string) $reported );
+		}
+
+		if ( Connection::REMOTE_ACTIVE === ( $response['status'] ?? null ) ) {
 			$this->deliverer->resume_commerce();
 		}
 	}
@@ -406,6 +419,15 @@ final class Module {
 	 */
 	public function queue(): EventQueue {
 		return $this->queue;
+	}
+
+	/**
+	 * Outlet id resolver.
+	 *
+	 * @return OutletResolver
+	 */
+	public function outlet_resolver(): OutletResolver {
+		return $this->outlet;
 	}
 
 	/**

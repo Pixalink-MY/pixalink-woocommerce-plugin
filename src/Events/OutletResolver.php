@@ -18,7 +18,13 @@ defined( 'ABSPATH' ) || exit;
  * Resolves the `outlet_id` every envelope carries.
  *
  * Precedence: the `pixalink_loyalty_outlet_id` filter (the Connect layer knows the outlet it connected to), then a
- * one-day transient, then `GET outlet` with the stored key. The transient is dropped whenever the credentials change.
+ * one-day transient, then `GET outlet` with the stored key.
+ *
+ * The transient records which credentials it was resolved for: a SHA-256 fingerprint of the API key and the API base,
+ * never the key itself. A cached id whose fingerprint no longer matches (the key in wp-config.php or the API base
+ * changed since) is not used, so a store reconnected to another outlet never stamps its events with the old one.
+ * It is also dropped whenever the credentials change through the plugin, a connection is recorded, or a heartbeat
+ * reports another outlet ({@see Module}).
  */
 final class OutletResolver {
 
@@ -32,12 +38,32 @@ final class OutletResolver {
 	private Client $client;
 
 	/**
+	 * Fingerprint of the current credentials, `fn (): string`.
+	 *
+	 * @var \Closure
+	 */
+	private \Closure $fingerprint;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Client $client API client.
+	 * @param Client        $client      API client.
+	 * @param \Closure|null $fingerprint `fn (): string`, see {@see OutletResolver::fingerprint()}; defaults to none.
 	 */
-	public function __construct( Client $client ) {
-		$this->client = $client;
+	public function __construct( Client $client, ?\Closure $fingerprint = null ) {
+		$this->client      = $client;
+		$this->fingerprint = $fingerprint ?? static fn (): string => '';
+	}
+
+	/**
+	 * Fingerprint of an API key and API base (a hash: the key is never stored with the outlet id).
+	 *
+	 * @param string|null $api_key  API key, null when none.
+	 * @param string      $api_base API base URL.
+	 * @return string
+	 */
+	public static function fingerprint( ?string $api_key, string $api_base ): string {
+		return hash( 'sha256', (string) $api_key . "\n" . rtrim( trim( $api_base ), '/' ) );
 	}
 
 	/**
@@ -60,13 +86,13 @@ final class OutletResolver {
 			throw $exception;
 		}
 
-		set_transient( self::TRANSIENT, $id, DAY_IN_SECONDS );
+		$this->remember( $id );
 
 		return $id;
 	}
 
 	/**
-	 * The outlet id known without a request (the filter, then the cache), or null.
+	 * The outlet id known without a request (the filter, then a cache made for the current credentials), or null.
 	 *
 	 * @return string|null
 	 */
@@ -85,9 +111,64 @@ final class OutletResolver {
 			return trim( (string) $filtered );
 		}
 
-		$cached = get_transient( self::TRANSIENT );
+		$cached = $this->cached();
+		if ( null === $cached || ! hash_equals( $cached['fingerprint'], ( $this->fingerprint )() ) ) {
+			return null;
+		}
 
-		return is_scalar( $cached ) && '' !== (string) $cached ? (string) $cached : null;
+		return $cached['id'];
+	}
+
+	/**
+	 * Whether a cached outlet id exists that was resolved for other credentials (or by a version that did not record
+	 * them). The connection record may be just as old then, so it should not be trusted as the current outlet either.
+	 *
+	 * @return bool
+	 */
+	public function is_stale(): bool {
+		$raw = get_transient( self::TRANSIENT );
+		if ( false === $raw || '' === $raw ) {
+			return false;
+		}
+
+		$cached = $this->cached();
+
+		return null === $cached || ! hash_equals( $cached['fingerprint'], ( $this->fingerprint )() );
+	}
+
+	/**
+	 * Cache an outlet id for the current credentials.
+	 *
+	 * @param string $id Outlet id.
+	 * @return void
+	 */
+	public function remember( string $id ): void {
+		set_transient(
+			self::TRANSIENT,
+			array(
+				'id'          => $id,
+				'fingerprint' => ( $this->fingerprint )(),
+			),
+			DAY_IN_SECONDS
+		);
+	}
+
+	/**
+	 * Pixalink reported the outlet the key belongs to (heartbeat): drop a cached id for any other outlet.
+	 *
+	 * @param string $reported_id Outlet id Pixalink reported.
+	 * @return bool Whether the cache was dropped.
+	 */
+	public function forget_unless( string $reported_id ): bool {
+		$reported_id = trim( $reported_id );
+		$cached      = $this->cached();
+		if ( '' === $reported_id || null === $cached || $cached['id'] === $reported_id ) {
+			return false;
+		}
+
+		$this->forget();
+
+		return true;
 	}
 
 	/**
@@ -97,5 +178,25 @@ final class OutletResolver {
 	 */
 	public function forget(): void {
 		delete_transient( self::TRANSIENT );
+	}
+
+	/**
+	 * The cached entry, or null when there is none or it predates fingerprints.
+	 *
+	 * @return array{id:string,fingerprint:string}|null
+	 */
+	private function cached(): ?array {
+		$cached = get_transient( self::TRANSIENT );
+		if ( ! is_array( $cached ) ) {
+			return null;
+		}
+
+		$id          = isset( $cached['id'] ) && is_scalar( $cached['id'] ) ? trim( (string) $cached['id'] ) : '';
+		$fingerprint = isset( $cached['fingerprint'] ) && is_string( $cached['fingerprint'] ) ? $cached['fingerprint'] : '';
+
+		return '' === $id ? null : array(
+			'id'          => $id,
+			'fingerprint' => $fingerprint,
+		);
 	}
 }
