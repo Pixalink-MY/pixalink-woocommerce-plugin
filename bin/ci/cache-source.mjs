@@ -9,7 +9,6 @@
  *
  * Usage: node bin/ci/cache-source.mjs <zip url> <cache dir>   -> prints the cached zip's path
  */
-import { createWriteStream } from 'node:fs';
 import {
 	mkdir,
 	open,
@@ -18,10 +17,9 @@ import {
 	rm,
 	stat,
 	utimes,
+	writeFile,
 } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const PRUNE_DAYS = 21;
@@ -79,10 +77,16 @@ if ( await isZip( target ) ) {
 			if ( ! response.ok ) {
 				throw new Error( `HTTP ${ response.status }` );
 			}
-			await pipeline(
-				Readable.fromWeb( response.body ),
-				createWriteStream( temporary )
-			);
+			// Buffered, not streamed: piping the body to a file pauses undici's parser under backpressure, and
+			// Node 22's undici then dies on assert( ! this.paused ) when the socket closes, which no catch sees.
+			const body = Buffer.from( await response.arrayBuffer() );
+			const expected = Number( response.headers.get( 'content-length' ) );
+			if ( expected && body.length !== expected ) {
+				throw new Error(
+					`got ${ body.length } of ${ expected } bytes`
+				);
+			}
+			await writeFile( temporary, body );
 			if ( ! ( await isZip( temporary ) ) ) {
 				throw new Error( 'not a zip' );
 			}
