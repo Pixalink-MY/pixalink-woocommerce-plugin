@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-26T08:15:50+00:00\n"
+"POT-Creation-Date: 2026-10-26T12:52:59+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: pixalink-loyalty-for-woocommerce\n"
@@ -434,7 +434,7 @@ msgid "Search by order or event id"
 msgstr ""
 
 #: src/Admin/EventsListTable.php:128
-#: src/Admin/HealthPanel.php:312
+#: src/Admin/HealthPanel.php:319
 msgid "You are not allowed to manage Pixalink Loyalty."
 msgstr ""
 
@@ -530,116 +530,120 @@ msgstr ""
 msgid "Response"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:81
+#: src/Admin/HealthPanel.php:86
 #: src/Admin/SystemStatus.php:63
 msgid "Event delivery"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:103
+#: src/Admin/HealthPanel.php:108
 msgid "This store is not connected to Pixalink yet, so orders are not being sent. Connect it to start earning points."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:105
+#: src/Admin/HealthPanel.php:110
 msgid "Pixalink rejected this store's key, so sending is paused. Reconnect the store; waiting orders are sent automatically afterwards."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:107
+#: src/Admin/HealthPanel.php:112
 msgid "Sending is paused because the store's Pixalink key is missing. Reconnect the store to resume."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:109
+#: src/Admin/HealthPanel.php:114
 msgid "Pixalink has paused this store, so points and vouchers are off and order updates wait here. They are sent automatically once Pixalink turns the store back on. Contact Pixalink support."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:115
+#: src/Admin/HealthPanel.php:120
 msgid "Last order update sent"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:117
+#: src/Admin/HealthPanel.php:122
 msgid "None yet"
 msgstr ""
 
 #. translators: 1: event label such as "Order paid", 2: time ago such as "5 mins".
-#: src/Admin/HealthPanel.php:119
+#: src/Admin/HealthPanel.php:124
 #, php-format
 msgid "%1$s, %2$s ago"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:124
+#: src/Admin/HealthPanel.php:129
 #: src/Admin/SystemStatus.php:64
 msgid "Waiting to send"
 msgstr ""
 
 #. translators: 1: events waiting, 2: of which retrying.
-#: src/Admin/HealthPanel.php:127
+#: src/Admin/HealthPanel.php:132
 #, php-format
 msgid "%1$s (%2$s retrying)"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:132
+#: src/Admin/HealthPanel.php:137
 #: src/Admin/SystemStatus.php:66
 msgid "Oldest waiting update"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:136
+#: src/Admin/HealthPanel.php:141
 #: src/Admin/SystemStatus.php:65
 #: src/Events/EventStatus.php:55
 msgid "Failed"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:138
+#: src/Admin/HealthPanel.php:143
 #: src/Admin/SystemStatus.php:68
 msgid "Overdue background tasks"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:143
+#: src/Admin/HealthPanel.php:148
 msgid "WordPress background tasks are not running: DISABLE_WP_CRON is set but no server cron job calls wp-cron.php. Ask your host to run it every minute, otherwise points are added late."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:145
+#: src/Admin/HealthPanel.php:150
 msgid "WordPress background tasks look stalled, so updates to Pixalink may be delayed. A server cron job that calls wp-cron.php every minute fixes this on low-traffic stores."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:149
+#: src/Admin/HealthPanel.php:152
+msgid "An order update has waited more than 5 minutes to be sent, so members get their points late. WordPress runs background tasks only when someone visits the store; a server cron job that calls wp-cron.php every minute keeps them on time."
+msgstr ""
+
+#: src/Admin/HealthPanel.php:156
 msgid "Send test ping"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:150
+#: src/Admin/HealthPanel.php:157
 msgid "Retry failed"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:151
+#: src/Admin/HealthPanel.php:158
 msgid "Resend last 7 days"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:152
+#: src/Admin/HealthPanel.php:159
 msgid "Resend last 30 days"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:153
+#: src/Admin/HealthPanel.php:160
 msgid "View all updates"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:155
+#: src/Admin/HealthPanel.php:162
 msgid "Resending only sends what Pixalink has not received yet, so points are never added twice."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:183
+#: src/Admin/HealthPanel.php:190
 msgid "Test ping delivered. This store is talking to Pixalink."
 msgstr ""
 
 #. translators: %s: error details.
-#: src/Admin/HealthPanel.php:189
+#: src/Admin/HealthPanel.php:196
 #, php-format
 msgid "Test ping failed: %s"
 msgstr ""
 
-#: src/Admin/HealthPanel.php:190
+#: src/Admin/HealthPanel.php:197
 msgid "the store is not connected."
 msgstr ""
 
 #. translators: %s: number of updates.
-#: src/Admin/HealthPanel.php:208
+#: src/Admin/HealthPanel.php:215
 #, php-format
 msgid "%s failed update will be retried."
 msgid_plural "%s failed updates will be retried."
@@ -647,26 +651,26 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of days.
-#: src/Admin/HealthPanel.php:226
+#: src/Admin/HealthPanel.php:233
 #, php-format
 msgid "Resending orders paid in the last %d day in the background."
 msgid_plural "Resending orders paid in the last %d days in the background."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/Admin/HealthPanel.php:241
+#: src/Admin/HealthPanel.php:248
 msgid "The update will be sent again shortly."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:243
+#: src/Admin/HealthPanel.php:250
 msgid "This update cannot be retried (it was already delivered or is being sent)."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:259
+#: src/Admin/HealthPanel.php:266
 msgid "The update was cancelled and will not be sent."
 msgstr ""
 
-#: src/Admin/HealthPanel.php:261
+#: src/Admin/HealthPanel.php:268
 msgid "This update cannot be cancelled."
 msgstr ""
 

@@ -189,6 +189,20 @@ final class ClientTest extends TestCase {
 		$this->assert_signed( 0, 'a6417789-0a05-5068-bab0-90d991946d97' );
 	}
 
+	public function test_events_can_be_sent_with_a_shorter_timeout(): void {
+		$this->respond( 200, array( 'status' => 'processed' ) );
+
+		$this->client()->send_event(
+			array(
+				'id'   => 'a6417789-0a05-5068-bab0-90d991946d97',
+				'type' => 'ping',
+			),
+			5
+		);
+
+		$this->assertSame( 5, $this->requests[0][1]['timeout'] );
+	}
+
 	public function test_events_without_an_id_are_rejected_before_sending(): void {
 		$this->expectException( \InvalidArgumentException::class );
 

@@ -2,8 +2,9 @@
 
 WordPress plugin that connects a WooCommerce store to a [Pixalink](https://pixalink.io) outlet so shoppers earn
 loyalty points on every order, redeem vouchers and points at checkout (Blocks and classic), and see their balance,
-tier and vouchers under **My Account › Loyalty**. Order lifecycle events are delivered to Pixalink through a
-plugin-side outbox (Action Scheduler) and every request is signed with a key derived from the outlet API key.
+tier and vouchers under **My Account › Loyalty**. Order lifecycle events are sent to Pixalink at the end of the request
+that recorded them, with a plugin-side outbox (Action Scheduler) as the fallback, and every request is signed with a key
+derived from the outlet API key.
 Licensed GPL-2.0-or-later; no telemetry.
 
 ## Development setup

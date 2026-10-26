@@ -41,6 +41,11 @@ final class HealthPanel {
 	private const NOTICE_TRANSIENT = 'pixalink_loyalty_notice_';
 
 	/**
+	 * Seconds after which an update that is not retrying counts as stuck (background tasks are not running).
+	 */
+	public const STUCK_SECONDS = 300;
+
+	/**
 	 * Events module.
 	 *
 	 * @var Module
@@ -143,6 +148,8 @@ final class HealthPanel {
 			self::inline_notice( 'warning', __( 'WordPress background tasks are not running: DISABLE_WP_CRON is set but no server cron job calls wp-cron.php. Ask your host to run it every minute, otherwise points are added late.', 'pixalink-loyalty-for-woocommerce' ) );
 		} elseif ( $health['cron_stalled'] ) {
 			self::inline_notice( 'warning', __( 'WordPress background tasks look stalled, so updates to Pixalink may be delayed. A server cron job that calls wp-cron.php every minute fixes this on low-traffic stores.', 'pixalink-loyalty-for-woocommerce' ) );
+		} elseif ( $health['connected'] && '' === $health['paused'] && ! $health['store_paused'] && 0 === $stats['retry'] && null !== $oldest && $oldest < $now - self::STUCK_SECONDS ) {
+			self::inline_notice( 'warning', __( 'An order update has waited more than 5 minutes to be sent, so members get their points late. WordPress runs background tasks only when someone visits the store; a server cron job that calls wp-cron.php every minute keeps them on time.', 'pixalink-loyalty-for-woocommerce' ) );
 		}
 
 		echo '<p>';
