@@ -46,6 +46,11 @@ final class Connection {
 	public const METHOD_API_KEY = 'api_key';
 
 	/**
+	 * Fired once a connection is recorded ({@see Connection::mark_connected()}).
+	 */
+	public const CREDENTIALS_CHANGED_ACTION = 'pixalink_loyalty_credentials_changed';
+
+	/**
 	 * Option storage.
 	 *
 	 * @var Options
@@ -148,6 +153,16 @@ final class Connection {
 				'dashboard_url' => $dashboard_url,
 			)
 		);
+
+		/**
+		 * Fires after a connection to Pixalink was recorded: hosted sign-in, a pasted key, or the key from
+		 * wp-config.php adopted. The key, and so the outlet, may differ from before even when the stored
+		 * credentials option did not change (the wp-config.php key never touches it). The events unit forgets the
+		 * cached outlet id and lifts a delivery pause.
+		 *
+		 * @since 0.3.0
+		 */
+		do_action( 'pixalink_loyalty_credentials_changed' );
 	}
 
 	/**

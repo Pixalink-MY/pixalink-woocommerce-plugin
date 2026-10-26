@@ -81,7 +81,10 @@ final class ModuleTest extends \WP_UnitTestCase {
 
 		$paths = array_column( Server::recorded(), 'path' );
 		$this->assertSame( array( 'outlet', 'events' ), $paths, 'The outlet id is looked up once, then cached.' );
-		$this->assertSame( '101', get_transient( 'pixalink_loyalty_outlet_id' ) );
+		$this->assertSame( '101', Plugin::instance()->events()->outlet_resolver()->known_outlet_id() );
+
+		Plugin::instance()->events()->send_ping();
+		$this->assertSame( array( 'outlet', 'events', 'events' ), array_column( Server::recorded(), 'path' ), 'An unchanged key keeps the cache.' );
 	}
 
 	public function test_outlet_id_filter_skips_the_lookup(): void {
@@ -118,6 +121,56 @@ final class ModuleTest extends \WP_UnitTestCase {
 
 		$this->assertFalse( get_transient( 'pixalink_loyalty_outlet_id' ) );
 		$this->assertFalse( Plugin::instance()->events()->deliverer()->is_paused() );
+	}
+
+	public function test_a_heartbeat_for_another_outlet_forgets_the_cached_outlet(): void {
+		$resolver = Plugin::instance()->events()->outlet_resolver();
+		$resolver->remember( '11' );
+
+		do_action(
+			'pixalink_loyalty_heartbeat_received',
+			array(
+				'status' => Connection::REMOTE_ACTIVE,
+				'outlet' => array( 'id' => '11' ),
+			)
+		);
+		$this->assertSame( '11', $resolver->known_outlet_id(), 'The same outlet keeps the cache.' );
+
+		do_action(
+			'pixalink_loyalty_heartbeat_received',
+			array(
+				'status' => Connection::REMOTE_ACTIVE,
+				'outlet' => array( 'id' => 78 ),
+			)
+		);
+		$this->assertFalse( get_transient( 'pixalink_loyalty_outlet_id' ) );
+	}
+
+	public function test_recording_a_connection_forgets_the_cached_outlet_and_resumes(): void {
+		Plugin::instance()->events()->outlet_resolver()->remember( '11' );
+		update_option( Options::DELIVERY_PAUSED, EventDeliverer::PAUSE_AUTH_FAILED );
+
+		// The wp-config.php key is adopted: the stored credentials option never changes.
+		( new Connection( new Options() ) )->mark_connected( array(), array( 'id' => '78' ), 1, Connection::METHOD_API_KEY, null, null );
+
+		$this->assertFalse( get_transient( 'pixalink_loyalty_outlet_id' ) );
+		$this->assertFalse( Plugin::instance()->events()->deliverer()->is_paused() );
+	}
+
+	public function test_an_outlet_cached_for_another_key_is_not_used(): void {
+		$module   = Plugin::instance()->events();
+		$resolver = $module->outlet_resolver();
+		$resolver->remember( '11' );
+
+		// The key changes where the plugin hears nothing of it (as a wp-config.php edit does).
+		remove_action( 'update_option_' . Options::CREDENTIALS, array( $module, 'on_credentials_changed' ), 10 );
+		Plugin::instance()->credentials()->store( \Pixalink\Loyalty\Tests\FakeServer\Signature::FAKE_API_KEY . 'x' );
+		add_action( 'update_option_' . Options::CREDENTIALS, array( $module, 'on_credentials_changed' ), 10, 0 );
+
+		$cached = get_transient( 'pixalink_loyalty_outlet_id' );
+		$this->assertSame( '11', is_array( $cached ) ? $cached['id'] : null, 'Still cached...' );
+		$this->assertNull( $resolver->known_outlet_id(), '...but not for this key.' );
+		$this->assertTrue( $resolver->is_stale() );
 	}
 
 	public function test_a_store_pixalink_paused_keeps_its_updates_queued_and_sends_them_once_a_heartbeat_reports_it_active(): void {
