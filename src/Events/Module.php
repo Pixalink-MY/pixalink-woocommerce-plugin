@@ -73,6 +73,13 @@ final class Module {
 	private EventDeliverer $deliverer;
 
 	/**
+	 * End-of-request delivery of the events a request recorded.
+	 *
+	 * @var ImmediateDelivery
+	 */
+	private ImmediateDelivery $immediate;
+
+	/**
 	 * Outlet id lookup.
 	 *
 	 * @var OutletResolver
@@ -135,6 +142,34 @@ final class Module {
 		$this->repository  = new EventRepository();
 		$this->scheduler   = new Scheduler();
 		$this->outlet      = new OutletResolver( $client );
+		$policy            = new RetryPolicy();
+		$outlet_id         = fn (): string => $this->outlet->outlet_id();
+		$api_base          = static fn (): string => $client->base_url();
+		$this->deliverer   = new EventDeliverer(
+			$this->repository,
+			$this->scheduler,
+			$policy,
+			$options,
+			$logger,
+			static fn ( array $envelope ) => $client->send_event( $envelope ),
+			$outlet_id,
+			null,
+			$api_base
+		);
+		$this->immediate   = new ImmediateDelivery(
+			$this->repository,
+			new EventDeliverer(
+				$this->repository,
+				$this->scheduler,
+				$policy,
+				$options,
+				$logger,
+				static fn ( array $envelope ) => $client->send_event( $envelope, ImmediateDelivery::TIMEOUT ),
+				$outlet_id,
+				null,
+				$api_base
+			)
+		);
 		$this->queue       = new EventQueue(
 			$this->repository,
 			$this->scheduler,
@@ -142,18 +177,8 @@ final class Module {
 			fn (): array => array(
 				'outlet_id' => $this->outlet->known_outlet_id() ?? $this->connected_outlet_id(),
 				'api_base'  => $client->base_url(),
-			)
-		);
-		$this->deliverer   = new EventDeliverer(
-			$this->repository,
-			$this->scheduler,
-			new RetryPolicy(),
-			$options,
-			$logger,
-			static fn ( array $envelope ) => $client->send_event( $envelope ),
-			fn (): string => $this->outlet->outlet_id(),
-			null,
-			static fn (): string => $client->base_url()
+			),
+			$this->immediate
 		);
 
 		$orders           = new OrderPayloadBuilder();
@@ -390,6 +415,15 @@ final class Module {
 	 */
 	public function deliverer(): EventDeliverer {
 		return $this->deliverer;
+	}
+
+	/**
+	 * End-of-request delivery.
+	 *
+	 * @return ImmediateDelivery
+	 */
+	public function immediate_delivery(): ImmediateDelivery {
+		return $this->immediate;
 	}
 
 	/**

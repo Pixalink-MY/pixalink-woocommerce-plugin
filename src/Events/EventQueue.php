@@ -14,7 +14,8 @@ use Pixalink\Loyalty\Support\Uuid;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Records an event in the outbox and enqueues its delivery.
+ * Records an event in the outbox and enqueues its delivery, and also hands it to {@see ImmediateDelivery} to be sent
+ * once the current response has gone out.
  *
  * Order events get a deterministic UUID v5 over `"{home_url}|{type}|{order_key}|{discriminator}"` in
  * {@see Uuid::EVENT_NAMESPACE}: a duplicate IPN, a return-URL hit or the reconciler re-enqueueing the same fact
@@ -56,18 +57,27 @@ final class EventQueue {
 	private \Closure $destination;
 
 	/**
+	 * Sends new events at the end of the request (null: the queue alone delivers).
+	 *
+	 * @var ImmediateDelivery|null
+	 */
+	private ?ImmediateDelivery $immediate;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param EventStore    $store       Outbox storage.
-	 * @param Scheduler     $scheduler   Action Scheduler wiring.
-	 * @param \Closure|null $now         Unix time source (tests); defaults to time().
-	 * @param \Closure|null $destination `fn (): array{outlet_id: ?string, api_base: ?string}`; defaults to unknown.
+	 * @param EventStore             $store       Outbox storage.
+	 * @param Scheduler              $scheduler   Action Scheduler wiring.
+	 * @param \Closure|null          $now         Unix time source (tests); defaults to time().
+	 * @param \Closure|null          $destination `fn (): array{outlet_id: ?string, api_base: ?string}`; defaults to unknown.
+	 * @param ImmediateDelivery|null $immediate   Sends new events at the end of the request.
 	 */
-	public function __construct( EventStore $store, Scheduler $scheduler, ?\Closure $now = null, ?\Closure $destination = null ) {
+	public function __construct( EventStore $store, Scheduler $scheduler, ?\Closure $now = null, ?\Closure $destination = null, ?ImmediateDelivery $immediate = null ) {
 		$this->store       = $store;
 		$this->scheduler   = $scheduler;
 		$this->now         = $now ?? static fn (): int => time();
 		$this->destination = $destination ?? static fn (): array => array();
+		$this->immediate   = $immediate;
 	}
 
 	/**
@@ -105,7 +115,9 @@ final class EventQueue {
 		);
 
 		if ( $stored['created'] ) {
+			// The action is the fallback: an immediate attempt that does not go through leaves the row to it.
 			$this->scheduler->deliver_now( $stored['id'] );
+			$this->immediate?->add( $stored['id'], $type );
 		}
 
 		return $stored + array( 'uuid' => $uuid );

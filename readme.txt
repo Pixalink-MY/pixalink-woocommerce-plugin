@@ -18,7 +18,7 @@ Pixalink is a customer loyalty platform for retail and F&B businesses. This plug
 * **Vouchers and points at checkout.** Verified members redeem Pixalink vouchers and convert points into a discount in both the Cart & Checkout blocks and the classic checkout.
 * **My Account › Loyalty.** Members see their balance, tier, vouchers and a QR code to scan at your outlets.
 * **Phone number and marketing consent.** Checkout captures an international phone number and an explicit, separately recorded marketing consent.
-* **Reliable delivery.** Order events are queued on your site and retried with Action Scheduler, so short outages never lose an order.
+* **Reliable delivery.** Order events are sent to Pixalink as soon as the shopper's page has loaded, and also queued on your site and retried with Action Scheduler, so short outages never lose an order.
 
 The plugin is compatible with High-Performance Order Storage and the Cart & Checkout blocks. It sends no telemetry.
 
@@ -40,7 +40,7 @@ No. Guests earn points with the phone number they enter at checkout. Shoppers wh
 
 = What happens if Pixalink is unreachable? =
 
-Checkout keeps working. Order events wait in a queue on your site and are retried automatically; redemptions are only offered while Pixalink confirms them.
+Checkout keeps working. Order events are normally sent right after the page that created them has loaded; when Pixalink cannot be reached they wait in a queue on your site and are retried automatically. Redemptions are only offered while Pixalink confirms them.
 
 = Which phone number earns the points? =
 
@@ -132,3 +132,4 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 * My Account and checkout match the member portal's logo and colours ("Match your member portal", on by default); the Loyalty tab and dashboard card show a member card, and portal buttons open the member portal already signed in.
 * "Sign in from Customer Portal" on the My Account and classic checkout login forms: members sign in through the portal and come back signed in, with a store account created for them when they have none ("Sign in from Customer Portal" setting, on by default).
 * When Pixalink pauses a store, points and vouchers switch off and the store admin is told why; orders placed meanwhile are kept and sent to Pixalink automatically once the store is turned back on.
+* Order updates reach Pixalink right after the checkout or order screen has loaded instead of waiting for WordPress background tasks, so members see their points at once on quiet stores; the event delivery panel warns when an update has waited more than 5 minutes.

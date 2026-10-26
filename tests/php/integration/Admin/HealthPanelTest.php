@@ -9,6 +9,7 @@ namespace Pixalink\Loyalty\Tests\Integration\Admin;
 
 use Pixalink\Loyalty\Admin\HealthPanel;
 use Pixalink\Loyalty\Events\EventDeliverer;
+use Pixalink\Loyalty\Events\EventRepository;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\Integration\Support\OrderFixtures;
@@ -60,6 +61,21 @@ final class HealthPanelTest extends \WP_UnitTestCase {
 		$this->assertMatchesRegularExpression( '#action=' . HealthPanel::ACTION_RESEND . '(&amp;|&\#038;)days=30#', $html );
 		$this->assertStringContainsString( '_wpnonce=', $html );
 		$this->assertStringContainsString( 'Retry failed</span>', $html, 'Retry is disabled while nothing failed.' );
+	}
+
+	public function test_warns_when_an_update_has_waited_more_than_five_minutes(): void {
+		global $wpdb;
+
+		$order = $this->create_order();
+		$order->payment_complete();
+		$this->assertStringNotContainsString( 'waited more than 5 minutes', $this->render(), 'A fresh update is not stuck.' );
+
+		$wpdb->query( $wpdb->prepare( 'UPDATE %i SET created_at = %s', ( new EventRepository() )->table(), gmdate( 'Y-m-d H:i:s', time() - HealthPanel::STUCK_SECONDS - 60 ) ) );
+
+		$this->assertStringContainsString( 'An order update has waited more than 5 minutes to be sent', $this->render() );
+
+		update_option( Options::DELIVERY_PAUSED, EventDeliverer::PAUSE_AUTH_FAILED );
+		$this->assertStringNotContainsString( 'waited more than 5 minutes', $this->render(), 'A paused queue says why instead.' );
 	}
 
 	public function test_warns_when_delivery_is_paused(): void {

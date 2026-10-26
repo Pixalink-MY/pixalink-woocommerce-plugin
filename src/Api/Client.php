@@ -207,10 +207,11 @@ final class Client {
 	 * Deliver one event envelope to POST /events (the envelope id becomes X-Pixalink-Event-Id).
 	 *
 	 * @param array<string,mixed> $envelope Event envelope `{id, type, version, occurred_at, sequence, site_url, outlet_id, data}`.
+	 * @param int|null            $timeout  Timeout in seconds instead of the events default (still filtered).
 	 * @return ApiResponse
 	 * @throws \InvalidArgumentException When the envelope has no id.
 	 */
-	public function send_event( array $envelope ): ApiResponse {
+	public function send_event( array $envelope, ?int $timeout = null ): ApiResponse {
 		if ( ! isset( $envelope['id'] ) || ! is_string( $envelope['id'] ) || '' === $envelope['id'] ) {
 			throw new \InvalidArgumentException( 'Event envelope must carry a string id.' );
 		}
@@ -221,6 +222,7 @@ final class Client {
 			array(
 				'body'     => $envelope,
 				'event_id' => $envelope['id'],
+				'timeout'  => $timeout,
 			)
 		);
 	}
@@ -239,6 +241,7 @@ final class Client {
 	 *     @type string                   $idempotency_key Nonce for other mutations (generated when absent).
 	 *     @type string                   $endpoint_class  One of the ENDPOINT_* constants (inferred when absent).
 	 *     @type bool                     $authenticated   Send credentials and a signature (default true).
+	 *     @type int|null                 $timeout         Seconds instead of the endpoint class default (still filtered).
 	 * }
 	 * @return ApiResponse
 	 * @throws ApiException On transport errors, non-2xx responses or unreadable bodies.
@@ -253,6 +256,7 @@ final class Client {
 		$class         = isset( $options['endpoint_class'] ) && is_string( $options['endpoint_class'] ) ? $options['endpoint_class'] : self::infer_endpoint_class( $method, $path );
 		$url           = $this->base_url() . '/' . $path . ( array() === $query ? '' : '?' . http_build_query( $query, '', '&', PHP_QUERY_RFC3986 ) );
 		$nonce         = $this->resolve_nonce( $method, $path, $options );
+		$timeout       = isset( $options['timeout'] ) && is_int( $options['timeout'] ) && $options['timeout'] > 0 ? $options['timeout'] : null;
 
 		$api_key     = null;
 		$signing_key = null;
@@ -271,7 +275,7 @@ final class Client {
 			$headers   = $this->build_headers( $method, $path, $nonce, $raw_body, $timestamp, $api_key, $signing_key );
 
 			try {
-				return $this->send( $method, $url, $path, $headers, $raw_body, $class );
+				return $this->send( $method, $url, $path, $headers, $raw_body, $class, $timeout );
 			} catch ( ApiException $exception ) {
 				$server_time = $exception->server_time();
 				if ( 1 === $attempt && 401 === $exception->http_status() && 'timestamp_skew' === $exception->error_code() && null !== $server_time ) {
@@ -333,16 +337,17 @@ final class Client {
 	 * @param array<string,string> $headers  Request headers.
 	 * @param string               $raw_body Raw body.
 	 * @param string               $endpoint_class Endpoint class.
+	 * @param int|null             $timeout  Timeout override in seconds.
 	 * @return ApiResponse
 	 * @throws ApiException On failure.
 	 */
-	private function send( string $method, string $url, string $path, array $headers, string $raw_body, string $endpoint_class ): ApiResponse {
+	private function send( string $method, string $url, string $path, array $headers, string $raw_body, string $endpoint_class, ?int $timeout = null ): ApiResponse {
 		$user_agent = $headers['User-Agent'];
 		unset( $headers['User-Agent'] );
 
 		$args = array(
 			'method'      => $method,
-			'timeout'     => $this->timeout( $endpoint_class, $path ),
+			'timeout'     => $this->timeout( $endpoint_class, $path, $timeout ),
 			'redirection' => 0,
 			'headers'     => $headers,
 			'user-agent'  => $user_agent,
@@ -539,11 +544,12 @@ final class Client {
 	 * Timeout in seconds for an endpoint class.
 	 *
 	 * @param string $endpoint_class Endpoint class.
-	 * @param string $path           Path.
+	 * @param string   $path           Path.
+	 * @param int|null $override       Caller's timeout instead of the endpoint class default.
 	 * @return int
 	 */
-	private function timeout( string $endpoint_class, string $path ): int {
-		$default = self::TIMEOUTS[ $endpoint_class ] ?? self::TIMEOUTS[ self::ENDPOINT_WRITE ];
+	private function timeout( string $endpoint_class, string $path, ?int $override = null ): int {
+		$default = $override ?? self::TIMEOUTS[ $endpoint_class ] ?? self::TIMEOUTS[ self::ENDPOINT_WRITE ];
 
 		/**
 		 * Filters the timeout (seconds) of a Pixalink API request.
