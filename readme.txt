@@ -4,7 +4,7 @@ Tags: loyalty, rewards, points, vouchers, membership
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 0.1.0
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -120,7 +120,9 @@ Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) a
 
 == Changelog ==
 
-= 0.1.0 =
+= 1.0.0 =
+First public release.
+
 * Foundation: requirements checks, HPOS and Cart & Checkout blocks compatibility, encrypted credential storage, signed API client.
 * Connect screen under WooCommerce › Settings › Pixalink Loyalty: connect with your Pixalink sign-in or an outlet API key, request access, test and disconnect; connection heartbeat and admin notices.
 * Phone number (international format) and a separate, unticked marketing-consent box at checkout (blocks and classic), registration and Account details.
