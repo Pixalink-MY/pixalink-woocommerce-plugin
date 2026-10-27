@@ -5,8 +5,8 @@
 #   bin/build-zip.sh [selfhosted|wporg|marketplace]      (or FLAVOUR=... bin/build-zip.sh)
 #
 # Flavours:
-#   selfhosted   pixalink.io download: bundles yahnis-elsts/plugin-update-checker + src/Updates and adds
-#                the "Update URI" header pointing at updates.pixalink.io.
+#   selfhosted   GitHub release download: bundles yahnis-elsts/plugin-update-checker + src/Updates and adds
+#                the "Update URI" header pointing at the GitHub repository.
 #   wporg        WordPress.org directory: zero runtime Composer dependencies, no updater, no Update URI.
 #   marketplace  WooCommerce Marketplace: same payload as wporg (Woo: header added at onboarding).
 #
@@ -36,7 +36,7 @@ DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 WORK="$DIST_DIR/.work-$FLAVOUR"
 STAGE="$WORK/$SLUG"
 ZIP_NAME="$SLUG-$VERSION-$FLAVOUR.zip"
-UPDATE_URI="https://updates.pixalink.io/wp/$SLUG/"
+UPDATE_URI="https://github.com/Pixalink-MY/pixalink-woocommerce-plugin/"
 
 if [ -z "$VERSION" ]; then
 	echo "Cannot read the Version header from $MAIN." >&2

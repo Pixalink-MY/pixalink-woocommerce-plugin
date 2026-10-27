@@ -1,8 +1,9 @@
 name: Release
 
-# Same runner policy as ci.yml: `[self-hosted, light]` only, everything inside a job container,
-# nothing installed on the host. `build` makes the zips in a Node + Debian PHP container;
-# `publish` uploads them from the amazon/aws-cli container.
+# Runs on GitHub-hosted runners, like ci.yml. `build` makes the zips in a Node + Debian PHP container;
+# `publish` attaches them to the GitHub Release. Installed self-hosted builds update from that release:
+# src/Updates/UpdateChecker.php reads the latest release and installs its `*-selfhosted.zip` asset, so the
+# repository must stay public and a stable tag must carry that asset.
 
 on:
   push:
@@ -21,30 +22,21 @@ env:
 jobs:
   build:
     name: Build zips
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     container:
       # Keep in step with .nvmrc. PHP, zip and rsync come from Debian in the bootstrap step.
       image: node:22
-      volumes:
-        - /opt/ci-cache/composer:/ci-cache/composer
-        - /opt/ci-cache/npm:/ci-cache/npm
       env:
-        COMPOSER_CACHE_DIR: /ci-cache/composer
         COMPOSER_HOME: /tmp/composer-home
         COMPOSER_NO_INTERACTION: 1
         COMPOSER_ALLOW_SUPERUSER: 1
         COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
-        npm_config_cache: /ci-cache/npm
         # bin/make-pot.sh runs WP-CLI, which refuses root without this.
         WP_CLI_ALLOW_ROOT: 1
-    env:
-      UPDATES_BASE_URL: https://updates.pixalink.io/wp/pixalink-loyalty-for-woocommerce
     outputs:
       version: ${{ steps.version.outputs.version }}
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - name: Pre-checkout cleanup
-        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
       - name: Bootstrap the container (PHP, zip, rsync, Composer)
         run: |
           apt-get update -qq
@@ -58,7 +50,6 @@ jobs:
           php --version && composer --version && node --version
       - uses: actions/checkout@v7
         with:
-          clean: true
           persist-credentials: false
       # The workspace directory belongs to the runner user, not root; without this build-info.php records commit "unknown".
       - run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -81,47 +72,25 @@ jobs:
           bin/build-zip.sh selfhosted
           SKIP_JS_BUILD=1 SKIP_POT=1 bin/build-zip.sh wporg
 
-      - name: Update metadata (info.json)
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          node bin/ci/update-info.mjs "dist/$SLUG-$VERSION-selfhosted.zip" "$UPDATES_BASE_URL" > dist/info.json
-          cat dist/info.json
-
       - uses: actions/upload-artifact@v7
         with:
           name: release-dist
           path: |
             dist/*.zip
             dist/*.zip.sha256
-            dist/info.json
           if-no-files-found: error
-
-      - name: Post-job cleanup
-        if: always()
-        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true
 
   publish:
     name: Publish
     needs: build
-    runs-on: [self-hosted, light]
-    container:
-      image: amazon/aws-cli
-    env:
-      # Cloudflare R2 (S3 API) bucket behind updates.pixalink.io; the upload step is skipped until all are set.
-      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+    runs-on: ubuntu-24.04
     steps:
-      - name: Pre-checkout cleanup
-        run: rm -rf "${GITHUB_WORKSPACE:?}"/* "${GITHUB_WORKSPACE:?}"/.[!.]* 2>/dev/null || true
-
       - uses: actions/download-artifact@v8
         with:
           name: release-dist
           path: dist
 
+      # A pre-release (1.2.3-beta.1) is marked as one, and installed sites skip it.
       - name: GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -134,35 +103,3 @@ jobs:
             dist/pixalink-loyalty-for-woocommerce-*-selfhosted.zip.sha256
             dist/pixalink-loyalty-for-woocommerce-*-wporg.zip
             dist/pixalink-loyalty-for-woocommerce-*-wporg.zip.sha256
-            dist/info.json
-
-      # Stable tags publish info.json (what installed sites poll); pre-releases publish beta/info.json only,
-      # which a site opts into with the pixalink_loyalty_update_metadata_url filter.
-      - name: Upload to updates.pixalink.io (R2)
-        if: env.R2_ACCOUNT_ID != '' && env.R2_ACCESS_KEY_ID != '' && env.R2_SECRET_ACCESS_KEY != '' && env.R2_BUCKET != ''
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: auto
-          VERSION: ${{ needs.build.outputs.version }}
-          PRERELEASE: ${{ needs.build.outputs.prerelease }}
-        run: |
-          ENDPOINT="https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com"
-          PREFIX="s3://$R2_BUCKET/wp/$SLUG"
-          ZIP="$SLUG-$VERSION-selfhosted.zip"
-          aws s3 cp "dist/$ZIP" "$PREFIX/$ZIP" --endpoint-url "$ENDPOINT" --content-type application/zip
-          aws s3 cp "dist/$ZIP.sha256" "$PREFIX/$ZIP.sha256" --endpoint-url "$ENDPOINT" --content-type text/plain
-          if [ "$PRERELEASE" = "true" ]; then
-            TARGET="$PREFIX/beta/info.json"
-          else
-            TARGET="$PREFIX/info.json"
-          fi
-          aws s3 cp dist/info.json "$TARGET" --endpoint-url "$ENDPOINT" --content-type application/json --cache-control "max-age=300"
-
-      - name: R2 upload skipped
-        if: env.R2_ACCOUNT_ID == '' || env.R2_ACCESS_KEY_ID == '' || env.R2_SECRET_ACCESS_KEY == '' || env.R2_BUCKET == ''
-        run: echo "::warning::R2_* secrets are not configured; zips are on the GitHub Release only."
-
-      - name: Post-job cleanup
-        if: always()
-        run: chown -R --reference="$(dirname "$GITHUB_WORKSPACE")" "$GITHUB_WORKSPACE" 2>/dev/null || true

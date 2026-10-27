@@ -116,7 +116,7 @@ Every request is signed with a key derived from your outlet API key. Pixalink pr
 
 The member QR code is drawn with [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT License, see `assets/js/THIRD-PARTY-LICENSES.txt`), bundled in the plugin.
 
-Self-hosted builds downloaded from pixalink.io (not the WordPress.org version) also check `https://updates.pixalink.io` for plugin updates, sending the site URL and installed plugin version as part of the standard WordPress update request.
+Self-hosted builds downloaded from the plugin's GitHub releases (not the WordPress.org version) also check GitHub (`https://api.github.com`, repository Pixalink-MY/pixalink-woocommerce-plugin) for plugin updates about twice a day, and download an update from GitHub when one is installed. Each check is a standard WordPress HTTP request, which carries the site URL in its User-Agent. GitHub Privacy Statement: https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement
 
 == Changelog ==
 
