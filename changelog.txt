@@ -1,6 +1,6 @@
 *** Pixalink Loyalty for WooCommerce Changelog ***
 
-= 0.1.0 - unreleased =
+= 1.0.0 - 2026-10-27 =
 * Add - Plugin scaffold: requirements checks (PHP 8.1, sodium, WooCommerce 11.0+), HPOS and Cart & Checkout blocks compatibility declarations.
 * Add - Install lifecycle: activation seeds options, deactivation unschedules work, opt-in data removal on uninstall.
 * Add - Support layer: encrypted credentials (sodium secretbox), masked WooCommerce logging, RFC 4122 UUIDs, money helpers, server-aligned clock.
@@ -37,3 +37,4 @@
 * Fix - Order and customer updates no longer keep going to the previous outlet after the store is reconnected to another one (Pixalink rejected them with 422 "The outlet id must be the outlet the API key belongs to." until they went dead). The cached outlet id now records a fingerprint of the API key and API base it was looked up for (a SHA-256 hash, never the key), and is not used once the key in wp-config.php (`PIXALINK_LOYALTY_API_KEY`) or the API base changes; it is also forgotten when a heartbeat reports another outlet and whenever a connection is recorded, including adopting the wp-config.php key. New action `pixalink_loyalty_credentials_changed` (after a connection is recorded). Updates already recorded for the old outlet are still not sent to the new one.
 * Dev - Checked against WooCommerce 11.3 (beta 1): the Checkout block's consent box is still never shown ticked. WooCommerce 11.3 reads a checkbox nobody answered as "not set" (an empty string) instead of `false` ([woocommerce#68780](https://github.com/woocommerce/woocommerce/pull/68780)); the plugin only treats an explicit `true` as consent, so nothing changes for shoppers or merchants. The integration test now checks that the answer is removed from the profile instead of the exact empty value.
 * Dev - CI (PHPCS, PHPStan level 8, JS build, PHPUnit unit/contract/integration with HPOS on and off, Plugin Check, Playwright checkout e2e) and release pipeline.
+* Add - Self-hosted builds update from the plugin's GitHub releases: the latest stable release's `*-selfhosted.zip` asset (pre-releases and releases without that asset are skipped). Filter `pixalink_loyalty_update_repository_url` points it at another repository. CI and releases run on GitHub-hosted runners.

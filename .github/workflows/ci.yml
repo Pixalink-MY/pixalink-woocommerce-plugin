@@ -1,9 +1,12 @@
 name: CI
 
-# Runner policy. The Pixalink-MY self-hosted runners are shared with Pixalink-Explore, so:
-# - Every job runs on `[self-hosted, light]`. Never `heavy` or `andromeda` (kept free for
-#   Explore's Pest shards), never a bare `self-hosted` (it matches the heavy runners too),
-#   never GitHub-hosted.
+# Runner policy. The repository is public, so:
+# - Every job runs on GitHub-hosted `ubuntu-24.04` (free for public repositories). Never the
+#   Pixalink-MY self-hosted runners: they sit on the office network, and a public repository's
+#   fork pull requests would run their code there.
+# - The rules below were written for long-lived self-hosted runners and still hold on a fresh
+#   VM; on GitHub-hosted runners /opt/ci-cache is simply empty (or not writable), and every
+#   script below falls back to a job-local cache.
 # - Nothing is installed on the hosts. PHP and Node jobs run inside a job `container:`
 #   (php:<version>-cli, node:22), with the hosts' /opt/ci-cache/{composer,npm} mounted as
 #   download caches. No setup-php and no apt on a host: setup-php installs PHP system-wide
@@ -51,7 +54,7 @@ jobs:
   gate:
     name: Gate
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     # The integration matrix is resolved here rather than in a job of its own: that job queued on the shared pool
     # behind everything else, and no integration cell could start until it ran.
     outputs:
@@ -82,7 +85,7 @@ jobs:
   phpcs:
     name: PHPCS
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     container:
       image: php:8.3-cli
       volumes:
@@ -127,7 +130,7 @@ jobs:
   phpstan:
     name: PHPStan (level 8)
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     container:
       image: php:8.3-cli
       volumes:
@@ -164,7 +167,7 @@ jobs:
   js:
     name: JS lint + build
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     container:
       # Keep in step with .nvmrc.
       image: node:22
@@ -194,7 +197,7 @@ jobs:
   unit:
     name: Unit + contract (PHP ${{ matrix.php }})
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
@@ -244,7 +247,7 @@ jobs:
   integration:
     name: Integration (${{ matrix.env.name }} · HPOS ${{ matrix.hpos == '1' && 'on' || 'off' }})
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     continue-on-error: ${{ matrix.env.experimental }}
     timeout-minutes: 30
     strategy:
@@ -382,7 +385,7 @@ jobs:
   e2e:
     name: E2E checkout (WC ${{ matrix.wc }})
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -519,7 +522,7 @@ jobs:
   build-zip:
     name: Build the WordPress.org zip
     needs: gate
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     container:
       # Keep in step with .nvmrc. PHP, zip and rsync come from Debian in the bootstrap step.
       image: node:22
@@ -572,7 +575,7 @@ jobs:
   plugin-check:
     name: Plugin Check (wporg zip)
     needs: build-zip
-    runs-on: [self-hosted, light]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Runner has Docker Compose v2 (wp-env needs it)

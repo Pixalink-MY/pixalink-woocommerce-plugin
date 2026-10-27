@@ -12,15 +12,25 @@ namespace Pixalink\Loyalty\Updates;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Wires yahnis-elsts/plugin-update-checker to the static metadata at updates.pixalink.io.
+ * Wires yahnis-elsts/plugin-update-checker to the plugin's public GitHub releases.
+ *
+ * The update is the `*-selfhosted.zip` attached to the latest release (drafts and pre-releases are skipped). A
+ * release without that asset is ignored instead of falling back to GitHub's source zip, which is not installable.
  *
  * Only the `selfhosted` build flavour ships this directory and the library; bin/build-zip.sh deletes it for
  * the `wporg` and `marketplace` flavours, where updates come from the directory itself.
  */
 final class UpdateChecker {
 
-	public const METADATA_URL = 'https://updates.pixalink.io/wp/pixalink-loyalty-for-woocommerce/info.json';
-	public const SLUG         = 'pixalink-loyalty-for-woocommerce';
+	public const REPOSITORY_URL = 'https://github.com/Pixalink-MY/pixalink-woocommerce-plugin/';
+	public const SLUG           = 'pixalink-loyalty-for-woocommerce';
+	public const ASSET_PATTERN  = '/-selfhosted\.zip$/';
+
+	/**
+	 * The library's `Vcs\Api::REQUIRE_RELEASE_ASSETS`, spelled out because its namespace carries the library's
+	 * minor version (v5p7), which a Composer update can change.
+	 */
+	private const REQUIRE_RELEASE_ASSETS = 2;
 
 	/**
 	 * Register the update checker when the library is bundled.
@@ -34,14 +44,25 @@ final class UpdateChecker {
 		}
 
 		/**
-		 * Filters the self-hosted update metadata URL (staging channels, mirrors).
+		 * Filters the GitHub repository the self-hosted build takes its updates from (a fork or a mirror).
 		 *
-		 * @since 0.1.0
+		 * @since 1.0.0
 		 *
-		 * @param string $url Metadata (info.json) URL.
+		 * @param string $url Repository URL.
 		 */
-		$url = apply_filters( 'pixalink_loyalty_update_metadata_url', self::METADATA_URL );
+		$url = apply_filters( 'pixalink_loyalty_update_repository_url', self::REPOSITORY_URL );
 
-		\YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker( is_string( $url ) ? $url : self::METADATA_URL, $plugin_file, self::SLUG );
+		$checker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
+			is_string( $url ) && '' !== $url ? $url : self::REPOSITORY_URL,
+			$plugin_file,
+			self::SLUG
+		);
+
+		if ( method_exists( $checker, 'getVcsApi' ) ) {
+			$api = $checker->getVcsApi();
+			if ( is_object( $api ) && method_exists( $api, 'enableReleaseAssets' ) ) {
+				$api->enableReleaseAssets( self::ASSET_PATTERN, self::REQUIRE_RELEASE_ASSETS );
+			}
+		}
 	}
 }
