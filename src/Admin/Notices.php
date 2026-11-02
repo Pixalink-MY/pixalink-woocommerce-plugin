@@ -117,7 +117,8 @@ final class Notices {
 		$notices   = array();
 		$status    = $this->connection->status();
 
-		if ( Connection::STATUS_DISCONNECTED === $status && ! $on_tab && ! in_array( self::NOT_CONNECTED, $dismissed, true ) ) {
+		// The one setup reminder stays on the Plugins screen; the other notices report a problem with a live connection.
+		if ( Connection::STATUS_DISCONNECTED === $status && in_array( $screen_id, array( 'plugins', 'plugins-network' ), true ) && ! in_array( self::NOT_CONNECTED, $dismissed, true ) ) {
 			$notices[] = self::notice(
 				self::NOT_CONNECTED,
 				'info',

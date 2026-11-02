@@ -55,9 +55,9 @@ final class NoticesTest extends \WP_UnitTestCase {
 		return $matches[1];
 	}
 
-	public function test_not_connected_shows_only_on_plugins_and_woocommerce_screens(): void {
+	public function test_not_connected_shows_only_on_the_plugins_screen(): void {
 		$this->assertSame( array( Notices::NOT_CONNECTED ), $this->notices_on( 'plugins' ) );
-		$this->assertSame( array( Notices::NOT_CONNECTED ), $this->notices_on( 'woocommerce_page_wc-orders' ) );
+		$this->assertSame( array(), $this->notices_on( 'woocommerce_page_wc-orders' ) );
 		$this->assertSame( array(), $this->notices_on( 'edit-post' ) );
 		$this->assertSame( array(), $this->notices_on( 'dashboard' ) );
 		$this->assertSame( array(), $this->notices_on( 'options-general' ) );

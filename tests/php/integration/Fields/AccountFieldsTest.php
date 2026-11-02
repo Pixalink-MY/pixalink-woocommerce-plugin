@@ -56,6 +56,7 @@ final class AccountFieldsTest extends \WP_UnitTestCase {
 
 	public function test_registering_with_a_phone_and_consent_records_both(): void {
 		$_POST = array(
+			'woocommerce-register-nonce' => wp_create_nonce( 'woocommerce-register' ),
 			AccountFields::COUNTRY => 'MY',
 			AccountFields::PHONE   => '012-345 6789',
 			AccountFields::CONSENT => '1',
@@ -78,6 +79,7 @@ final class AccountFieldsTest extends \WP_UnitTestCase {
 
 	public function test_registering_without_ticking_records_no_consent(): void {
 		$_POST = array(
+			'woocommerce-register-nonce' => wp_create_nonce( 'woocommerce-register' ),
 			AccountFields::COUNTRY => 'MY',
 			AccountFields::PHONE   => '0123456789',
 		);
@@ -90,6 +92,7 @@ final class AccountFieldsTest extends \WP_UnitTestCase {
 
 	public function test_an_invalid_registration_phone_is_refused(): void {
 		$_POST = array(
+			'woocommerce-register-nonce' => wp_create_nonce( 'woocommerce-register' ),
 			AccountFields::COUNTRY => 'MY',
 			AccountFields::PHONE   => 'call me',
 		);
@@ -140,6 +143,7 @@ final class AccountFieldsTest extends \WP_UnitTestCase {
 		wp_set_current_user( $user_id );
 
 		$_POST = array(
+			'save-account-details-nonce'     => wp_create_nonce( 'save_account_details' ),
 			'pixalink_loyalty_consent_shown' => '1',
 			AccountFields::COUNTRY           => 'MY',
 			AccountFields::PHONE             => '0123456789',
@@ -163,10 +167,48 @@ final class AccountFieldsTest extends \WP_UnitTestCase {
 		$user_id = $this->make_user();
 		wp_set_current_user( $user_id );
 
-		$_POST = array( 'pixalink_loyalty_consent_shown' => '1' );
+		$_POST = array(
+			'save-account-details-nonce'     => wp_create_nonce( 'save_account_details' ),
+			'pixalink_loyalty_consent_shown' => '1',
+		);
 		do_action( 'woocommerce_save_account_details', $user_id );
 
 		$this->assertNull( UserMeta::consent( $user_id ), 'An unticked box that showed no is not an answer.' );
+		$this->assertSame( array(), $this->outbox_types() );
+	}
+
+	public function test_a_registration_without_the_form_nonce_stores_no_phone_or_consent(): void {
+		$_POST = array(
+			AccountFields::COUNTRY => 'MY',
+			AccountFields::PHONE   => '0123456789',
+			AccountFields::CONSENT => '1',
+		);
+
+		apply_filters( 'woocommerce_process_registration_errors', new \WP_Error(), 'new', 'secret', 'forged@example.com' );
+		$user_id = wc_create_new_customer( 'forged@example.com', '', wp_generate_password() );
+		$this->assertIsInt( $user_id );
+
+		$this->assertNull( UserMeta::phone( $user_id ) );
+		$this->assertNull( UserMeta::consent( $user_id ) );
+	}
+
+	public function test_account_details_without_the_form_nonce_change_nothing(): void {
+		$user_id = $this->make_user();
+		update_user_meta( $user_id, UserMeta::CONSENT, 'yes' );
+		update_user_meta( $user_id, UserMeta::CONSENT_SOURCE, 'checkout' );
+		update_user_meta( $user_id, UserMeta::CONSENT_AT, '2026-10-24T08:00:00Z' );
+		update_user_meta( $user_id, UserMeta::CONSENT_TEXT_HASH, ConsentText::hash( 'x' ) );
+		wp_set_current_user( $user_id );
+
+		$_POST = array(
+			'pixalink_loyalty_consent_shown' => '1',
+			AccountFields::COUNTRY           => 'MY',
+			AccountFields::PHONE             => '0123456789',
+		);
+		do_action( 'woocommerce_save_account_details', $user_id );
+
+		$this->assertTrue( UserMeta::consent( $user_id )->value );
+		$this->assertNull( UserMeta::phone( $user_id ) );
 		$this->assertSame( array(), $this->outbox_types() );
 	}
 }

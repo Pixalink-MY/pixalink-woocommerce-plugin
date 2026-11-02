@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Pixalink\Loyalty\Account;
 
 use Pixalink\Loyalty\Support\Branding;
+use Pixalink\Loyalty\Support\Html;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -207,7 +208,7 @@ final class LoyaltyEndpoint {
 			return;
 		}
 
-		echo $this->view->render_current(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Template output, escaped inside the templates.
+		echo wp_kses( $this->view->render_current(), Html::allowed() );
 	}
 
 	/**
@@ -221,24 +222,24 @@ final class LoyaltyEndpoint {
 			return;
 		}
 
-		echo $this->view->render_recognised_guest(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in AccountView (wp_kses).
+		echo wp_kses( $this->view->render_recognised_guest(), Html::allowed() );
 	}
 
 	/**
 	 * `[pixalink_loyalty_summary]`.
 	 *
-	 * @return string
+	 * @return string Escaped HTML.
 	 */
 	public function summary_shortcode(): string {
-		return '<div class="pixalink-loyalty-shortcode">' . $this->view->render_current() . '</div>';
+		return wp_kses( '<div class="pixalink-loyalty-shortcode">' . $this->view->render_current() . '</div>', Html::allowed() );
 	}
 
 	/**
 	 * `[pixalink_loyalty_qr]`.
 	 *
-	 * @return string
+	 * @return string Escaped HTML.
 	 */
 	public function qr_shortcode(): string {
-		return $this->view->render_qr();
+		return wp_kses( $this->view->render_qr(), Html::allowed() );
 	}
 }

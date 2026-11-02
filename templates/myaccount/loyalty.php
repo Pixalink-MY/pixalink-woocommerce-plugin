@@ -103,7 +103,7 @@ $pixalink_loyalty_links  = isset( $portal_links ) && is_array( $portal_links ) ?
 				<div class="pixalink-loyalty-card__progress">
 					<?php if ( null !== $pixalink_loyalty_tier['percent'] ) : ?>
 						<div class="pixalink-loyalty-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo esc_attr( (string) $pixalink_loyalty_tier['percent'] ); ?>" aria-label="<?php echo esc_attr( null !== $pixalink_loyalty_tier['next_tier_name'] ? sprintf( /* translators: %s: next tier name. */ __( 'Progress to %s', 'pixalink-loyalty-for-woocommerce' ), $pixalink_loyalty_tier['next_tier_name'] ) : __( 'Tier progress', 'pixalink-loyalty-for-woocommerce' ) ); ?>">
-							<span class="pixalink-loyalty-progress__bar" style="inline-size: <?php echo esc_attr( (string) $pixalink_loyalty_tier['percent'] ); ?>%"></span>
+							<span class="pixalink-loyalty-progress__bar" style="width: <?php echo esc_attr( (string) $pixalink_loyalty_tier['percent'] ); ?>%"></span>
 						</div>
 					<?php endif; ?>
 					<?php if ( null !== $pixalink_loyalty_tier['remaining'] && null !== $pixalink_loyalty_tier['next_tier_name'] ) : ?>

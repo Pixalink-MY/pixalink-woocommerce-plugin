@@ -266,7 +266,7 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		);
 
 		foreach ( $links as $destination => $label ) {
-			$this->assertMatchesRegularExpression( '#<a [^>]*href="' . preg_quote( esc_url( admin_url( 'admin-post.php' ) ), '#' ) . '\?action=pixalink_loyalty_open_portal&\#038;destination=' . $destination . '&\#038;_wpnonce=[0-9a-f]+" target="_blank" rel="noopener">' . $label . '</a>#', $html, $destination );
+			$this->assertMatchesRegularExpression( '#<a [^>]*href="' . preg_quote( esc_url( admin_url( 'admin-post.php' ) ), '#' ) . '\?action=pixalink_loyalty_open_portal&amp;destination=' . $destination . '&amp;_wpnonce=[0-9a-f]+" target="_blank" rel="noopener">' . $label . '</a>#', $html, $destination );
 		}
 		$this->assertStringNotContainsString( '/handoff/', $html, 'No sign-in link is ever printed.' );
 		$this->assertStringNotContainsString( 'Open your member page', $html );
@@ -478,5 +478,47 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		);
 
 		$this->assertStringContainsString( 'Theme loyalty template', self::tab() );
+	}
+
+	public function test_the_summary_shortcode_prints_the_same_markup_as_the_tab(): void {
+		$this->cache_heartbeat( self::heartbeat() );
+		$this->verified_member();
+
+		$html = do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' );
+
+		$this->assertSame( '<div class="pixalink-loyalty-shortcode">' . self::tab() . '</div>', $html );
+		$this->assertStringContainsString( 'style="--pxl-tier:#c0c0c0"', $html );
+		$this->assertStringContainsString( 'width: 70%', $html );
+		$this->assertStringContainsString( '<svg', $html );
+	}
+
+	public function test_the_phone_form_and_code_dialog_survive_the_shortcode_escaping(): void {
+		wp_set_current_user( $this->make_user() );
+
+		$html = do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' );
+
+		$this->assertSame( '<div class="pixalink-loyalty-shortcode">' . self::tab() . '</div>', $html );
+		$this->assertStringContainsString( '<select', $html );
+		$this->assertStringContainsString( 'data-pixalink-otp-dialog', $html );
+		$this->assertStringContainsString( 'pattern="[0-9]{4,8}"', $html );
+	}
+
+	public function test_scripts_from_a_template_override_are_not_printed(): void {
+		$this->verified_member();
+		add_filter(
+			'wc_get_template',
+			static function ( $template, $name ) {
+				return 'myaccount/loyalty.php' === $name ? __DIR__ . '/fixtures/loyalty-override-unsafe.php' : $template;
+			},
+			10,
+			2
+		);
+
+		foreach ( array( self::tab(), do_shortcode( '[' . LoyaltyEndpoint::SUMMARY_SHORTCODE . ']' ) ) as $html ) {
+			$this->assertStringContainsString( 'Theme loyalty template', $html );
+			$this->assertStringNotContainsString( '<script', $html );
+			$this->assertStringNotContainsString( 'javascript:', $html );
+			$this->assertStringNotContainsString( 'onclick', $html );
+		}
 	}
 }

@@ -358,18 +358,32 @@ final class AccountFields {
 	}
 
 	/**
-	 * A posted form value (the form nonce was verified by WooCommerce's form handler).
+	 * Nonce field => nonce action of the WooCommerce forms these fields are part of (registration, account details).
+	 */
+	private const FORM_NONCES = array(
+		'woocommerce-register-nonce' => 'woocommerce-register',
+		'save-account-details-nonce' => 'save_account_details',
+	);
+
+	/**
+	 * A posted form value, only from a registration or account-details form whose nonce verifies.
 	 *
 	 * @param string $key Field name.
 	 * @return string|null
 	 */
 	private static function posted( string $key ): ?string {
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WC_Form_Handler verified the registration/account nonce before these hooks.
-		if ( ! isset( $_POST[ $key ] ) || ! is_string( $_POST[ $key ] ) ) {
+		$verified = false;
+		foreach ( self::FORM_NONCES as $field => $action ) {
+			if ( isset( $_POST[ $field ] ) && is_string( $_POST[ $field ] ) && false !== wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ $field ] ) ), $action ) ) {
+				$verified = true;
+				break;
+			}
+		}
+
+		if ( ! $verified || ! isset( $_POST[ $key ] ) || ! is_string( $_POST[ $key ] ) ) {
 			return null;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- See above.
 		return sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
 	}
 }

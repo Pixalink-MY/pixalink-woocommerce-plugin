@@ -97,7 +97,7 @@ $pixalink_loyalty_button = function_exists( 'wc_wp_theme_get_element_class_name'
 				<div class="pixalink-loyalty-card__progress">
 					<?php if ( null !== $card['tier']['percent'] ) : ?>
 						<div class="pixalink-loyalty-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?php echo esc_attr( (string) $card['tier']['percent'] ); ?>" aria-label="<?php echo esc_attr( null !== $card['tier']['next_tier_name'] ? sprintf( /* translators: %s: next tier name. */ __( 'Progress to %s', 'pixalink-loyalty-for-woocommerce' ), $card['tier']['next_tier_name'] ) : __( 'Tier progress', 'pixalink-loyalty-for-woocommerce' ) ); ?>">
-							<span class="pixalink-loyalty-progress__bar" style="inline-size: <?php echo esc_attr( (string) $card['tier']['percent'] ); ?>%"></span>
+							<span class="pixalink-loyalty-progress__bar" style="width: <?php echo esc_attr( (string) $card['tier']['percent'] ); ?>%"></span>
 						</div>
 					<?php endif; ?>
 					<?php if ( null !== $card['tier']['remaining'] && null !== $card['tier']['next_tier_name'] ) : ?>

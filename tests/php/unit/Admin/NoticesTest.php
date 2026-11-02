@@ -78,10 +78,10 @@ final class NoticesTest extends TestCase {
 		$this->connection->mark_connected( array( 'name' => 'Demo Cafe' ), array( 'id' => '101' ), 3, Connection::METHOD_HOSTED, null, null );
 	}
 
-	public function test_not_connected_shows_on_plugins_and_woocommerce_screens_only(): void {
+	public function test_not_connected_shows_on_the_plugins_screen_only(): void {
 		$this->assertSame( array( Notices::NOT_CONNECTED ), $this->ids( 'plugins' ) );
 		$this->assertSame( array(), $this->ids( 'dashboard' ) );
-		$this->assertSame( array( Notices::NOT_CONNECTED ), $this->ids( 'woocommerce_page_wc-orders' ) );
+		$this->assertSame( array(), $this->ids( 'woocommerce_page_wc-orders' ) );
 		$this->assertSame( array(), $this->ids( 'edit-post' ) );
 		$this->assertSame( array(), $this->ids( 'upload' ) );
 		$this->assertSame( array(), $this->ids( 'woocommerce_page_wc-settings', true ), 'The connection card already explains it on the plugin tab.' );
