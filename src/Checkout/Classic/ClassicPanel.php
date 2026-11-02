@@ -16,6 +16,7 @@ use Pixalink\Loyalty\Redemption\CouponMapper;
 use Pixalink\Loyalty\Redemption\Features;
 use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\BrandingStyles;
+use Pixalink\Loyalty\Support\Html;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -77,7 +78,7 @@ final class ClassicPanel {
 	 * @return void
 	 */
 	public function render(): void {
-		echo $this->html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- The template escapes every value.
+		echo wp_kses( $this->html(), Html::allowed() );
 	}
 
 	/**
@@ -91,7 +92,7 @@ final class ClassicPanel {
 			return $fragments;
 		}
 
-		$fragments[ self::SELECTOR ] = $this->html();
+		$fragments[ self::SELECTOR ] = wp_kses( $this->html(), Html::allowed() );
 
 		return $fragments;
 	}

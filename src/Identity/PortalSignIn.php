@@ -15,6 +15,7 @@ use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\BrandingStyles;
+use Pixalink\Loyalty\Support\Html;
 use Pixalink\Loyalty\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -159,7 +160,7 @@ final class PortalSignIn {
 	 * @return void
 	 */
 	public function render_button(): void {
-		echo $this->button_html(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Template output, escaped inside the template.
+		echo wp_kses( $this->button_html(), Html::allowed() );
 	}
 
 	/**
