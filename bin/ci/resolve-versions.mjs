@@ -2,9 +2,9 @@
 /**
  * Resolve the integration matrix from the WordPress.org APIs at run time.
  *
- * WordPress: N = latest release, N-1 = latest patch of the previous major (x.y) branch, trunk = nightly build.
- * WooCommerce: L = latest stable, L-1 / L-2 = latest patch of the two previous x.y branches,
- * RC = newest pre-release newer than L (falls back to L when none is open).
+ * WordPress: N = latest release, N-1 = latest patch of the previous major (x.y) branch.
+ * WooCommerce: L = latest stable, L-1 / L-2 = latest patch of the two previous x.y branches.
+ * Released versions only: WordPress trunk and WooCommerce pre-releases broke on harness changes, not on plugin code.
  *
  * Usage: node bin/ci/resolve-versions.mjs            -> writes "matrix=<json>" (for $GITHUB_OUTPUT)
  *        node bin/ci/resolve-versions.mjs --pretty   -> human-readable table
@@ -95,10 +95,6 @@ const wooVersions = Object.keys( wooInfo.versions )
 	.map( parse )
 	.filter( Boolean );
 const [ wcL, wcL1, wcL2 ] = latestPerBranch( wooVersions, 3 );
-const wcRc =
-	wooVersions
-		.filter( ( v ) => v.pre && compare( v, wcL ) > 0 )
-		.sort( ( a, b ) => compare( b, a ) )[ 0 ] ?? wcL;
 
 if ( ! wpN || ! wpPrevious || ! wcL || ! wcL1 || ! wcL2 ) {
 	throw new Error( 'Could not resolve WordPress/WooCommerce versions.' );
@@ -124,7 +120,6 @@ const matrix = [
 	environment( '8.1', wpPrevious, wcL2 ),
 	environment( '8.3', wpN, wcL ),
 	environment( '8.4', wpN, wcL1 ),
-	environment( '8.4', null, wcRc, true, 'trunk' ),
 ];
 
 if ( process.argv.includes( '--pretty' ) ) {
