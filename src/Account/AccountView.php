@@ -15,6 +15,7 @@ use Pixalink\Loyalty\Fields\PhoneNormalizer;
 use Pixalink\Loyalty\Identity\CustomerLinker;
 use Pixalink\Loyalty\Identity\GuestLinkStore;
 use Pixalink\Loyalty\Identity\LinkException;
+use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Identity\SsoLanding;
 use Pixalink\Loyalty\Identity\UserMeta;
@@ -107,6 +108,13 @@ final class AccountView {
 	private ?Connection $connection;
 
 	/**
+	 * "Verify with WhatsApp" through the member portal (null: the one-time code form only).
+	 *
+	 * @var PortalSignIn|null
+	 */
+	private ?PortalSignIn $sign_in;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param SummaryService  $summaries  Summaries.
@@ -117,9 +125,10 @@ final class AccountView {
 	 * @param CustomerLinker  $linker     Linker.
 	 * @param GuestLinkStore  $guests     Guest links.
 	 * @param PortalHandoff   $handoff    Signed-in portal links.
-	 * @param Connection|null $connection Connection state (store paused by Pixalink).
+	 * @param Connection|null   $connection Connection state (store paused by Pixalink).
+	 * @param PortalSignIn|null $sign_in    "Verify with WhatsApp" through the member portal.
 	 */
-	public function __construct( SummaryService $summaries, QrService $qr, Options $options, PhoneCountries $countries, PhoneNormalizer $normalizer, CustomerLinker $linker, GuestLinkStore $guests, PortalHandoff $handoff, ?Connection $connection = null ) {
+	public function __construct( SummaryService $summaries, QrService $qr, Options $options, PhoneCountries $countries, PhoneNormalizer $normalizer, CustomerLinker $linker, GuestLinkStore $guests, PortalHandoff $handoff, ?Connection $connection = null, ?PortalSignIn $sign_in = null ) {
 		$this->summaries  = $summaries;
 		$this->qr         = $qr;
 		$this->options    = $options;
@@ -129,6 +138,7 @@ final class AccountView {
 		$this->guests     = $guests;
 		$this->handoff    = $handoff;
 		$this->connection = $connection;
+		$this->sign_in    = $sign_in;
 	}
 
 	/**
@@ -310,6 +320,7 @@ final class AccountView {
 				'pending'    => null !== $pending,
 				'branded'    => BrandingStyles::is_branded( $branding ),
 				'portal_url' => $this->handoff->portal_url( 0 ),
+				'verify_url' => $this->sign_in?->verify_url( $user_id ),
 			)
 		);
 	}

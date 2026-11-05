@@ -12,6 +12,7 @@ namespace Pixalink\Loyalty\Account;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Identity\GuestLinkStore;
+use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\BrandingStyles;
@@ -94,6 +95,13 @@ final class DashboardCard {
 	private ?Connection $connection;
 
 	/**
+	 * "Verify with WhatsApp" through the member portal (null: the Loyalty tab link only).
+	 *
+	 * @var PortalSignIn|null
+	 */
+	private ?PortalSignIn $sign_in;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param LoyaltyEndpoint $endpoint    The Loyalty tab.
@@ -103,9 +111,10 @@ final class DashboardCard {
 	 * @param GuestLinkStore  $guests      Guest links.
 	 * @param Logger          $logger      Logger.
 	 * @param PortalHandoff   $handoff     Portal links.
-	 * @param Connection|null $connection  Connection state (store paused by Pixalink).
+	 * @param Connection|null   $connection  Connection state (store paused by Pixalink).
+	 * @param PortalSignIn|null $sign_in     "Verify with WhatsApp" through the member portal.
 	 */
-	public function __construct( LoyaltyEndpoint $endpoint, SummaryService $summaries, Options $options, Credentials $credentials, GuestLinkStore $guests, Logger $logger, PortalHandoff $handoff, ?Connection $connection = null ) {
+	public function __construct( LoyaltyEndpoint $endpoint, SummaryService $summaries, Options $options, Credentials $credentials, GuestLinkStore $guests, Logger $logger, PortalHandoff $handoff, ?Connection $connection = null, ?PortalSignIn $sign_in = null ) {
 		$this->endpoint    = $endpoint;
 		$this->summaries   = $summaries;
 		$this->options     = $options;
@@ -114,6 +123,7 @@ final class DashboardCard {
 		$this->logger      = $logger;
 		$this->handoff     = $handoff;
 		$this->connection  = $connection;
+		$this->sign_in     = $sign_in;
 	}
 
 	/**
@@ -168,9 +178,12 @@ final class DashboardCard {
 			'logo_url'    => $branding?->logo_url,
 			'store_name'  => AccountView::store_name( $branding ),
 			'portal_url'  => $this->handoff->portal_url( 0 ),
+			'verify_url'  => null,
 			'tier_style'  => '',
 		);
 		if ( ! $shopper->is_verified() ) {
+			$args['verify_url'] = $this->sign_in?->verify_url( $shopper->user_id() );
+
 			return $args;
 		}
 

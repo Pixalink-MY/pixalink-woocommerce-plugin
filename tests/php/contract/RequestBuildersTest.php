@@ -197,6 +197,20 @@ final class RequestBuildersTest extends TestCase {
 		$this->assertSame( array(), ContractValidator::validate( 'store-sign-in.query.json', $query ) );
 	}
 
+	public function test_store_sign_in_query_to_verify(): void {
+		$location = PortalSignIn::sign_in_location(
+			'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81',
+			'https://shop.example.test/my-account/pixalink-loyalty/',
+			'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4',
+			PortalSignIn::INTENT_VERIFY
+		);
+		parse_str( (string) parse_url( $location, PHP_URL_QUERY ), $query ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+
+		$this->assertSame( 'verify', $query['intent'] ?? null );
+		$this->assertSame( array(), ContractValidator::validate( 'store-sign-in.query.json', $query ) );
+		$this->assertNotEmpty( ContractValidator::validate( 'store-sign-in.query.json', array( 'intent' => 'other' ) + $query ), 'Only the intents the contract names.' );
+	}
+
 	public function test_otp_payloads(): void {
 		$this->assertSame( array(), ContractValidator::validate( 'customer-otp.request.json', Customers::otp_payload() ) );
 		$this->assertSame( array(), ContractValidator::validate( 'customer-otp-verify.request.json', Customers::verify_payload( ' 123456 ' ) ) );
