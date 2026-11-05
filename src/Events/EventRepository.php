@@ -539,7 +539,7 @@ final class EventRepository implements EventStore {
 			),
 			ARRAY_A
 		);
-		// phpcs:enable
+		// phpcs:enable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Only what was disabled above: a bare enable also re-enabled the file-wide DirectQuery/NoCaching exemption, and Plugin Check flagged prune() and update().
 
 		return array(
 			'items' => $this->hydrate_all( $rows ),
