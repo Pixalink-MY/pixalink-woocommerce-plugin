@@ -118,6 +118,13 @@ The member QR code is drawn with [qrcode-generator](https://github.com/kazuhikoa
 
 Self-hosted builds downloaded from the plugin's GitHub releases (not the WordPress.org version) also check GitHub (`https://api.github.com`, repository Pixalink-MY/pixalink-woocommerce-plugin) for plugin updates about twice a day, and download an update from GitHub when one is installed. Each check is a standard WordPress HTTP request, which carries the site URL in its User-Agent. GitHub Privacy Statement: https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement
 
+== Screenshots ==
+
+1. My Account › Loyalty: the member card with points, tier and progress to the next tier, vouchers ready to use at checkout, and recent activity.
+2. Checkout: members apply a voucher in the order summary, see the discount, and see the points the order will earn.
+3. The member card on the My Account dashboard.
+4. WooCommerce › Settings › Pixalink Loyalty: the connection to Pixalink and its health.
+
 == Changelog ==
 
 = 1.0.1 =
