@@ -4,7 +4,7 @@ Tags: loyalty, rewards, points, vouchers, membership
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -119,6 +119,11 @@ The member QR code is drawn with [qrcode-generator](https://github.com/kazuhikoa
 Self-hosted builds downloaded from the plugin's GitHub releases (not the WordPress.org version) also check GitHub (`https://api.github.com`, repository Pixalink-MY/pixalink-woocommerce-plugin) for plugin updates about twice a day, and download an update from GitHub when one is installed. Each check is a standard WordPress HTTP request, which carries the site URL in its User-Agent. GitHub Privacy Statement: https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement
 
 == Changelog ==
+
+= 1.0.1 =
+* Security: loyalty output from shortcodes, My Account and checkout is escaped with an explicit allow-list, including theme template overrides.
+* Security: the phone and marketing-consent fields on registration and Account details are only saved when the form's nonce verifies.
+* The "connect your store" reminder now shows only on the Plugins screen.
 
 = 1.0.0 =
 First public release.
