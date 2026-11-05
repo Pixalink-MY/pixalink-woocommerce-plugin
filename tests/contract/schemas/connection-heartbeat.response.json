@@ -61,9 +61,22 @@
 				"portal_url": { "description": "The member portal's home page (signed-out entry point).", "$ref": "common.json#/$defs/url" },
 				"sign_in_url": { "description": "The portal page behind the store's 'Sign in with the member portal' button, already naming this outlet (store-sign-in.query.json adds return and state). Optional: servers older than this field omit it, and the store then hides the button.", "$ref": "common.json#/$defs/url" }
 			}
-		}
+		},
+		"oauth": { "$ref": "#/$defs/oauth" }
 	},
 	"$defs": {
+		"oauth": {
+			"description": "Optional: the member portal signs members in to this store over OAuth 2.1 (authorization code + PKCE S256). Absent on servers that do not support it; the store then keeps the ticket flow (branding.sign_in_url). authorization_endpoint is on the member portal host (branding.portal_url's host). The store provisions its client with POST connection/oauth-client.",
+			"type": "object",
+			"required": [ "authorization_endpoint", "token_endpoint", "revocation_endpoint", "scopes_supported", "code_challenge_methods_supported" ],
+			"properties": {
+				"authorization_endpoint": { "$ref": "common.json#/$defs/url" },
+				"token_endpoint": { "$ref": "common.json#/$defs/url" },
+				"revocation_endpoint": { "$ref": "common.json#/$defs/url" },
+				"scopes_supported": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+				"code_challenge_methods_supported": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+			}
+		},
 		"hex_color": { "type": "string", "pattern": "^#[0-9a-f]{6}$" }
 	},
 	"examples": [
@@ -78,7 +91,8 @@
 			"earn_on": "paid",
 			"min_plugin_version": "0.1.0",
 			"server_time": 1761300000,
-			"branding": { "name": "Pixalink Bookstore", "logo_url": "https://demo.pixalink.io/storage/logo.png", "primary_color": "#123962", "primary_color_on": "#ffffff", "primary_color_ink": "#123962", "secondary_color": "#647aa6", "portal_url": "https://demo.pixalink.io/l/pixalink-bookstore", "sign_in_url": "https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81" }
+			"branding": { "name": "Pixalink Bookstore", "logo_url": "https://demo.pixalink.io/storage/logo.png", "primary_color": "#123962", "primary_color_on": "#ffffff", "primary_color_ink": "#123962", "secondary_color": "#647aa6", "portal_url": "https://demo.pixalink.io/l/pixalink-bookstore", "sign_in_url": "https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81" },
+			"oauth": { "authorization_endpoint": "https://demo.pixalink.io/l/pixalink-bookstore/oauth/authorize", "token_endpoint": "https://demo.pixalink.io/oauth/customer/token", "revocation_endpoint": "https://demo.pixalink.io/oauth/customer/revoke", "scopes_supported": [ "profile", "loyalty:read", "store:link" ], "code_challenge_methods_supported": [ "S256" ] }
 		}
 	]
 }

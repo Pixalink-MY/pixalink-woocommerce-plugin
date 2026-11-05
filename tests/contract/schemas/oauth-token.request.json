@@ -1,0 +1,18 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/oauth-token.request.json",
+	"title": "POST {oauth.token_endpoint} form fields (application/x-www-form-urlencoded)",
+	"description": "The store exchanges the code for an access token. Client authentication is HTTP Basic (client_id:client_secret, each form-encoded first, RFC 6749 §2.3.1); no Commerce API key or signature. The store keeps no token: it redeems the access token with POST customers (verified_via oauth) at once.",
+	"type": "object",
+	"required": [ "grant_type", "code", "redirect_uri", "code_verifier" ],
+	"additionalProperties": false,
+	"properties": {
+		"grant_type": { "const": "authorization_code" },
+		"code": { "type": "string", "minLength": 1, "maxLength": 4096 },
+		"redirect_uri": { "$ref": "common.json#/$defs/url" },
+		"code_verifier": { "type": "string", "pattern": "^[A-Za-z0-9._~-]{43,128}$" }
+	},
+	"examples": [
+		{ "grant_type": "authorization_code", "code": "def50200a1b2c3d4e5f6", "redirect_uri": "https://woo.pixalink.io/?pixalink_oauth=callback", "code_verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk" }
+	]
+}

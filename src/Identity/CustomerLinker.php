@@ -26,7 +26,8 @@ defined( 'ABSPATH' ) || exit;
  * 2. {@see CustomerLinker::verify()}: `POST customers/{id}/otp/verify`; on success the link becomes durable user meta
  *    (logged in) or a guest link for the WooCommerce session, and `pixalink_loyalty_shopper_verified` fires.
  *
- * Linking always needs a proof: an OTP here, or a ticket the Pixalink portal minted ({@see CustomerLinker::redeem_ticket()}).
+ * Linking always needs a proof: an OTP here, a ticket the Pixalink portal minted ({@see CustomerLinker::redeem_ticket()}),
+ * or an OAuth access token the member portal issued ({@see CustomerLinker::redeem_oauth()}).
  *
  * Staff accounts ({@see CustomerLinker::is_staff()}) are never linked: starting a link, redeeming a ticket for them and
  * storing a link on them all fail with {@see LinkException::STAFF_ACCOUNT} before anything is sent or written, whichever
@@ -246,6 +247,32 @@ final class CustomerLinker {
 
 		if ( ! $customer['verified'] ) {
 			$failure = new LinkException( LinkException::TICKET_INVALID );
+			throw $failure;
+		}
+
+		return $customer;
+	}
+
+	/**
+	 * Redeem an OAuth access token from the member portal (single use: Pixalink revokes it whatever the outcome).
+	 *
+	 * @param string $access_token The token the token endpoint issued.
+	 * @param int    $wp_user_id   Logged-in user id (0 when nobody is logged in); Pixalink links the member to it.
+	 * @return array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null}
+	 * @throws LinkException When the token is not usable or did not prove the member, or the user is staff.
+	 */
+	public function redeem_oauth( string $access_token, int $wp_user_id ): array {
+		$this->refuse_staff( $wp_user_id );
+
+		try {
+			$customer = $this->customers->create( Customers::oauth_payload( $access_token, $wp_user_id ) );
+		} catch ( ApiException $exception ) {
+			$failure = $this->failure( $exception, 'oauth' );
+			throw $failure;
+		}
+
+		if ( ! $customer['verified'] ) {
+			$failure = new LinkException( LinkException::OAUTH_TOKEN_INVALID );
 			throw $failure;
 		}
 

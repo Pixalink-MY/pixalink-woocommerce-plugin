@@ -19,6 +19,11 @@ namespace Pixalink\Loyalty\Tests\FakeServer;
  * - Portal sign-in tickets: {@see Responses::SSO_TICKET_MEMBER}* resolves the member, {@see Responses::SSO_TICKET_NEW}*
  *   a new customer, {@see Responses::SSO_TICKET_NO_EMAIL}* a customer without e-mail; anything else (or a ticket the
  *   server saw before, context `ticket_used`) is 410 ticket_invalid.
+ * - OAuth (member portal sign-in): the heartbeat advertises the fake portal's endpoints; `POST connection/oauth-client`
+ *   issues {@see Responses::OAUTH_CLIENT_ID} with a new secret each time (context `client_secret` is the latest one, which
+ *   the token endpoint then requires). Codes {@see Responses::OAUTH_CODE_MEMBER}*, {@see Responses::OAUTH_CODE_NEW}* and
+ *   {@see Responses::OAUTH_CODE_NO_EMAIL}* exchange for tokens that redeem (`POST customers`, verified_via oauth) as the
+ *   member, a new customer and one without e-mail; any other code is invalid_grant, a used token 410 oauth_token_invalid.
  * - One-time codes: {@see Responses::OTP_CODE} verifies; {@see Responses::OTP_CODE_EXPIRED} and
  *   {@see Responses::OTP_CODE_EXHAUSTED} produce otp_expired / otp_attempts_exceeded; any other code otp_invalid.
  *
@@ -71,6 +76,22 @@ final class Responses {
 	public const SSO_TICKET_NO_EMAIL = 'fake-sso-noemail-';
 
 	/**
+	 * The fake portal's OAuth endpoints (heartbeat `oauth`). The authorize page is on the portal host; nothing serves it.
+	 */
+	public const OAUTH_AUTHORIZE  = self::PORTAL_URL . '/oauth/authorize';
+	public const OAUTH_TOKEN      = 'https://fake-pixalink.test/oauth/customer/token';
+	public const OAUTH_TOKEN_PATH = '/oauth/customer/token';
+	public const OAUTH_REVOKE     = 'https://fake-pixalink.test/oauth/customer/revoke';
+
+	public const OAUTH_CLIENT_ID            = '9f1c2b7e-3d4a-4c5b-8e6f-7a8b9c0d1e2f';
+	public const OAUTH_CLIENT_SECRET_PREFIX = 'fake-oauth-secret-';
+
+	public const OAUTH_CODE_MEMBER   = 'fake-oauth-member-';
+	public const OAUTH_CODE_NEW      = 'fake-oauth-new-';
+	public const OAUTH_CODE_NO_EMAIL = 'fake-oauth-noemail-';
+	public const OAUTH_TOKEN_PREFIX  = 'fake-oauth-token-';
+
+	/**
 	 * Credits balance of the member, in cents (25.00 credits).
 	 */
 	public const CREDITS_BALANCE_CENTS = 2500;
@@ -104,6 +125,7 @@ final class Responses {
 		'connect/exchange',
 		'connection/heartbeat',
 		'connection/disconnect',
+		'connection/oauth-client',
 		'outlet',
 		'customers',
 		'customers/{id}',
@@ -123,7 +145,7 @@ final class Responses {
 	 * @param array<string,mixed> $params  Path parameters (id, order_ref).
 	 * @param array<string,mixed> $query   Query parameters.
 	 * @param array<mixed>        $body    Decoded JSON body.
-	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool, connected_site:string, ticket_used:bool, commerce_paused:bool}.
+	 * @param array<string,mixed> $context {now:int, api_key:string, event_seen:bool, connected_site:string, ticket_used:bool, token_used:bool, commerce_paused:bool}.
 	 * @return array{status:int,body:mixed}
 	 */
 	public static function respond( string $method, string $route, array $params, array $query, array $body, array $context ): array {
@@ -158,6 +180,9 @@ final class Responses {
 					'body'   => null,
 				);
 
+			case 'POST connection/oauth-client':
+				return self::oauth_client( isset( $body['redirect_uri'] ) && is_string( $body['redirect_uri'] ) ? $body['redirect_uri'] : '', isset( $context['connected_site'] ) && is_string( $context['connected_site'] ) ? $context['connected_site'] : '' );
+
 			case 'GET outlet':
 				return self::ok(
 					array(
@@ -171,6 +196,9 @@ final class Responses {
 				return $matches ? self::ok( array( 'customer' => self::member( false ) ) ) : self::error( 404, 'not_found', 'No customer matches.' );
 
 			case 'POST customers':
+				if ( 'oauth' === ( $body['verified_via'] ?? null ) ) {
+					return self::redeem_oauth_token( isset( $body['oauth_access_token'] ) && is_string( $body['oauth_access_token'] ) ? $body['oauth_access_token'] : '', ! empty( $context['token_used'] ) );
+				}
 				if ( 'sso_ticket' === ( $body['verified_via'] ?? null ) ) {
 					return self::redeem_ticket( isset( $body['sso_ticket'] ) && is_string( $body['sso_ticket'] ) ? $body['sso_ticket'] : '', ! empty( $context['ticket_used'] ) );
 				}
@@ -349,6 +377,14 @@ final class Responses {
 			'sso member'             => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), $context ), 'customers-create.response.json' ),
 			'sso new'                => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NEW . 'abc123' ), $context ), 'customers-create.response.json' ),
 			'sso no email'           => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_NO_EMAIL . 'abc1' ), $context ), 'customers-create.response.json' ),
+			'oauth client'           => array( self::respond( 'POST', 'connection/oauth-client', array(), array(), array( 'redirect_uri' => 'https://shop.example.test/?pixalink_oauth=callback' ), $context ), 'connection-oauth-client.response.json' ),
+			'oauth client off-site'  => array( self::respond( 'POST', 'connection/oauth-client', array(), array(), array( 'redirect_uri' => 'https://evil.example/?pixalink_oauth=callback' ), array( 'connected_site' => 'https://shop.example.test' ) + $context ), 'error.response.json' ),
+			'oauth member'           => array( self::respond( 'POST', 'customers', array(), array(), self::oauth_body( self::OAUTH_TOKEN_PREFIX . 'member-abc' ), $context ), 'customers-create.response.json' ),
+			'oauth new'              => array( self::respond( 'POST', 'customers', array(), array(), self::oauth_body( self::OAUTH_TOKEN_PREFIX . 'new-abc' ), $context ), 'customers-create.response.json' ),
+			'oauth replayed'         => array( self::respond( 'POST', 'customers', array(), array(), self::oauth_body( self::OAUTH_TOKEN_PREFIX . 'member-abc' ), array( 'token_used' => true ) + $context ), 'error.response.json' ),
+			'token'                  => array( self::token( self::token_fields( self::OAUTH_CODE_MEMBER . 'abc' ), self::basic( self::OAUTH_CLIENT_SECRET_PREFIX . 'x' ), array() ), 'oauth-token.response.json' ),
+			'token invalid grant'    => array( self::token( self::token_fields( 'someone-elses-code' ), self::basic( self::OAUTH_CLIENT_SECRET_PREFIX . 'x' ), array() ), 'oauth-error.response.json' ),
+			'token invalid client'   => array( self::token( self::token_fields( self::OAUTH_CODE_MEMBER . 'abc' ), self::basic( 'rotated' ), array( 'client_secret' => self::OAUTH_CLIENT_SECRET_PREFIX . 'new' ) ), 'oauth-error.response.json' ),
 			'sso unknown'            => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( 'someone-elses-ticket-0001' ), $context ), 'error.response.json' ),
 			'sso replayed'           => array( self::respond( 'POST', 'customers', array(), array(), self::ticket_body( self::SSO_TICKET_MEMBER . 'abc123' ), array( 'ticket_used' => true ) + $context ), 'error.response.json' ),
 			'summary'                => array( self::respond( 'GET', 'customers/{id}', array( 'id' => self::MEMBER_ID ), array(), array(), $context ), 'customer-summary.response.json' ),
@@ -571,6 +607,13 @@ final class Responses {
 				'portal_url'        => self::PORTAL_URL,
 				'sign_in_url'       => self::SIGN_IN_URL,
 			),
+			'oauth'              => array(
+				'authorization_endpoint'           => self::OAUTH_AUTHORIZE,
+				'token_endpoint'                   => self::OAUTH_TOKEN,
+				'revocation_endpoint'              => self::OAUTH_REVOKE,
+				'scopes_supported'                 => array( 'profile', 'loyalty:read', 'store:link' ),
+				'code_challenge_methods_supported' => array( 'S256' ),
+			),
 		);
 	}
 
@@ -658,6 +701,147 @@ final class Responses {
 			'verified_via' => 'sso_ticket',
 			'sso_ticket'   => $ticket,
 		);
+	}
+
+	/**
+	 * POST customers body that redeems an OAuth access token.
+	 *
+	 * @param string $token Access token.
+	 * @return array<string,mixed>
+	 */
+	public static function oauth_body( string $token ): array {
+		return array(
+			'external_id'        => null,
+			'verified_via'       => 'oauth',
+			'oauth_access_token' => $token,
+		);
+	}
+
+	/**
+	 * Token request fields for a code.
+	 *
+	 * @param string $code Code.
+	 * @return array<string,string>
+	 */
+	public static function token_fields( string $code ): array {
+		return array(
+			'grant_type'    => 'authorization_code',
+			'code'          => $code,
+			'redirect_uri'  => 'https://shop.example.test/?pixalink_oauth=callback',
+			'code_verifier' => 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
+		);
+	}
+
+	/**
+	 * HTTP Basic header of the fake client with a secret.
+	 *
+	 * @param string $secret Secret.
+	 * @return string
+	 */
+	public static function basic( string $secret ): string {
+		return 'Basic ' . base64_encode( rawurlencode( self::OAUTH_CLIENT_ID ) . ':' . rawurlencode( $secret ) ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- HTTP Basic.
+	}
+
+	/**
+	 * The store's OAuth client: a new secret on every call (the previous one stops working).
+	 *
+	 * @param string $redirect_uri   Requested callback.
+	 * @param string $connected_site Store the outlet is connected to ('' when unknown).
+	 * @return array{status:int,body:mixed}
+	 */
+	private static function oauth_client( string $redirect_uri, string $connected_site ): array {
+		$host = parse_url( $redirect_uri, PHP_URL_HOST ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Pure PHP: the contract suite runs without WordPress.
+		$site = parse_url( $connected_site, PHP_URL_HOST ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- See above.
+		if ( ! is_string( $host ) || ( is_string( $site ) && strtolower( $site ) !== strtolower( $host ) ) ) {
+			return self::error( 422, 'invalid_redirect_uri', 'The redirect URI must be on the connected store.' );
+		}
+
+		return self::ok(
+			array(
+				'client_id'     => self::OAUTH_CLIENT_ID,
+				'client_secret' => self::OAUTH_CLIENT_SECRET_PREFIX . bin2hex( random_bytes( 16 ) ),
+				'redirect_uri'  => $redirect_uri,
+				'scopes'        => array( 'profile', 'store:link' ),
+			)
+		);
+	}
+
+	/**
+	 * The fake token endpoint (oauth-token.request.json; errors in the RFC 6749 envelope).
+	 *
+	 * @param array<mixed>        $fields        Form fields.
+	 * @param string              $authorization Authorization header.
+	 * @param array<string,mixed> $context       {client_secret?:string (the latest issued), code_used?:bool}.
+	 * @return array{status:int,body:mixed}
+	 */
+	public static function token( array $fields, string $authorization, array $context ): array {
+		$credentials = 0 === strpos( $authorization, 'Basic ' ) ? base64_decode( substr( $authorization, 6 ), true ) : false; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- HTTP Basic.
+		$parts       = is_string( $credentials ) ? explode( ':', $credentials, 2 ) : array();
+		$client_id   = rawurldecode( $parts[0] ?? '' );
+		$secret      = rawurldecode( $parts[1] ?? '' );
+		$latest      = isset( $context['client_secret'] ) && is_string( $context['client_secret'] ) ? $context['client_secret'] : null;
+		if ( self::OAUTH_CLIENT_ID !== $client_id || ( null !== $latest ? $latest !== $secret : 0 !== strpos( $secret, self::OAUTH_CLIENT_SECRET_PREFIX ) ) ) {
+			return array(
+				'status' => 401,
+				'body'   => array(
+					'error'             => 'invalid_client',
+					'error_description' => 'Client authentication failed.',
+				),
+			);
+		}
+
+		$code = isset( $fields['code'] ) && is_string( $fields['code'] ) ? $fields['code'] : '';
+		$kind = null;
+		foreach ( array(
+			'member'  => self::OAUTH_CODE_MEMBER,
+			'new'     => self::OAUTH_CODE_NEW,
+			'noemail' => self::OAUTH_CODE_NO_EMAIL,
+		) as $name => $prefix ) {
+			if ( 0 === strpos( $code, $prefix ) ) {
+				$kind = $name;
+			}
+		}
+
+		if ( null === $kind || ! empty( $context['code_used'] ) || 'authorization_code' !== ( $fields['grant_type'] ?? null ) ) {
+			return array(
+				'status' => 400,
+				'body'   => array(
+					'error'             => 'invalid_grant',
+					'error_description' => 'The authorization code is invalid or expired.',
+				),
+			);
+		}
+
+		return self::ok(
+			array(
+				'token_type'    => 'Bearer',
+				'expires_in'    => 3600,
+				'access_token'  => self::OAUTH_TOKEN_PREFIX . $kind . '-' . bin2hex( random_bytes( 12 ) ),
+				'refresh_token' => 'fake-oauth-refresh-' . bin2hex( random_bytes( 12 ) ),
+			)
+		);
+	}
+
+	/**
+	 * Redeem an OAuth access token (single use).
+	 *
+	 * @param string $token Access token.
+	 * @param bool   $used  Whether the server saw it before.
+	 * @return array{status:int,body:mixed}
+	 */
+	private static function redeem_oauth_token( string $token, bool $used ): array {
+		$kind = ! $used && 0 === strpos( $token, self::OAUTH_TOKEN_PREFIX ) ? strtok( substr( $token, strlen( self::OAUTH_TOKEN_PREFIX ) ), '-' ) : false;
+
+		switch ( $kind ) {
+			case 'member':
+				return self::redeem_ticket( self::SSO_TICKET_MEMBER . 'oauth', false );
+			case 'new':
+				return self::redeem_ticket( self::SSO_TICKET_NEW . 'oauth', false );
+			case 'noemail':
+				return self::redeem_ticket( self::SSO_TICKET_NO_EMAIL . 'oauth', false );
+		}
+
+		return self::error( 410, 'oauth_token_invalid', 'This sign-in has expired or was already used.' );
 	}
 
 	/**

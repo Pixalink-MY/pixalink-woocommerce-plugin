@@ -16,17 +16,19 @@ defined( 'ABSPATH' ) || exit;
 
 /**
  * Connect endpoints: `POST connect/exchange` (PKCE code → outlet API key), `POST connection/heartbeat`,
- * `POST connection/disconnect` and `GET outlet` (connection test), plus the hosted authorize page query.
+ * `POST connection/disconnect`, `POST connection/oauth-client` (the store's OAuth client for member portal sign-in)
+ * and `GET outlet` (connection test), plus the hosted authorize page query.
  *
  * The static builders are the single source of the request bodies and query strings and are validated against
  * `tests/contract/schemas/*.json` by the contract suite. The wizard itself lives in {@see \Pixalink\Loyalty\Connect\ConnectService}.
  */
 final class Connect {
 
-	public const EXCHANGE_PATH   = 'connect/exchange';
-	public const HEARTBEAT_PATH  = 'connection/heartbeat';
-	public const DISCONNECT_PATH = 'connection/disconnect';
-	public const OUTLET_PATH     = 'outlet';
+	public const EXCHANGE_PATH     = 'connect/exchange';
+	public const HEARTBEAT_PATH    = 'connection/heartbeat';
+	public const DISCONNECT_PATH   = 'connection/disconnect';
+	public const OAUTH_CLIENT_PATH = 'connection/oauth-client';
+	public const OUTLET_PATH       = 'outlet';
 
 	/**
 	 * Path of the hosted connect page, relative to the Pixalink web base (not the API base).
@@ -126,6 +128,16 @@ final class Connect {
 	}
 
 	/**
+	 * Body for POST connection/oauth-client.
+	 *
+	 * @param string $redirect_uri The store's OAuth callback.
+	 * @return array{redirect_uri:string}
+	 */
+	public static function oauth_client_payload( string $redirect_uri ): array {
+		return array( 'redirect_uri' => $redirect_uri );
+	}
+
+	/**
 	 * Body for POST connection/heartbeat.
 	 *
 	 * @param string      $site              Store URL.
@@ -187,6 +199,28 @@ final class Connect {
 	 */
 	public function disconnect( string $reason ): void {
 		$this->client->post( self::DISCONNECT_PATH, self::disconnect_payload( $reason ), array( 'endpoint_class' => Client::ENDPOINT_CONNECT ) );
+	}
+
+	/**
+	 * Issue (or rotate) the outlet's OAuth client for this store's callback.
+	 *
+	 * @param string $redirect_uri The store's OAuth callback.
+	 * @return array{client_id:string,client_secret:string}
+	 * @throws ApiException On failure (422 `invalid_redirect_uri`), or when the answer has no client id and secret.
+	 */
+	public function oauth_client( string $redirect_uri ): array {
+		$data   = $this->client->post( self::OAUTH_CLIENT_PATH, self::oauth_client_payload( $redirect_uri ), array( 'endpoint_class' => Client::ENDPOINT_CONNECT ) )->data;
+		$id     = isset( $data['client_id'] ) && is_string( $data['client_id'] ) ? $data['client_id'] : '';
+		$secret = isset( $data['client_secret'] ) && is_string( $data['client_secret'] ) ? $data['client_secret'] : '';
+		if ( '' === $id || strlen( $id ) > 255 || '' === $secret ) {
+			$exception = ApiException::invalid_response( 200 );
+			throw $exception;
+		}
+
+		return array(
+			'client_id'     => $id,
+			'client_secret' => $secret,
+		);
 	}
 
 	/**

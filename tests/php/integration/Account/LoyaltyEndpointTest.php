@@ -220,6 +220,7 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 
 	public function test_an_unlinked_shopper_can_verify_with_whatsapp_or_get_a_code(): void {
 		$this->cache_heartbeat( self::heartbeat() );
+		$this->provision_oauth_client();
 		wp_set_current_user( $this->make_user() );
 
 		$html = self::tab();
@@ -236,10 +237,11 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		$this->assertSame( array(), Server::recorded() );
 	}
 
-	public function test_without_a_portal_sign_in_page_only_the_code_form_shows(): void {
+	public function test_without_oauth_only_the_code_form_shows(): void {
 		$status = self::heartbeat();
-		unset( $status['branding']['sign_in_url'] );
+		unset( $status['oauth'] );
 		$this->cache_heartbeat( $status );
+		$this->provision_oauth_client();
 		wp_set_current_user( $this->make_user() );
 
 		$html = self::tab();

@@ -10,12 +10,14 @@ namespace Pixalink\Loyalty\Tests\Contract;
 use Brain\Monkey\Functions;
 use Pixalink\Loyalty\Api\Resources\Connect;
 use Pixalink\Loyalty\Api\Resources\Customers;
+use Pixalink\Loyalty\Api\Resources\Oauth;
 use Pixalink\Loyalty\Connect\LeadPayload;
 use Pixalink\Loyalty\Connect\PkceState;
 use Pixalink\Loyalty\Fields\ConsentRecord;
 use Pixalink\Loyalty\Fields\PhoneNumber;
 use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\SignInState;
+use Pixalink\Loyalty\Oauth\AuthorizationRequest;
 use Pixalink\Loyalty\Support\Uuid;
 use Pixalink\Loyalty\Tests\FakeServer\ContractValidator;
 use Pixalink\Loyalty\Tests\Unit\TestCase;
@@ -31,6 +33,8 @@ use Pixalink\Loyalty\Tests\Unit\TestCase;
  * @covers \Pixalink\Loyalty\Connect\PkceState
  * @covers \Pixalink\Loyalty\Identity\PortalSignIn::sign_in_location
  * @covers \Pixalink\Loyalty\Identity\SignInState::generate
+ * @covers \Pixalink\Loyalty\Api\Resources\Oauth::token_payload
+ * @covers \Pixalink\Loyalty\Oauth\AuthorizationRequest::authorize_url
  */
 final class RequestBuildersTest extends TestCase {
 
@@ -197,18 +201,56 @@ final class RequestBuildersTest extends TestCase {
 		$this->assertSame( array(), ContractValidator::validate( 'store-sign-in.query.json', $query ) );
 	}
 
-	public function test_store_sign_in_query_to_verify(): void {
-		$location = PortalSignIn::sign_in_location(
-			'https://demo.pixalink.io/l/pixalink-bookstore/store-sign-in/9a3c1f0e-6b1d-4c39-9f7e-0c2b5d6a7e81',
-			'https://shop.example.test/my-account/pixalink-loyalty/',
-			'q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4',
-			PortalSignIn::INTENT_VERIFY
-		);
-		parse_str( (string) parse_url( $location, PHP_URL_QUERY ), $query ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+	public function test_oauth_client_payload(): void {
+		$this->assertSame( array(), ContractValidator::validate( 'connection-oauth-client.request.json', Connect::oauth_client_payload( 'https://shop.example.test/?pixalink_oauth=callback' ) ) );
+		$this->assertNotEmpty( ContractValidator::validate( 'connection-oauth-client.request.json', array( 'redirect_uri' => '/relative' ) ) );
+	}
 
-		$this->assertSame( 'verify', $query['intent'] ?? null );
-		$this->assertSame( array(), ContractValidator::validate( 'store-sign-in.query.json', $query ) );
-		$this->assertNotEmpty( ContractValidator::validate( 'store-sign-in.query.json', array( 'intent' => 'other' ) + $query ), 'Only the intents the contract names.' );
+	public function test_oauth_authorize_query(): void {
+		$url = AuthorizationRequest::authorize_url(
+			'https://demo.pixalink.io/l/pixalink-bookstore/oauth/authorize',
+			'9f1c2b7e-3d4a-4c5b-8e6f-7a8b9c0d1e2f',
+			'https://shop.example.test/?pixalink_oauth=callback',
+			SignInState::generate(),
+			PkceState::challenge( SignInState::generate() )
+		);
+		parse_str( (string) parse_url( $url, PHP_URL_QUERY ), $query ); // phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url
+
+		$this->assertStringStartsWith( 'https://demo.pixalink.io/l/pixalink-bookstore/oauth/authorize?', $url );
+		$this->assertSame( array(), ContractValidator::validate( 'oauth-authorize.query.json', $query ) );
+		$this->assertNotEmpty( ContractValidator::validate( 'oauth-authorize.query.json', array( 'code_challenge_method' => 'plain' ) + $query ), 'S256 only.' );
+	}
+
+	public function test_oauth_token_request(): void {
+		$fields = Oauth::token_payload( 'def50200a1b2c3d4e5f6', 'https://shop.example.test/?pixalink_oauth=callback', SignInState::generate() );
+
+		$this->assertSame( array(), ContractValidator::validate( 'oauth-token.request.json', $fields ) );
+	}
+
+	public function test_oauth_redeem_payload(): void {
+		$guest = Customers::oauth_payload( 'eyJ0eXAiOiJKV1QifQ.eyJzdWIiOiI1MDAxIn0.c2lnbmF0dXJl', 0 );
+		$user  = Customers::oauth_payload( 'eyJ0eXAiOiJKV1QifQ.eyJzdWIiOiI1MDAxIn0.c2lnbmF0dXJl', 17 );
+
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $guest ) );
+		$this->assertSame( array(), ContractValidator::validate( 'customers-create.request.json', $user ) );
+		$this->assertSame( 'oauth', $guest['verified_via'] );
+		$this->assertNull( $guest['external_id'] );
+		$this->assertSame( '17', $user['external_id'] );
+		$this->assertNotEmpty( ContractValidator::validate( 'customers-create.request.json', $guest + array( 'sso_ticket' => 'kP3xV7nQ2mR8sT4wY6zA1bC5dE9fG0hJ' ) ), 'A token never travels with a ticket.' );
+		$this->assertNotEmpty( ContractValidator::validate( 'customers-create.request.json', $guest + array( 'phone' => '+60123456789' ) ), 'Nor with a phone.' );
+		$this->assertNotEmpty( ContractValidator::validate( 'customers-create.request.json', array( 'verified_via' => 'oauth' ) ), 'The token is required.' );
+		$this->assertNotEmpty(
+			ContractValidator::validate(
+				'customers-create.request.json',
+				array(
+					'phone'              => '+60123456789',
+					'phone_country'      => 'MY',
+					'verified_via'       => 'none',
+					'oauth_access_token' => 'abc',
+				)
+			),
+			'Only with verified_via oauth.'
+		);
 	}
 
 	public function test_otp_payloads(): void {

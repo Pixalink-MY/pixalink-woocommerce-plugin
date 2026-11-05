@@ -45,6 +45,7 @@ trait FakePixalinkHttp {
 	 */
 	private static function fake_routes(): array {
 		return array(
+			'#^connection/oauth-client$#'                    => 'connection/oauth-client',
 			'#^customers$#'                                  => 'customers',
 			'#^customers/(?P<id>[A-Za-z0-9-]+)$#'            => 'customers/{id}',
 			'#^customers/(?P<id>[A-Za-z0-9-]+)/otp$#'        => 'customers/{id}/otp',

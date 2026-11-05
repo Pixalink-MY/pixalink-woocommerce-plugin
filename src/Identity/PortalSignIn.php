@@ -14,6 +14,9 @@ use Pixalink\Loyalty\Account\Assets;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
 use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Api\Credentials;
+use Pixalink\Loyalty\Oauth\AuthorizationRequest;
+use Pixalink\Loyalty\Oauth\Capability;
+use Pixalink\Loyalty\Oauth\ClientCredentials;
 use Pixalink\Loyalty\Support\Branding;
 use Pixalink\Loyalty\Support\BrandingStyles;
 use Pixalink\Loyalty\Support\Html;
@@ -27,17 +30,21 @@ defined( 'ABSPATH' ) || exit;
  * `admin-post.php?action=pixalink_loyalty_portal_sign_in&redirect_to=<page>`, where it starts.
  *
  * The button shows for logged-out shoppers while "Sign in from Customer Portal" is on, the store is connected and
- * the heartbeat named the portal's sign-in page (`branding.sign_in_url`, on the portal host). Pressing it keeps a
- * random state in a ten-minute cookie ({@see SignInState}) and sends the browser (303, no cache, no Referer) to that
- * page with `return` (the page to come back to, on this store) and `state`. The member signs in on the portal, which
- * sends them back to `return` with a `pixalink_sso` ticket bound to the state; {@see SsoLanding} redeems it there.
- * Nothing is sent to Pixalink from this store until then.
+ * the portal can sign them in: over OAuth when the heartbeat advertises it ({@see Capability}) and the store has its
+ * client ({@see ClientCredentials}), otherwise through the portal's sign-in page (`branding.sign_in_url`, on the
+ * portal host). Every press sends the browser (303, no cache, no Referer) to the portal and nothing to Pixalink:
  *
- * The same round trip verifies a logged-in shopper who is not linked yet ("Verify with WhatsApp" on My Account ›
- * Loyalty and the dashboard card, {@see PortalSignIn::verify_url()}): the start link carries `intent=verify`, which is
- * passed on to the portal, so Pixalink can offer "Continue as <member>?" to a browser already signed in there (older
- * Pixalink ignores it and signs in as usual). Never for staff or an account that is already linked; {@see SsoLanding}
- * links the account without a second confirmation when the state cookie comes back with the ticket.
+ * - OAuth: an {@see AuthorizationRequest} (state and PKCE verifier in an encrypted ten-minute cookie) and the
+ *   authorize page; the portal sends the shopper back to the store's callback, {@see \Pixalink\Loyalty\Oauth\CallbackHandler};
+ * - otherwise: a random state in a ten-minute cookie ({@see SignInState}) and the sign-in page with `return` (the page
+ *   to come back to, on this store) and `state`; the portal sends them back to `return` with a `pixalink_sso` ticket
+ *   bound to the state, which {@see SsoLanding} redeems there.
+ *
+ * Over OAuth only, the same round trip verifies a logged-in shopper who is not linked yet ("Verify with WhatsApp" on
+ * My Account › Loyalty and the dashboard card, {@see PortalSignIn::verify_url()}, whose start link carries
+ * `intent=verify`): the member confirms on the portal (inverse OTP or OTP, as the merchant set it) and the account is
+ * linked on return without a second confirmation. Never for staff or an account that is already linked; without OAuth
+ * the button is not offered and the one-time code form stays the way to verify.
  */
 final class PortalSignIn {
 
@@ -53,7 +60,7 @@ final class PortalSignIn {
 	public const NOTICE_UNAVAILABLE = 'sign_in_unavailable';
 
 	/**
-	 * `intent` of a logged-in shopper verifying their membership (store-sign-in.query.json).
+	 * `intent` of the start link when a logged-in shopper verifies their membership ("Verify with WhatsApp").
 	 */
 	public const INTENT_VERIFY = 'verify';
 
@@ -93,6 +100,20 @@ final class PortalSignIn {
 	private \Closure $terminate;
 
 	/**
+	 * The store's OAuth client (null: the ticket flow only).
+	 *
+	 * @var ClientCredentials|null
+	 */
+	private ?ClientCredentials $oauth_client;
+
+	/**
+	 * OAuth requests kept in the browser (null: the ticket flow only).
+	 *
+	 * @var AuthorizationRequest|null
+	 */
+	private ?AuthorizationRequest $oauth_requests;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Options       $options     Option storage.
@@ -100,19 +121,23 @@ final class PortalSignIn {
 	 * @param SignInState   $state       State cookie.
 	 * @param \Closure|null $emit_header Sends a header line (default: header()).
 	 * @param \Closure|null $terminate   Ends the request (default: exit).
+	 * @param ClientCredentials|null    $oauth_client   The store's OAuth client (null: the ticket flow only).
+	 * @param AuthorizationRequest|null $oauth_requests OAuth requests kept in the browser.
 	 */
-	public function __construct( Options $options, Credentials $credentials, SignInState $state, ?\Closure $emit_header = null, ?\Closure $terminate = null ) {
-		$this->options     = $options;
-		$this->credentials = $credentials;
-		$this->state       = $state;
-		$this->emit_header = $emit_header ?? static function ( string $line ): void {
+	public function __construct( Options $options, Credentials $credentials, SignInState $state, ?\Closure $emit_header = null, ?\Closure $terminate = null, ?ClientCredentials $oauth_client = null, ?AuthorizationRequest $oauth_requests = null ) {
+		$this->options        = $options;
+		$this->credentials    = $credentials;
+		$this->state          = $state;
+		$this->emit_header    = $emit_header ?? static function ( string $line ): void {
 			if ( ! headers_sent() ) {
 				header( $line );
 			}
 		};
-		$this->terminate   = $terminate ?? static function (): void {
+		$this->terminate      = $terminate ?? static function (): void {
 			exit;
 		};
+		$this->oauth_client   = $oauth_client;
+		$this->oauth_requests = $oauth_requests;
 	}
 
 	/**
@@ -142,16 +167,37 @@ final class PortalSignIn {
 	}
 
 	/**
+	 * What OAuth sign-in needs, while it may be offered (setting on, store connected, OAuth advertised, client kept).
+	 *
+	 * @return array{capability:Capability,client_id:string}|null
+	 */
+	private function oauth(): ?array {
+		if ( null === $this->oauth_client || null === $this->oauth_requests || ! $this->options->get_bool( Options::PORTAL_SIGN_IN ) || ! $this->credentials->is_configured() ) {
+			return null;
+		}
+
+		$capability = Capability::remote( $this->options );
+		$client     = null === $capability ? null : $this->oauth_client->get();
+
+		return null === $capability || null === $client
+			? null
+			: array(
+				'capability' => $capability,
+				'client_id'  => $client['client_id'],
+			);
+	}
+
+	/**
 	 * Whether the current visitor gets the button.
 	 *
 	 * @return bool
 	 */
 	public function is_available(): bool {
-		return ! is_user_logged_in() && null !== $this->sign_in_url();
+		return ! is_user_logged_in() && ( null !== $this->oauth() || null !== $this->sign_in_url() );
 	}
 
 	/**
-	 * Whether this logged-in shopper may verify through the portal: not linked yet, not staff, sign-in page known.
+	 * Whether this logged-in shopper may verify through the portal: not linked yet, not staff, OAuth available.
 	 *
 	 * @param int $user_id User id (0 when nobody is logged in).
 	 * @return bool
@@ -160,7 +206,7 @@ final class PortalSignIn {
 		return $user_id > 0
 			&& null === UserMeta::link( $user_id )
 			&& ! CustomerLinker::is_staff( $user_id )
-			&& null !== $this->sign_in_url();
+			&& null !== $this->oauth();
 	}
 
 	/**
@@ -286,20 +332,22 @@ final class PortalSignIn {
 	 * @return array{location:string,external:bool}
 	 */
 	public function resolve( string $redirect_to, string $intent = '' ): array {
-		$return = self::return_url( $redirect_to );
-		if ( is_user_logged_in() ) {
-			$sign_in_url = $this->sign_in_url();
-			if ( self::INTENT_VERIFY !== $intent || null === $sign_in_url || ! $this->can_verify( get_current_user_id() ) ) {
+		$return  = self::return_url( $redirect_to );
+		$user_id = get_current_user_id();
+		$oauth   = $this->oauth();
+		if ( $user_id > 0 ) {
+			if ( self::INTENT_VERIFY !== $intent || null === $oauth || ! $this->can_verify( $user_id ) ) {
 				return array(
 					'location' => $return,
 					'external' => false,
 				);
 			}
 
-			return array(
-				'location' => self::sign_in_location( $sign_in_url, $return, $this->state->issue(), self::INTENT_VERIFY ),
-				'external' => true,
-			);
+			return $this->authorize( $oauth, AuthorizationRequest::PURPOSE_VERIFY, $return, $user_id );
+		}
+
+		if ( null !== $oauth ) {
+			return $this->authorize( $oauth, AuthorizationRequest::PURPOSE_SIGN_IN, $return, 0 );
 		}
 
 		$sign_in_url = $this->sign_in_url();
@@ -317,15 +365,38 @@ final class PortalSignIn {
 	}
 
 	/**
-	 * The portal's sign-in page with `return`, `state` and, when verifying, `intent` added (store-sign-in.query.json).
+	 * Keep an OAuth request in the browser and send it to the authorize page.
+	 *
+	 * @param array{capability:Capability,client_id:string} $oauth      What OAuth sign-in needs.
+	 * @param string                                        $purpose    AuthorizationRequest::PURPOSE_*.
+	 * @param string                                        $return_url Absolute page of this store to land on.
+	 * @param int                                           $user_id    The account that starts it (0: nobody).
+	 * @return array{location:string,external:bool}
+	 */
+	private function authorize( array $oauth, string $purpose, string $return_url, int $user_id ): array {
+		$requests = $this->oauth_requests;
+		if ( null === $requests ) {
+			return array(
+				'location' => $return_url,
+				'external' => false,
+			);
+		}
+
+		return array(
+			'location' => $requests->start( $oauth['capability'], $oauth['client_id'], ClientCredentials::redirect_uri(), $purpose, $return_url, $user_id ),
+			'external' => true,
+		);
+	}
+
+	/**
+	 * The portal's sign-in page with `return` and `state` added (store-sign-in.query.json).
 	 *
 	 * @param string $sign_in_url The heartbeat's `branding.sign_in_url`.
 	 * @param string $return_url  Absolute page of this store to come back to.
 	 * @param string $state       State kept in the cookie.
-	 * @param string $intent      '' (sign in) or {@see PortalSignIn::INTENT_VERIFY}.
 	 * @return string
 	 */
-	public static function sign_in_location( string $sign_in_url, string $return_url, string $state, string $intent = '' ): string {
+	public static function sign_in_location( string $sign_in_url, string $return_url, string $state ): string {
 		$fragment = '';
 		$hash     = strpos( $sign_in_url, '#' );
 		if ( false !== $hash ) {
@@ -333,16 +404,11 @@ final class PortalSignIn {
 			$sign_in_url = substr( $sign_in_url, 0, $hash );
 		}
 
-		$params = array(
-			'return' => $return_url,
-			'state'  => $state,
-		);
-		if ( '' !== $intent ) {
-			$params['intent'] = $intent;
-		}
-
 		$query = http_build_query(
-			$params,
+			array(
+				'return' => $return_url,
+				'state'  => $state,
+			),
 			'',
 			'&',
 			PHP_QUERY_RFC3986
@@ -411,7 +477,8 @@ final class PortalSignIn {
 		( $this->emit_header )( 'Referrer-Policy: no-referrer' );
 
 		if ( $redirect['external'] ) {
-			// The sign-in page is on the portal's host (checked in Branding), which wp_safe_redirect() would refuse.
+			// The sign-in and authorize pages are on the portal's host (checked in Branding and Capability), which
+			// wp_safe_redirect() would refuse.
 			wp_redirect( $redirect['location'], 303, 'Pixalink Loyalty' ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect
 		} else {
 			wp_safe_redirect( $redirect['location'], 303, 'Pixalink Loyalty' );

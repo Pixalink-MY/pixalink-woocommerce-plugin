@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/oauth-error.response.json",
+	"title": "Error answer of the OAuth token endpoint (RFC 6749 §5.2)",
+	"description": "invalid_grant (400): the code is unknown, used, expired, or does not match the redirect_uri or code_verifier. invalid_client (401): the client id or secret is wrong, e.g. after the client was rotated; the store provisions its client again.",
+	"type": "object",
+	"required": [ "error" ],
+	"properties": {
+		"error": { "type": "string", "pattern": "^[a-z_]+$" },
+		"error_description": { "type": "string" },
+		"message": { "type": "string" }
+	},
+	"examples": [
+		{ "error": "invalid_grant", "error_description": "The authorization code is invalid or expired." },
+		{ "error": "invalid_client", "error_description": "Client authentication failed." }
+	]
+}

@@ -217,14 +217,14 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 
 	public function test_an_unlinked_shopper_keeps_the_verify_link_first_and_a_signed_out_portal_link(): void {
 		$status = self::heartbeat();
-		unset( $status['branding']['sign_in_url'] );
+		unset( $status['oauth'] );
 		$this->cache_heartbeat( $status );
 		$this->unlinked_shopper();
 
 		$html = self::dashboard();
 
 		$this->assertStringContainsString( 'Link your membership', $html );
-		$this->assertStringNotContainsString( 'Verify with WhatsApp', $html, 'No portal sign-in page: the code flow alone.' );
+		$this->assertStringNotContainsString( 'Verify with WhatsApp', $html, 'No OAuth: the code flow alone.' );
 		$this->assertLessThan( (int) strpos( $html, 'Open member portal' ), (int) strpos( $html, 'Link your membership' ) );
 		$this->assertStringContainsString( 'href="' . Responses::PORTAL_URL . '" target="_blank" rel="noopener">Open member portal</a>', $html );
 		$this->assertStringNotContainsString( PortalHandoff::ACTION, $html, 'No signed-in portal link before verifying.' );
@@ -233,6 +233,7 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 
 	public function test_an_unlinked_shopper_is_offered_verify_with_whatsapp_first(): void {
 		$this->cache_heartbeat( self::heartbeat() );
+		$this->provision_oauth_client();
 		$this->unlinked_shopper();
 
 		$html = self::dashboard();

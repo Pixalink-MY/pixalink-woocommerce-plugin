@@ -9,6 +9,7 @@ namespace Pixalink\Loyalty\Tests\Integration\Support;
 
 use Pixalink\Loyalty\Account\SummaryService;
 use Pixalink\Loyalty\Events\EventRepository;
+use Pixalink\Loyalty\Oauth\ClientCredentials;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
@@ -70,6 +71,17 @@ trait StoreFixtures {
 		wc_clear_notices();
 		remove_filter( 'send_auth_cookies', '__return_false' );
 		Plugin::instance()->credentials()->clear();
+	}
+
+	/**
+	 * Provision the store's OAuth client from the cached heartbeat (which must advertise OAuth), then forget the
+	 * recorded request.
+	 *
+	 * @return void
+	 */
+	protected function provision_oauth_client(): void {
+		( new ClientCredentials( Plugin::instance()->connect(), new Options(), Plugin::instance()->crypto(), Plugin::instance()->logger() ) )->ensure();
+		Server::reset();
 	}
 
 	/**

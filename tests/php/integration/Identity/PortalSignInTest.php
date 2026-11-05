@@ -13,6 +13,8 @@ use Pixalink\Loyalty\Identity\Link;
 use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\SignInState;
 use Pixalink\Loyalty\Identity\UserMeta;
+use Pixalink\Loyalty\Oauth\AuthorizationRequest;
+use Pixalink\Loyalty\Oauth\ClientCredentials;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
@@ -22,10 +24,12 @@ use Pixalink\Loyalty\Tests\Integration\Support\StoreFixtures;
 /**
  * "Sign in with the member portal": the button on the My Account and classic checkout login forms (only for
  * logged-out shoppers, while the setting is on, the store is connected and the heartbeat named the portal's sign-in
- * page), and the start handler that keeps a random state in a short-lived cookie and sends the browser to the portal
- * with the page to come back to.
+ * page or advertised OAuth), and the start handler that keeps a random state in a short-lived cookie and sends the
+ * browser to the portal with the page to come back to. With OAuth (and the store's client provisioned) it goes to the
+ * authorize page instead, and logged-in shoppers who are not linked get "Verify with WhatsApp" the same way.
  *
  * @covers \Pixalink\Loyalty\Identity\PortalSignIn
+ * @covers \Pixalink\Loyalty\Oauth\AuthorizationRequest
  * @covers \Pixalink\Loyalty\Identity\SignInState
  * @covers \Pixalink\Loyalty\Account\Assets::enqueue_sign_in_style
  */
@@ -90,6 +94,7 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 	public function tear_down(): void {
 		remove_filter( 'wp_redirect', array( $this, 'capture_redirect' ), 10 );
 		delete_option( Options::REMOTE_STATUS );
+		delete_option( Options::OAUTH_CLIENT );
 		delete_option( Options::PORTAL_SIGN_IN );
 		delete_option( Options::PORTAL_BRANDING );
 		$_GET                   = array();
@@ -146,7 +151,14 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 			function ( string $line ): void {
 				$this->headers[] = $line;
 			},
-			static function (): void {}
+			static function (): void {},
+			$this->oauth_client(),
+			new AuthorizationRequest(
+				Plugin::instance()->crypto(),
+				function ( string $name, string $value, array $options ): void {
+					$this->cookies[] = array( $name, $value, $options );
+				}
+			)
 		);
 	}
 
@@ -424,6 +436,20 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 	}
 
 	/**
+	 * The store has its OAuth client (provisioned from the cached heartbeat, which advertises OAuth).
+	 *
+	 * @return void
+	 */
+	private function oauth_ready(): void {
+		$this->oauth_client()->ensure();
+		Server::reset();
+	}
+
+	private function oauth_client(): ClientCredentials {
+		return new ClientCredentials( Plugin::instance()->connect(), new Options(), Plugin::instance()->crypto(), Plugin::instance()->logger() );
+	}
+
+	/**
 	 * Press "Verify with WhatsApp": the start handler with `intent=verify`.
 	 *
 	 * @param string $redirect_to Raw query value.
@@ -439,37 +465,108 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 		$this->sign_in()->handle_request();
 	}
 
-	public function test_a_logged_in_unverified_shopper_is_sent_to_the_portal_to_verify(): void {
-		wp_set_current_user( $this->make_user() );
+	/**
+	 * Assert a 303 to the fake portal's authorize page; returns its query.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function assert_sent_to_authorize(): array {
+		$this->assertCount( 1, $this->redirects );
+		[ $location, $status ] = $this->redirects[0];
+		$this->assertSame( 303, $status );
+		$this->assertStringStartsWith( Responses::OAUTH_AUTHORIZE . '?', $location );
+		$query = self::query( $location );
+		$this->assertSame( 'code', $query['response_type'] ?? null );
+		$this->assertSame( Responses::OAUTH_CLIENT_ID, $query['client_id'] ?? null );
+		$this->assertSame( ClientCredentials::redirect_uri(), $query['redirect_uri'] ?? null );
+		$this->assertSame( 'profile store:link', $query['scope'] ?? null );
+		$this->assertSame( 'S256', $query['code_challenge_method'] ?? null );
+		$this->assertCount( 1, $this->cookies );
+		$this->assertSame( AuthorizationRequest::COOKIE, $this->cookies[0][0], 'The OAuth request, not the ticket state.' );
+		$this->assertContains( 'Referrer-Policy: no-referrer', $this->headers );
+		$this->assertContains( 'Cache-Control: no-cache, must-revalidate, max-age=0, no-store, private', $this->headers );
+		$this->assertSame( array(), Server::recorded(), 'Nothing is sent to Pixalink until the shopper comes back.' );
+
+		return $query;
+	}
+
+	/**
+	 * The request the start handler kept in the cookie.
+	 *
+	 * @return array{state:string,verifier:string,purpose:string,return:string,user_id:int}|null
+	 */
+	private function kept_request(): ?array {
+		$_COOKIE[ AuthorizationRequest::COOKIE ] = $this->cookies[0][1];
+
+		return ( new AuthorizationRequest( Plugin::instance()->crypto(), static function (): void {} ) )->take();
+	}
+
+	public function test_with_oauth_a_logged_out_shopper_signs_in_through_the_authorize_page(): void {
+		$this->oauth_ready();
+
+		$this->press( home_url( '/checkout/?step=2' ) );
+
+		$query = $this->assert_sent_to_authorize();
+		$kept  = $this->kept_request();
+		$this->assertSame( $kept['state'] ?? null, $query['state'] ?? null );
+		$this->assertSame( AuthorizationRequest::PURPOSE_SIGN_IN, $kept['purpose'] ?? null );
+		$this->assertSame( home_url( '/checkout/?step=2' ), $kept['return'] ?? null );
+		$this->assertSame( 0, $kept['user_id'] ?? null );
+	}
+
+	public function test_with_oauth_a_logged_in_unverified_shopper_verifies_through_the_authorize_page(): void {
+		$this->oauth_ready();
+		$user_id = $this->make_user();
+		wp_set_current_user( $user_id );
 		$loyalty_tab = wc_get_account_endpoint_url( 'pixalink-loyalty' );
 
 		$this->press_to_verify( $loyalty_tab );
 
-		$this->assertCount( 1, $this->cookies );
-		[ $name, $state ] = $this->cookies[0];
-		$this->assertSame( SignInState::COOKIE, $name );
-		$this->assertCount( 1, $this->redirects );
-		[ $location, $status ] = $this->redirects[0];
-		$this->assertSame( 303, $status );
-		$this->assertStringStartsWith( Responses::SIGN_IN_URL . '?', $location );
-		$this->assertSame(
-			array(
-				'return' => $loyalty_tab,
-				'state'  => $state,
-				'intent' => 'verify',
-			),
-			self::query( $location ),
-			'Pixalink is told the shopper is verifying, not signing in.'
-		);
-		$this->assertContains( 'Referrer-Policy: no-referrer', $this->headers );
-		$this->assertSame( array(), Server::recorded() );
+		$this->assert_sent_to_authorize();
+		$kept = $this->kept_request();
+		$this->assertSame( AuthorizationRequest::PURPOSE_VERIFY, $kept['purpose'] ?? null );
+		$this->assertSame( $loyalty_tab, $kept['return'] ?? null, 'Back on the Loyalty tab.' );
+		$this->assertSame( $user_id, $kept['user_id'] ?? null );
 	}
 
-	public function test_a_logged_out_shopper_never_sends_the_verify_intent(): void {
-		$this->press_to_verify( home_url( '/my-account/' ) );
+	public function test_without_oauth_the_logged_out_button_keeps_the_ticket_flow(): void {
+		$status = Responses::samples( time() )['heartbeat']['response']['body'];
+		unset( $status['oauth'] );
+		( new Connection( new Options() ) )->store_remote_status( $status );
 
-		$this->assertArrayNotHasKey( 'intent', self::query( $this->redirects[0][0] ), 'Signing in stays exactly as it was.' );
-		$this->assertCount( 1, $this->cookies );
+		$this->press( home_url( '/my-account/' ) );
+
+		$this->assertStringStartsWith( Responses::SIGN_IN_URL . '?', $this->redirects[0][0] );
+		$this->assertSame( SignInState::COOKIE, $this->cookies[0][0] );
+	}
+
+	public function test_without_a_provisioned_client_the_logged_out_button_keeps_the_ticket_flow(): void {
+		$this->press( home_url( '/my-account/' ) );
+
+		$this->assertStringStartsWith( Responses::SIGN_IN_URL . '?', $this->redirects[0][0], 'OAuth is advertised but the store has no client yet.' );
+	}
+
+	public function test_with_oauth_and_no_ticket_page_the_logged_out_button_still_shows(): void {
+		$this->oauth_ready();
+		$this->heartbeat(
+			static function ( array &$branding ): void {
+				unset( $branding['sign_in_url'] );
+			}
+		);
+
+		$this->assertStringContainsString( 'Sign in from Customer Portal', self::account_login_form() );
+	}
+
+	public function test_without_oauth_verify_is_not_offered_and_a_press_just_goes_back(): void {
+		$user_id = $this->make_user();
+		wp_set_current_user( $user_id );
+
+		$this->assertNull( $this->sign_in()->verify_url( $user_id ), 'The ticket flow cannot verify a logged-in shopper.' );
+
+		$this->press_to_verify( home_url( '/my-account/pixalink-loyalty/' ) );
+
+		$this->assertSame( array( array( home_url( '/my-account/pixalink-loyalty/' ), 303 ) ), $this->redirects );
+		$this->assertSame( array(), $this->cookies );
 	}
 
 	/**
@@ -479,10 +576,11 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 	 */
 	public static function refused_verifiers(): array {
 		return array(
-			'shop manager'    => array( 'staff' ),
-			'already linked'  => array( 'linked' ),
-			'no sign-in page' => array( 'no_sign_in_url' ),
-			'setting off'     => array( 'option_off' ),
+			'shop manager'   => array( 'staff' ),
+			'already linked' => array( 'linked' ),
+			'no oauth'       => array( 'no_oauth' ),
+			'setting off'    => array( 'option_off' ),
+			'disconnected'   => array( 'disconnected' ),
 		);
 	}
 
@@ -492,21 +590,23 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 	 * @param string $case Situation.
 	 */
 	public function test_a_verify_press_that_is_not_allowed_just_goes_back( string $case ): void {
+		$this->oauth_ready();
 		$user_id = $this->make_user( 'member@example.com', 'staff' === $case ? 'shop_manager' : 'customer' );
 		wp_set_current_user( $user_id );
 		switch ( $case ) {
 			case 'linked':
 				UserMeta::store_link( $user_id, new Link( Responses::MEMBER_ID, Responses::MEMBER_PHONE, 'MY', '2026-10-20T00:00:00Z', Link::VIA_OTP ) );
 				break;
-			case 'no_sign_in_url':
-				$this->heartbeat(
-					static function ( array &$branding ): void {
-						unset( $branding['sign_in_url'] );
-					}
-				);
+			case 'no_oauth':
+				$status = Responses::samples( time() )['heartbeat']['response']['body'];
+				unset( $status['oauth'] );
+				( new Connection( new Options() ) )->store_remote_status( $status );
 				break;
 			case 'option_off':
 				update_option( Options::PORTAL_SIGN_IN, 'no' );
+				break;
+			case 'disconnected':
+				Plugin::instance()->credentials()->clear();
 				break;
 		}
 
@@ -519,6 +619,7 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 	}
 
 	public function test_the_verify_button_returns_to_the_loyalty_tab_with_the_intent(): void {
+		$this->oauth_ready();
 		$user_id = $this->make_user();
 		wp_set_current_user( $user_id );
 

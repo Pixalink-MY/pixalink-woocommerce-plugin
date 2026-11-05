@@ -77,13 +77,20 @@
 			"pattern": "^CH-[A-Za-z0-9]+$"
 		},
 		"verified_via": {
-			"description": "How the shopper proved the phone number: a one-time code, a Pixalink portal sign-in ticket (pixalink_sso), or not at all. Balances and redemption require otp or sso_ticket.",
-			"enum": [ "sso_ticket", "otp", "none" ]
+			"description": "How the shopper proved the phone number: a one-time code, a Pixalink portal sign-in ticket (pixalink_sso), an OAuth access token from the member portal (oauth), or not at all. Balances and redemption require otp, sso_ticket or oauth.",
+			"enum": [ "sso_ticket", "otp", "oauth", "none" ]
 		},
 		"sso_ticket": {
 			"description": "The pixalink_sso query parameter the Pixalink portal appends to the store URL when a member taps Order. Single use and short-lived; any ticket presented is used up.",
 			"type": "string",
 			"pattern": "^[A-Za-z0-9_-]{16,255}$"
+		},
+		"oauth_access_token": {
+			"description": "A Bearer access token (RFC 6750 b64token) the member portal's token endpoint issued to the outlet's OAuth client with the store:link scope. Single use at POST customers: Pixalink revokes it there.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 8192,
+			"pattern": "^[A-Za-z0-9._~+/-]+=*$"
 		},
 		"error": {
 			"description": "Every non-2xx answer. Which codes an endpoint returns, and which of the fields below each one carries, is listed per endpoint in endpoints.json (errors, common_errors).",

@@ -12,6 +12,7 @@ use Pixalink\Loyalty\Connect\ConnectController;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Connect\Heartbeat;
 use Pixalink\Loyalty\Install\Installer;
+use Pixalink\Loyalty\Oauth\ClientCredentials;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Server;
@@ -139,9 +140,11 @@ final class ConnectControllerTest extends \WP_UnitTestCase {
 		$this->assertFalse( get_option( Options::MARKETING_CONSENT )['value'], 'The unticked box is recorded as an explicit no.' );
 
 		$this->assertSame(
-			array( 'GET hosted:connect/woocommerce 302', 'POST connect/exchange 200', 'POST connection/heartbeat 200' ),
-			self::recorded()
+			array( 'GET hosted:connect/woocommerce 302', 'POST connect/exchange 200', 'POST connection/heartbeat 200', 'POST connection/oauth-client 200' ),
+			self::recorded(),
+			'The heartbeat advertises OAuth: the store provisions its client for member portal sign-in.'
 		);
+		$this->assertNotNull( ( new ClientCredentials( Plugin::instance()->connect(), new Options(), Plugin::instance()->crypto(), Plugin::instance()->logger() ) )->get() );
 	}
 
 	public function test_a_replayed_callback_is_rejected(): void {
@@ -203,7 +206,7 @@ final class ConnectControllerTest extends \WP_UnitTestCase {
 		$this->assertSame( Connection::STATUS_CONNECTED, $connection['status'] );
 		$this->assertSame( Connection::METHOD_API_KEY, $connection['method'] );
 		$this->assertSame( 'Fake Cafe', $connection['organisation']['name'] );
-		$this->assertSame( array( 'POST connection/heartbeat 200', 'GET outlet 200' ), self::recorded() );
+		$this->assertSame( array( 'POST connection/heartbeat 200', 'GET outlet 200', 'POST connection/oauth-client 200' ), self::recorded(), 'The heartbeat advertises OAuth: the store provisions its client.' );
 	}
 
 	public function test_a_key_whose_outlet_serves_another_store_is_refused(): void {

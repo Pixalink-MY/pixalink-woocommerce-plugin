@@ -1,0 +1,30 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/oauth-callback.query.json",
+	"title": "Query the member portal appends to the store's redirect_uri",
+	"description": "Success: code (single use, 5 minutes, bound to the client, redirect_uri and code_challenge) and state. Failure: error (access_denied when the member cancelled, invalid_request, or another RFC 6749 code) and state. The redirect_uri's own parameter (pixalink_oauth=callback) stays in place.",
+	"type": "object",
+	"oneOf": [
+		{
+			"required": [ "code", "state" ],
+			"not": { "required": [ "error" ] },
+			"properties": {
+				"code": { "type": "string", "minLength": 1, "maxLength": 4096 },
+				"state": { "type": "string", "minLength": 1 }
+			}
+		},
+		{
+			"required": [ "error" ],
+			"not": { "required": [ "code" ] },
+			"properties": {
+				"error": { "type": "string", "pattern": "^[a-z_]+$" },
+				"error_description": { "type": "string" },
+				"state": { "type": "string" }
+			}
+		}
+	],
+	"examples": [
+		{ "pixalink_oauth": "callback", "code": "def50200a1b2c3d4e5f6", "state": "q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4" },
+		{ "pixalink_oauth": "callback", "error": "access_denied", "state": "q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4" }
+	]
+}

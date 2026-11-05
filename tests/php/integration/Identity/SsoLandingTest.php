@@ -497,53 +497,6 @@ final class SsoLandingTest extends \WP_UnitTestCase {
 		$this->assertSame( (string) $user_id, Server::recorded()[0]['body']['external_id'] );
 	}
 
-	public function test_a_shopper_who_pressed_verify_is_linked_without_confirming(): void {
-		$user_id = $this->make_user( 'shopper@example.com' );
-		wp_set_current_user( $user_id );
-		$state = $this->pressed_the_button();
-
-		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'verify1', '/my-account/pixalink-loyalty/?pixalink_sso=x' );
-
-		$this->assertSame( home_url( '/my-account/pixalink-loyalty/' ), $target, 'Back on the Loyalty tab.' );
-		$this->assertSame( Responses::MEMBER_ID, get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ) );
-		$this->assertTrue( UserMeta::is_verified( $user_id ) );
-		$this->assertSame( Link::VIA_SSO_TICKET, UserMeta::link( $user_id )?->via );
-		$recorded = Server::recorded();
-		$this->assertSame( $state, $recorded[0]['body']['sso_state'] ?? null, 'Pixalink checks the ticket was minted for this browser.' );
-		$this->assertSame( (string) $user_id, $recorded[0]['body']['external_id'] );
-		$this->assertStringContainsString( 'Your account is now linked to your loyalty membership.', self::notices() );
-		$this->assertStringNotContainsString( 'Link my account', self::notices(), 'No second confirmation.' );
-		$this->assertTrue( $this->state_cookie_cleared() );
-	}
-
-	public function test_a_verify_return_never_switches_an_account_linked_to_another_member(): void {
-		$user_id = $this->make_user( 'shopper@example.com' );
-		UserMeta::store_link( $user_id, new Link( '7777', '+60111111111', 'MY', '2026-10-20T00:00:00Z', Link::VIA_OTP ) );
-		wp_set_current_user( $user_id );
-		$this->pressed_the_button();
-
-		$this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'verify2', '/my-account/pixalink-loyalty/?pixalink_sso=x' );
-
-		$this->assertSame( '7777', get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ) );
-		$this->assertSame( '+60111111111', UserMeta::link( $user_id )?->phone_e164 );
-		$this->assertStringContainsString( 'already linked to a different loyalty member', self::notices() );
-		$this->assertStringNotContainsString( 'now linked', self::notices() );
-	}
-
-	public function test_a_verify_return_for_the_member_already_linked_changes_nothing(): void {
-		$user_id = $this->make_user( 'shopper@example.com' );
-		$this->link_member( $user_id );
-		wp_set_current_user( $user_id );
-		$this->pressed_the_button();
-
-		$target = $this->landing()->handle( Responses::SSO_TICKET_MEMBER . 'verify3', '/my-account/pixalink-loyalty/?pixalink_sso=x' );
-
-		$this->assertSame( home_url( '/my-account/pixalink-loyalty/' ), $target );
-		$this->assertSame( Responses::MEMBER_ID, get_user_meta( $user_id, UserMeta::CUSTOMER_ID, true ) );
-		$this->assertSame( $user_id, get_current_user_id() );
-		$this->assertStringNotContainsString( 'different loyalty member', self::notices() );
-	}
-
 	public function test_a_ticket_planted_on_a_signed_in_account_cannot_take_it_over(): void {
 		$victim_id = $this->make_user( 'victim@example.com' );
 		wp_set_current_user( $victim_id );
