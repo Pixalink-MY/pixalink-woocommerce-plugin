@@ -1,5 +1,11 @@
 *** Pixalink Loyalty for WooCommerce Changelog ***
 
+= 1.0.1 - 2026-11-05 =
+* Security - Loyalty output from the `[pixalink_loyalty_summary]` and `[pixalink_loyalty_qr]` shortcodes, the My Account Loyalty tab and dashboard card, the classic checkout panel and the portal sign-in button is now passed through `wp_kses()` with an explicit allow-list (`Support\Html::allowed()`), including output from theme template overrides.
+* Security - The loyalty phone number and marketing-consent fields on the registration and Account details forms are only read when that form's own WooCommerce nonce verifies.
+* Tweak - The "connect your store" reminder now shows only on the Plugins screen, not on every admin page.
+* Dev - CI no longer runs the WordPress trunk / WooCommerce pre-release integration environment; released versions only.
+
 = 1.0.0 - 2026-10-27 =
 * Add - Plugin scaffold: requirements checks (PHP 8.1, sodium, WooCommerce 11.0+), HPOS and Cart & Checkout blocks compatibility declarations.
 * Add - Install lifecycle: activation seeds options, deactivation unschedules work, opt-in data removal on uninstall.
