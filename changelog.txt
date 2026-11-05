@@ -1,5 +1,8 @@
 *** Pixalink Loyalty for WooCommerce Changelog ***
 
+= 1.0.2 - unreleased =
+* Fix - After the outlet API key in wp-config.php is swapped for another outlet's, WooCommerce › Settings › Pixalink Loyalty no longer shows the previous merchant's organisation name. The heartbeat names the outlet only, so when it reports another outlet the plugin now looks the organisation up (`GET outlet`) and records both; if that lookup fails, the record is left as it was and the next heartbeat retries.
+
 = 1.0.1 - 2026-11-05 =
 * Security - Loyalty output from the `[pixalink_loyalty_summary]` and `[pixalink_loyalty_qr]` shortcodes, the My Account Loyalty tab and dashboard card, the classic checkout panel and the portal sign-in button is now passed through `wp_kses()` with an explicit allow-list (`Support\Html::allowed()`), including output from theme template overrides.
 * Security - The loyalty phone number and marketing-consent fields on the registration and Account details forms are only read when that form's own WooCommerce nonce verifies.

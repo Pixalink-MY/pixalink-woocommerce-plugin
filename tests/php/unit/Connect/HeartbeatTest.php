@@ -196,6 +196,61 @@ final class HeartbeatTest extends TestCase {
 		$this->assertSame( 'Demo Cafe', $this->connection->data()['organisation']['name'] );
 	}
 
+	public function test_a_heartbeat_from_another_outlet_refreshes_the_organisation_too(): void {
+		$this->connect();
+		$this->respond(
+			200,
+			self::response(
+				array(
+					'outlet' => array(
+						'id'   => '202',
+						'name' => 'New Shop Online',
+					),
+				)
+			)
+		);
+		$this->respond(
+			200,
+			array(
+				'outlet'       => array(
+					'id'   => '202',
+					'name' => 'New Shop Online',
+				),
+				'organisation' => array(
+					'id'   => '92',
+					'name' => 'New Shop Sdn Bhd',
+				),
+			)
+		);
+
+		$this->heartbeat()->run();
+
+		$this->assertSame( '202', $this->connection->data()['outlet']['id'] );
+		$this->assertSame( 'New Shop Sdn Bhd', $this->connection->data()['organisation']['name'], 'The key now belongs to another merchant, so the old name must not stay.' );
+	}
+
+	public function test_a_failed_organisation_lookup_after_an_outlet_move_still_accepts_the_heartbeat(): void {
+		$this->connect();
+		$this->respond(
+			200,
+			self::response(
+				array(
+					'outlet' => array(
+						'id'   => '202',
+						'name' => 'New Shop Online',
+					),
+				)
+			)
+		);
+		$this->respond( 503, array( 'message' => 'Service unavailable' ) );
+
+		$result = $this->heartbeat()->run();
+
+		$this->assertSame( 'active', $result['status'] );
+		$this->assertSame( '101', $this->connection->data()['outlet']['id'], 'Left as recorded so the next heartbeat still sees the move and retries.' );
+		$this->assertSame( 'Demo Cafe', $this->connection->data()['organisation']['name'] );
+	}
+
 	public function test_the_payload_reports_outbox_statistics_from_the_filter(): void {
 		$this->connect();
 		Filters\expectApplied( 'pixalink_loyalty_heartbeat_queue_stats' )->once()->andReturn(

@@ -242,7 +242,16 @@ final class Heartbeat {
 		$this->connection->mark_recovered();
 
 		if ( isset( $response['outlet'] ) && is_array( $response['outlet'] ) ) {
-			$this->connection->update_details( self::string_keys( $response['outlet'] ), null );
+			$outlet = self::string_keys( $response['outlet'] );
+			if ( ! $this->is_another_outlet( $outlet ) ) {
+				$this->connection->update_details( $outlet, null );
+			} else {
+				$organisation = $this->organisation_of_current_outlet();
+				// Left as recorded when the lookup fails, so the next heartbeat still sees the move and retries.
+				if ( null !== $organisation ) {
+					$this->connection->update_details( $outlet, $organisation );
+				}
+			}
 		}
 
 		/**
@@ -329,6 +338,47 @@ final class Heartbeat {
 				'error_code' => $exception->error_code(),
 			)
 		);
+	}
+
+	/**
+	 * Whether the heartbeat reports an outlet other than the one on record (the wp-config.php key was swapped for
+	 * another outlet's, possibly another merchant's).
+	 *
+	 * @param array<string,mixed> $reported Outlet the heartbeat reported.
+	 * @return bool
+	 */
+	private function is_another_outlet( array $reported ): bool {
+		$stored    = $this->connection->data()['outlet'] ?? array();
+		$stored_id = is_array( $stored ) && isset( $stored['id'] ) && is_scalar( $stored['id'] ) ? (string) $stored['id'] : '';
+		$new_id    = isset( $reported['id'] ) && is_scalar( $reported['id'] ) ? (string) $reported['id'] : '';
+
+		return '' !== $new_id && '' !== $stored_id && $new_id !== $stored_id;
+	}
+
+	/**
+	 * The organisation the key's outlet belongs to (`GET outlet`; the heartbeat does not name it), or null when the
+	 * lookup fails or returns none.
+	 *
+	 * @return array<string,mixed>|null
+	 */
+	private function organisation_of_current_outlet(): ?array {
+		try {
+			$details = $this->api->outlet();
+		} catch ( ApiException $exception ) {
+			$this->logger->warning(
+				'Pixalink reported another outlet, but its organisation could not be looked up.',
+				array(
+					'status'     => $exception->http_status(),
+					'error_code' => $exception->error_code(),
+				)
+			);
+
+			return null;
+		}
+
+		$organisation = $details['organisation'] ?? null;
+
+		return is_array( $organisation ) && array() !== $organisation ? self::string_keys( $organisation ) : null;
 	}
 
 	/**
