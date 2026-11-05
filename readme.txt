@@ -38,6 +38,10 @@ Advanced: the outlet API key can be set in `wp-config.php` with `define( 'PIXALI
 
 No. Guests earn points with the phone number they enter at checkout. Shoppers who want to spend points or vouchers verify their phone number once with a one-time code.
 
+= Do shoppers need a code to verify? =
+
+Not if your member portal can sign them in. Logged-in shoppers who have not verified yet see **Verify with WhatsApp** on My Account › Loyalty and on the dashboard card. It takes them to your Pixalink member portal, which confirms their number the way your portal normally signs members in (for example by sending a WhatsApp message to Pixalink), and brings them straight back to the Loyalty tab with their membership linked. If their browser is already signed in to the portal, they only confirm it is them. Shoppers can still choose **Or get a code by WhatsApp or SMS** instead. The button shows while **Sign in from Customer Portal** is on and your store is connected; it never shows to staff accounts or to accounts that are already linked, and it never switches an account that is linked to another member. The checkout's "Verify now" link opens the same Loyalty tab.
+
 = What happens if Pixalink is unreachable? =
 
 Checkout keeps working. Order events are normally sent right after the page that created them has loaded; when Pixalink cannot be reached they wait in a queue on your site and are retried automatically. Redemptions are only offered while Pixalink confirms them.

@@ -11,6 +11,7 @@ namespace Pixalink\Loyalty\Identity;
 
 use Pixalink\Loyalty\Account\AccountView;
 use Pixalink\Loyalty\Account\Assets;
+use Pixalink\Loyalty\Account\LoyaltyEndpoint;
 use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Support\Branding;
@@ -31,6 +32,12 @@ defined( 'ABSPATH' ) || exit;
  * page with `return` (the page to come back to, on this store) and `state`. The member signs in on the portal, which
  * sends them back to `return` with a `pixalink_sso` ticket bound to the state; {@see SsoLanding} redeems it there.
  * Nothing is sent to Pixalink from this store until then.
+ *
+ * The same round trip verifies a logged-in shopper who is not linked yet ("Verify with WhatsApp" on My Account ›
+ * Loyalty and the dashboard card, {@see PortalSignIn::verify_url()}): the start link carries `intent=verify`, which is
+ * passed on to the portal, so Pixalink can offer "Continue as <member>?" to a browser already signed in there (older
+ * Pixalink ignores it and signs in as usual). Never for staff or an account that is already linked; {@see SsoLanding}
+ * links the account without a second confirmation when the state cookie comes back with the ticket.
  */
 final class PortalSignIn {
 
@@ -44,6 +51,11 @@ final class PortalSignIn {
 	public const NOTICE_PARAM = PortalHandoff::NOTICE_PARAM;
 
 	public const NOTICE_UNAVAILABLE = 'sign_in_unavailable';
+
+	/**
+	 * `intent` of a logged-in shopper verifying their membership (store-sign-in.query.json).
+	 */
+	public const INTENT_VERIFY = 'verify';
 
 	/**
 	 * Option storage.
@@ -139,19 +151,49 @@ final class PortalSignIn {
 	}
 
 	/**
+	 * Whether this logged-in shopper may verify through the portal: not linked yet, not staff, sign-in page known.
+	 *
+	 * @param int $user_id User id (0 when nobody is logged in).
+	 * @return bool
+	 */
+	public function can_verify( int $user_id ): bool {
+		return $user_id > 0
+			&& null === UserMeta::link( $user_id )
+			&& ! CustomerLinker::is_staff( $user_id )
+			&& null !== $this->sign_in_url();
+	}
+
+	/**
+	 * Where "Verify with WhatsApp" points (back to the Loyalty tab), or null when the shopper does not get it.
+	 *
+	 * @param int $user_id User id.
+	 * @return string|null Raw URL (templates escape it).
+	 */
+	public function verify_url( int $user_id ): ?string {
+		if ( ! $this->can_verify( $user_id ) ) {
+			return null;
+		}
+
+		return self::url( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), self::INTENT_VERIFY );
+	}
+
+	/**
 	 * URL the button points at.
 	 *
 	 * @param string $redirect_to Page to come back to.
+	 * @param string $intent      '' to sign in, {@see PortalSignIn::INTENT_VERIFY} to verify a logged-in shopper.
 	 * @return string Raw URL (templates escape it).
 	 */
-	public static function url( string $redirect_to ): string {
-		return add_query_arg(
-			array(
-				'action'      => self::ACTION,
-				'redirect_to' => rawurlencode( $redirect_to ),
-			),
-			admin_url( 'admin-post.php' )
+	public static function url( string $redirect_to, string $intent = '' ): string {
+		$args = array(
+			'action'      => self::ACTION,
+			'redirect_to' => rawurlencode( $redirect_to ),
 		);
+		if ( '' !== $intent ) {
+			$args['intent'] = $intent;
+		}
+
+		return add_query_arg( $args, admin_url( 'admin-post.php' ) );
 	}
 
 	/**
@@ -229,8 +271,10 @@ final class PortalSignIn {
 	public function handle_request(): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Starts a sign-in elsewhere; validated to this store in return_url().
 		$redirect_to = isset( $_GET['redirect_to'] ) && is_string( $_GET['redirect_to'] ) ? sanitize_url( wp_unslash( $_GET['redirect_to'] ) ) : '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only compared with a fixed value; can_verify() decides.
+		$intent = isset( $_GET['intent'] ) && is_string( $_GET['intent'] ) ? sanitize_key( wp_unslash( $_GET['intent'] ) ) : '';
 
-		$this->send( $this->resolve( $redirect_to ) );
+		$this->send( $this->resolve( $redirect_to, $intent ) );
 		( $this->terminate )();
 	}
 
@@ -238,14 +282,23 @@ final class PortalSignIn {
 	 * Decide where a press of the button goes.
 	 *
 	 * @param string $redirect_to Requested page to come back to.
+	 * @param string $intent      Requested intent ({@see PortalSignIn::INTENT_VERIFY}, or '').
 	 * @return array{location:string,external:bool}
 	 */
-	public function resolve( string $redirect_to ): array {
+	public function resolve( string $redirect_to, string $intent = '' ): array {
 		$return = self::return_url( $redirect_to );
 		if ( is_user_logged_in() ) {
+			$sign_in_url = $this->sign_in_url();
+			if ( self::INTENT_VERIFY !== $intent || null === $sign_in_url || ! $this->can_verify( get_current_user_id() ) ) {
+				return array(
+					'location' => $return,
+					'external' => false,
+				);
+			}
+
 			return array(
-				'location' => $return,
-				'external' => false,
+				'location' => self::sign_in_location( $sign_in_url, $return, $this->state->issue(), self::INTENT_VERIFY ),
+				'external' => true,
 			);
 		}
 
@@ -264,14 +317,15 @@ final class PortalSignIn {
 	}
 
 	/**
-	 * The portal's sign-in page with `return` and `state` added (store-sign-in.query.json).
+	 * The portal's sign-in page with `return`, `state` and, when verifying, `intent` added (store-sign-in.query.json).
 	 *
 	 * @param string $sign_in_url The heartbeat's `branding.sign_in_url`.
 	 * @param string $return_url  Absolute page of this store to come back to.
 	 * @param string $state       State kept in the cookie.
+	 * @param string $intent      '' (sign in) or {@see PortalSignIn::INTENT_VERIFY}.
 	 * @return string
 	 */
-	public static function sign_in_location( string $sign_in_url, string $return_url, string $state ): string {
+	public static function sign_in_location( string $sign_in_url, string $return_url, string $state, string $intent = '' ): string {
 		$fragment = '';
 		$hash     = strpos( $sign_in_url, '#' );
 		if ( false !== $hash ) {
@@ -279,11 +333,16 @@ final class PortalSignIn {
 			$sign_in_url = substr( $sign_in_url, 0, $hash );
 		}
 
+		$params = array(
+			'return' => $return_url,
+			'state'  => $state,
+		);
+		if ( '' !== $intent ) {
+			$params['intent'] = $intent;
+		}
+
 		$query = http_build_query(
-			array(
-				'return' => $return_url,
-				'state'  => $state,
-			),
+			$params,
 			'',
 			'&',
 			PHP_QUERY_RFC3986

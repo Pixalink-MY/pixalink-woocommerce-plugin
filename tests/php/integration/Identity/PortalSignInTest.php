@@ -9,8 +9,10 @@ namespace Pixalink\Loyalty\Tests\Integration\Identity;
 
 use Pixalink\Loyalty\Account\Assets;
 use Pixalink\Loyalty\Connect\Connection;
+use Pixalink\Loyalty\Identity\Link;
 use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\SignInState;
+use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Tests\FakeServer\Responses;
@@ -419,6 +421,119 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 
 		$this->assertSame( array( array( home_url( '/checkout/' ), 303 ) ), $this->redirects );
 		$this->assertSame( array(), $this->cookies, 'No state for a sign-in that will not happen.' );
+	}
+
+	/**
+	 * Press "Verify with WhatsApp": the start handler with `intent=verify`.
+	 *
+	 * @param string $redirect_to Raw query value.
+	 * @return void
+	 */
+	private function press_to_verify( string $redirect_to ): void {
+		$_GET = array(
+			'action'      => PortalSignIn::ACTION,
+			'redirect_to' => $redirect_to,
+			'intent'      => PortalSignIn::INTENT_VERIFY,
+		);
+
+		$this->sign_in()->handle_request();
+	}
+
+	public function test_a_logged_in_unverified_shopper_is_sent_to_the_portal_to_verify(): void {
+		wp_set_current_user( $this->make_user() );
+		$loyalty_tab = wc_get_account_endpoint_url( 'pixalink-loyalty' );
+
+		$this->press_to_verify( $loyalty_tab );
+
+		$this->assertCount( 1, $this->cookies );
+		[ $name, $state ] = $this->cookies[0];
+		$this->assertSame( SignInState::COOKIE, $name );
+		$this->assertCount( 1, $this->redirects );
+		[ $location, $status ] = $this->redirects[0];
+		$this->assertSame( 303, $status );
+		$this->assertStringStartsWith( Responses::SIGN_IN_URL . '?', $location );
+		$this->assertSame(
+			array(
+				'return' => $loyalty_tab,
+				'state'  => $state,
+				'intent' => 'verify',
+			),
+			self::query( $location ),
+			'Pixalink is told the shopper is verifying, not signing in.'
+		);
+		$this->assertContains( 'Referrer-Policy: no-referrer', $this->headers );
+		$this->assertSame( array(), Server::recorded() );
+	}
+
+	public function test_a_logged_out_shopper_never_sends_the_verify_intent(): void {
+		$this->press_to_verify( home_url( '/my-account/' ) );
+
+		$this->assertArrayNotHasKey( 'intent', self::query( $this->redirects[0][0] ), 'Signing in stays exactly as it was.' );
+		$this->assertCount( 1, $this->cookies );
+	}
+
+	/**
+	 * Logged-in shoppers who may not verify through the portal.
+	 *
+	 * @return array<string,array{0:string}>
+	 */
+	public static function refused_verifiers(): array {
+		return array(
+			'shop manager'    => array( 'staff' ),
+			'already linked'  => array( 'linked' ),
+			'no sign-in page' => array( 'no_sign_in_url' ),
+			'setting off'     => array( 'option_off' ),
+		);
+	}
+
+	/**
+	 * @dataProvider refused_verifiers
+	 *
+	 * @param string $case Situation.
+	 */
+	public function test_a_verify_press_that_is_not_allowed_just_goes_back( string $case ): void {
+		$user_id = $this->make_user( 'member@example.com', 'staff' === $case ? 'shop_manager' : 'customer' );
+		wp_set_current_user( $user_id );
+		switch ( $case ) {
+			case 'linked':
+				UserMeta::store_link( $user_id, new Link( Responses::MEMBER_ID, Responses::MEMBER_PHONE, 'MY', '2026-10-20T00:00:00Z', Link::VIA_OTP ) );
+				break;
+			case 'no_sign_in_url':
+				$this->heartbeat(
+					static function ( array &$branding ): void {
+						unset( $branding['sign_in_url'] );
+					}
+				);
+				break;
+			case 'option_off':
+				update_option( Options::PORTAL_SIGN_IN, 'no' );
+				break;
+		}
+
+		$this->assertNull( $this->sign_in()->verify_url( $user_id ), 'No button to press.' );
+
+		$this->press_to_verify( home_url( '/my-account/pixalink-loyalty/' ) );
+
+		$this->assertSame( array( array( home_url( '/my-account/pixalink-loyalty/' ), 303 ) ), $this->redirects );
+		$this->assertSame( array(), $this->cookies );
+	}
+
+	public function test_the_verify_button_returns_to_the_loyalty_tab_with_the_intent(): void {
+		$user_id = $this->make_user();
+		wp_set_current_user( $user_id );
+
+		$url = (string) $this->sign_in()->verify_url( $user_id );
+
+		$this->assertStringStartsWith( admin_url( 'admin-post.php' ), $url );
+		$this->assertSame(
+			array(
+				'action'      => PortalSignIn::ACTION,
+				'redirect_to' => wc_get_account_endpoint_url( 'pixalink-loyalty' ),
+				'intent'      => PortalSignIn::INTENT_VERIFY,
+			),
+			self::query( $url )
+		);
+		$this->assertNull( $this->sign_in()->verify_url( 0 ), 'Never for a logged-out visitor.' );
 	}
 
 	public function test_without_a_sign_in_page_the_shopper_goes_back_with_a_notice(): void {

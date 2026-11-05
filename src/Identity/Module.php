@@ -184,16 +184,17 @@ final class Module {
 		( new CheckoutFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, new OrderIdentity( $this->events, $this->sync ), $this->guests ) )->register();
 		( new AccountFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, $this->sync, $this->events ) )->register();
 
-		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff, $this->connection );
-		$endpoint = new LoyaltyEndpoint( $this->options, $view );
+		$sign_in_state = new SignInState();
+		$sign_in       = new PortalSignIn( $this->options, $this->credentials, $sign_in_state );
+		$view          = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff, $this->connection, $sign_in );
+		$endpoint      = new LoyaltyEndpoint( $this->options, $view );
 		$endpoint->register();
-		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff, $this->connection ) )->register();
+		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff, $this->connection, $sign_in ) )->register();
 		$this->handoff->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();
-		$sign_in_state = new SignInState();
 		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger, $this->options, $sign_in_state ) )->register();
-		( new PortalSignIn( $this->options, $this->credentials, $sign_in_state ) )->register();
+		$sign_in->register();
 		( new InboundController( $this->credentials, $this->summaries, $this->logger ) )->register();
 
 		( new Exporter() )->register();

@@ -30,7 +30,9 @@ defined( 'ABSPATH' ) || exit;
  * - logged in and not linked yet: nothing is redeemed or linked on the bare link. The ticket waits (for this account
  *   only, {@see SsoLanding::PENDING_TTL}) behind a notice asking the shopper to confirm; its link carries a nonce bound
  *   to the account, and only that confirmation redeems the ticket and links the account. A ticket is proof of the
- *   member, not of the signed-in shopper's consent, so a link sent by someone else cannot attach their membership;
+ *   member, not of the signed-in shopper's consent, so a link sent by someone else cannot attach their membership.
+ *   The exception is a shopper who pressed "Verify with WhatsApp" ({@see PortalSignIn::verify_url()}) in this browser:
+ *   the state cookie proves they started it, so the ticket is redeemed with that state and the account linked at once;
  * - logged in and linked: the link is refreshed, unless it is to a different member (nothing changes);
  * - logged out: the account linked to the member (or holding the member's verified number) is signed in; with none,
  *   a customer account is created when the store allows registration and the e-mail is free. Accounts that can
@@ -191,7 +193,9 @@ final class SsoLanding {
 			return self::where_notices_show( $target );
 		}
 
-		if ( $user_id > 0 && null === UserMeta::link( $user_id ) ) {
+		$unlinked = $user_id > 0 && null === UserMeta::link( $user_id );
+		// A shopper who pressed "Verify with WhatsApp" in this browser already asked for the link: no second step.
+		if ( $unlinked && null === $state ) {
 			$this->ask_to_link( $user_id, $ticket, $target );
 
 			return $target;
@@ -207,7 +211,9 @@ final class SsoLanding {
 
 		$link = $this->link_for( $customer );
 		if ( $user_id > 0 ) {
-			$this->link_account( $user_id, $link );
+			if ( $this->link_account( $user_id, $link ) && $unlinked ) {
+				self::notice( __( 'Your account is now linked to your loyalty membership.', 'pixalink-loyalty-for-woocommerce' ) );
+			}
 		} else {
 			$this->sign_in( $customer, $link, null !== $state );
 		}
@@ -420,22 +426,26 @@ final class SsoLanding {
 	 *
 	 * @param int  $user_id User id.
 	 * @param Link $link    Verified link.
-	 * @return void
+	 * @return bool Whether the account is linked to the member now.
 	 */
-	private function link_account( int $user_id, Link $link ): void {
+	private function link_account( int $user_id, Link $link ): bool {
 		$existing = UserMeta::link( $user_id );
 		if ( null !== $existing && $existing->customer_id !== $link->customer_id ) {
 			$this->logger->info( 'Portal sign-in for another member ignored on a linked account.', array( 'user_id' => $user_id ) );
 			self::notice( __( 'This account is already linked to a different loyalty member, so nothing was changed.', 'pixalink-loyalty-for-woocommerce' ) );
 
-			return;
+			return false;
 		}
 
 		try {
 			$this->linker->store( ShopperContext::resolve( $user_id, '', $this->guests ), $link );
 		} catch ( LinkException $exception ) {
 			self::notice( $exception->user_message() );
+
+			return false;
 		}
+
+		return true;
 	}
 
 	/**
