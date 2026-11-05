@@ -4,7 +4,7 @@ Tags: loyalty, rewards, points, vouchers, membership
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.1
+Stable tag: 1.0.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -126,6 +126,9 @@ Self-hosted builds downloaded from the plugin's GitHub releases (not the WordPre
 4. WooCommerce › Settings › Pixalink Loyalty: the connection to Pixalink and its health.
 
 == Changelog ==
+
+= 1.0.2 =
+* Settings now show the right organisation after the store's outlet API key is changed to another merchant's outlet.
 
 = 1.0.1 =
 * Security: loyalty output from shortcodes, My Account and checkout is escaped with an explicit allow-list, including theme template overrides.
