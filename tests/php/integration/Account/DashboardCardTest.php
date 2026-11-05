@@ -10,8 +10,10 @@ namespace Pixalink\Loyalty\Tests\Integration\Account;
 use Pixalink\Loyalty\Account\Assets;
 use Pixalink\Loyalty\Account\DashboardCard;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
+use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Identity\Link;
+use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
 use Pixalink\Loyalty\Support\Logger;
@@ -214,15 +216,37 @@ final class DashboardCardTest extends \WP_UnitTestCase {
 	}
 
 	public function test_an_unlinked_shopper_keeps_the_verify_link_first_and_a_signed_out_portal_link(): void {
-		$this->cache_heartbeat( self::heartbeat() );
+		$status = self::heartbeat();
+		unset( $status['oauth'] );
+		$this->cache_heartbeat( $status );
 		$this->unlinked_shopper();
 
 		$html = self::dashboard();
 
+		$this->assertStringContainsString( 'Link your membership', $html );
+		$this->assertStringNotContainsString( 'Verify with WhatsApp', $html, 'No OAuth: the code flow alone.' );
 		$this->assertLessThan( (int) strpos( $html, 'Open member portal' ), (int) strpos( $html, 'Link your membership' ) );
 		$this->assertStringContainsString( 'href="' . Responses::PORTAL_URL . '" target="_blank" rel="noopener">Open member portal</a>', $html );
-		$this->assertStringNotContainsString( 'admin-post.php', $html );
+		$this->assertStringNotContainsString( PortalHandoff::ACTION, $html, 'No signed-in portal link before verifying.' );
 		$this->assertSame( array(), Server::recorded() );
+	}
+
+	public function test_an_unlinked_shopper_is_offered_verify_with_whatsapp_first(): void {
+		$this->cache_heartbeat( self::heartbeat() );
+		$this->provision_oauth_client();
+		$this->unlinked_shopper();
+
+		$html = self::dashboard();
+
+		$this->assertSame( 1, preg_match( '/<a[^>]+href="([^"]+)"[^>]*>Verify with WhatsApp<\/a>/', $html, $match ) );
+		wp_parse_str( (string) wp_parse_url( html_entity_decode( $match[1] ), PHP_URL_QUERY ), $query );
+		$this->assertSame( PortalSignIn::INTENT_VERIFY, $query['intent'] ?? null );
+		$this->assertSame( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), $query['redirect_to'] ?? null, 'Lands on the Loyalty tab.' );
+		$this->assertStringContainsString( esc_html( "You'll confirm on our member portal and come straight back here." ), $html );
+		$this->assertStringContainsString( 'href="' . esc_url( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ) ) . '">Or get a code by WhatsApp or SMS</a>', $html, 'The code flow stays one click away.' );
+		$this->assertLessThan( (int) strpos( $html, 'Or get a code' ), (int) strpos( $html, 'Verify with WhatsApp' ) );
+		$this->assertLessThan( (int) strpos( $html, 'Open member portal' ), (int) strpos( $html, 'Or get a code' ) );
+		$this->assertStringNotContainsString( 'Link your membership', $html );
 	}
 
 	public function test_a_failed_summary_renders_nothing_logs_at_debug_and_the_dashboard_still_renders(): void {

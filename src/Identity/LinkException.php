@@ -27,6 +27,7 @@ final class LinkException extends \RuntimeException {
 	public const OTP_EXPIRED           = 'otp_expired';
 	public const OTP_ATTEMPTS_EXCEEDED = 'otp_attempts_exceeded';
 	public const TICKET_INVALID        = 'ticket_invalid';
+	public const OAUTH_TOKEN_INVALID   = 'oauth_token_invalid';
 	public const INVALID_PHONE         = 'invalid_phone';
 	public const UNAVAILABLE           = 'unavailable';
 	public const STAFF_ACCOUNT         = 'staff_account';
@@ -40,6 +41,7 @@ final class LinkException extends \RuntimeException {
 		self::OTP_EXPIRED           => 422,
 		self::OTP_ATTEMPTS_EXCEEDED => 422,
 		self::TICKET_INVALID        => 410,
+		self::OAUTH_TOKEN_INVALID   => 410,
 		self::INVALID_PHONE         => 400,
 		self::UNAVAILABLE           => 503,
 		self::STAFF_ACCOUNT         => 403,
@@ -91,7 +93,7 @@ final class LinkException extends \RuntimeException {
 			return new self( self::THROTTLED, $exception->retry_after() ?? 60, $exception );
 		}
 
-		if ( in_array( $code, array( self::OTP_INVALID, self::OTP_EXPIRED, self::OTP_ATTEMPTS_EXCEEDED, self::TICKET_INVALID ), true ) ) {
+		if ( in_array( $code, array( self::OTP_INVALID, self::OTP_EXPIRED, self::OTP_ATTEMPTS_EXCEEDED, self::TICKET_INVALID, self::OAUTH_TOKEN_INVALID ), true ) ) {
 			return new self( $code, null, $exception );
 		}
 
@@ -147,6 +149,7 @@ final class LinkException extends \RuntimeException {
 			self::OTP_EXPIRED => __( 'That code has expired. Ask for a new one.', 'pixalink-loyalty-for-woocommerce' ),
 			self::OTP_ATTEMPTS_EXCEEDED => __( 'Too many wrong codes. Ask for a new one.', 'pixalink-loyalty-for-woocommerce' ),
 			self::TICKET_INVALID => __( 'This sign-in link has expired or was already used. Open the store from your loyalty app again, or verify your phone number here.', 'pixalink-loyalty-for-woocommerce' ),
+			self::OAUTH_TOKEN_INVALID => __( 'Signing in with the member portal didn\'t finish. Please try again.', 'pixalink-loyalty-for-woocommerce' ),
 			self::INVALID_PHONE => __( 'Enter a valid phone number.', 'pixalink-loyalty-for-woocommerce' ),
 			self::STAFF_ACCOUNT => __( 'You\'re signed in to this store as staff, so a Pixalink membership can\'t be connected to this account. Log out to shop as a member.', 'pixalink-loyalty-for-woocommerce' ),
 			default => __( 'Something went wrong. Please try again.', 'pixalink-loyalty-for-woocommerce' ),

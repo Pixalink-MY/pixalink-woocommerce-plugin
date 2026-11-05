@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connection-oauth-client.response.json",
+	"title": "POST connection/oauth-client 200 response",
+	"description": "The outlet's OAuth client. client_secret is shown only in this answer: the store keeps it encrypted and authenticates to the token endpoint with HTTP Basic (oauth-token.request.json).",
+	"type": "object",
+	"required": [ "client_id", "client_secret", "redirect_uri", "scopes" ],
+	"properties": {
+		"client_id": { "type": "string", "minLength": 1, "maxLength": 255 },
+		"client_secret": { "type": "string", "minLength": 1 },
+		"redirect_uri": { "$ref": "common.json#/$defs/url" },
+		"scopes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+	},
+	"examples": [
+		{ "client_id": "9f1c2b7e-3d4a-4c5b-8e6f-7a8b9c0d1e2f", "client_secret": "kZ8vQ2mN5pR1sT7wY3xA6bC9dE0fG4hJ2kL8mN1pQ5rS", "redirect_uri": "https://woo.pixalink.io/?pixalink_oauth=callback", "scopes": [ "profile", "store:link" ] }
+	]
+}

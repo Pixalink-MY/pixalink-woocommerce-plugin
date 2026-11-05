@@ -18,6 +18,7 @@ final class Link {
 
 	public const VIA_OTP        = 'otp';
 	public const VIA_SSO_TICKET = 'sso_ticket';
+	public const VIA_OAUTH      = 'oauth';
 
 	private const E164_PATTERN = '/^\+[1-9][0-9]{6,14}$/';
 
@@ -28,7 +29,7 @@ final class Link {
 	 * @param string $phone_e164  Verified phone number.
 	 * @param string $phone_country ISO country of the phone number ('' when unknown).
 	 * @param string $verified_at ISO 8601 UTC time of the proof.
-	 * @param string $via         VIA_OTP or VIA_SSO_TICKET.
+	 * @param string $via         VIA_OTP, VIA_SSO_TICKET or VIA_OAUTH.
 	 */
 	public function __construct(
 		public readonly string $customer_id,
@@ -58,7 +59,7 @@ final class Link {
 		}
 
 		$known_country = 1 === preg_match( '/^[A-Z]{2}$/', $country );
-		$known_via     = in_array( $via, array( self::VIA_OTP, self::VIA_SSO_TICKET ), true );
+		$known_via     = in_array( $via, array( self::VIA_OTP, self::VIA_SSO_TICKET, self::VIA_OAUTH ), true );
 
 		return new self( $customer_id, $phone, $known_country ? $country : '', $verified_at, $known_via ? $via : self::VIA_OTP );
 	}

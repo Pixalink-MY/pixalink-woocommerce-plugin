@@ -18,7 +18,7 @@ use Pixalink\Loyalty\Support\Uuid;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * `GET customers` (lookup), `POST customers` (resolve or create, or redeem a portal sign-in ticket),
+ * `GET customers` (lookup), `POST customers` (resolve or create, or redeem a portal sign-in ticket or OAuth token),
  * `POST customers/{id}/otp`, `POST customers/{id}/otp/verify`, `GET customers/{id}` (My Account summary) and
  * `POST customers/{id}/portal-session` (a single-use link that opens the member portal signed in).
  *
@@ -32,6 +32,7 @@ final class Customers {
 	public const VERIFIED_VIA_NONE       = 'none';
 	public const VERIFIED_VIA_OTP        = 'otp';
 	public const VERIFIED_VIA_SSO_TICKET = 'sso_ticket';
+	public const VERIFIED_VIA_OAUTH      = 'oauth';
 
 	/**
 	 * Portal pages a portal session can open (`home` when the page is unknown).
@@ -113,6 +114,23 @@ final class Customers {
 		}
 
 		return $payload;
+	}
+
+	/**
+	 * Body for POST customers that redeems an OAuth access token from the member portal (store:link scope).
+	 *
+	 * Pixalink revokes the token at once, whatever the outcome (410 oauth_token_invalid when it is not usable).
+	 *
+	 * @param string $access_token The token the token endpoint issued.
+	 * @param int    $wp_user_id   Logged-in WordPress user id (0 when nobody is logged in).
+	 * @return array{external_id:string|null,verified_via:string,oauth_access_token:string}
+	 */
+	public static function oauth_payload( string $access_token, int $wp_user_id ): array {
+		return array(
+			'external_id'        => self::external_id( $wp_user_id ),
+			'verified_via'       => self::VERIFIED_VIA_OAUTH,
+			'oauth_access_token' => $access_token,
+		);
 	}
 
 	/**
@@ -258,7 +276,7 @@ final class Customers {
 	/**
 	 * Resolve or create a customer, or redeem a ticket.
 	 *
-	 * @param array<string,mixed> $payload Body from {@see Customers::create_payload()} or {@see Customers::ticket_payload()}.
+	 * @param array<string,mixed> $payload Body from {@see Customers::create_payload()}, {@see Customers::ticket_payload()} or {@see Customers::oauth_payload()}.
 	 * @return array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null}
 	 * @throws ApiException On failure (410 ticket_invalid for a spent or foreign ticket).
 	 */

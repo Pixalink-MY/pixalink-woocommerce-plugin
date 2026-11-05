@@ -17,7 +17,9 @@ use Pixalink\Loyalty\Account\QrService;
 use Pixalink\Loyalty\Account\SummaryService;
 use Pixalink\Loyalty\Api\Client;
 use Pixalink\Loyalty\Api\Credentials;
+use Pixalink\Loyalty\Api\Resources\Connect;
 use Pixalink\Loyalty\Api\Resources\Customers;
+use Pixalink\Loyalty\Api\Resources\Oauth;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Events\EventQueue;
 use Pixalink\Loyalty\Events\Event;
@@ -29,10 +31,14 @@ use Pixalink\Loyalty\Fields\OrderIdentity;
 use Pixalink\Loyalty\Fields\PhoneCountries;
 use Pixalink\Loyalty\Fields\PhoneNormalizer;
 use Pixalink\Loyalty\Fields\PhoneNumber;
+use Pixalink\Loyalty\Oauth\AuthorizationRequest;
+use Pixalink\Loyalty\Oauth\CallbackHandler;
+use Pixalink\Loyalty\Oauth\ClientCredentials;
 use Pixalink\Loyalty\Orders\OrderPayloadBuilder;
 use Pixalink\Loyalty\Privacy\Eraser;
 use Pixalink\Loyalty\Privacy\Exporter;
 use Pixalink\Loyalty\Privacy\PolicyText;
+use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Support\Logger;
 use Pixalink\Loyalty\Support\Options;
 use Pixalink\Loyalty\Support\RateLimiter;
@@ -137,6 +143,27 @@ final class Module {
 	private Connection $connection;
 
 	/**
+	 * The store's OAuth client (member portal sign-in).
+	 *
+	 * @var ClientCredentials
+	 */
+	private ClientCredentials $oauth_client;
+
+	/**
+	 * OAuth requests kept in the shopper's browser.
+	 *
+	 * @var AuthorizationRequest
+	 */
+	private AuthorizationRequest $oauth_requests;
+
+	/**
+	 * The member portal's OAuth callback.
+	 *
+	 * @var CallbackHandler
+	 */
+	private CallbackHandler $oauth_callback;
+
+	/**
 	 * Whether register() already ran.
 	 *
 	 * @var bool
@@ -168,6 +195,20 @@ final class Module {
 		$this->events     = new CustomerEvents( $queue, $credentials, new CustomerPayloadBuilder( new OrderPayloadBuilder() ) );
 		$this->connection = new Connection( $options );
 		$this->handoff    = new PortalHandoff( $customers, $this->summaries, $options, $this->connection, $this->guests, $logger );
+
+		$crypto               = new Crypto();
+		$this->oauth_client   = new ClientCredentials( new Connect( $client ), $options, $crypto, $logger );
+		$this->oauth_requests = new AuthorizationRequest( $crypto );
+		$this->oauth_callback = new CallbackHandler(
+			$this->linker,
+			$credentials,
+			$this->oauth_client,
+			new Oauth( $client ),
+			$this->oauth_requests,
+			new MemberLanding( $this->linker, $this->guests, $this->normalizer, $logger, $options ),
+			$options,
+			$logger
+		);
 	}
 
 	/**
@@ -184,16 +225,20 @@ final class Module {
 		( new CheckoutFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, new OrderIdentity( $this->events, $this->sync ), $this->guests ) )->register();
 		( new AccountFields( $this->options, $this->countries, $this->normalizer, $this->consent_text, $this->sync, $this->events ) )->register();
 
-		$view     = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff, $this->connection );
-		$endpoint = new LoyaltyEndpoint( $this->options, $view );
+		$this->oauth_client->register();
+		$this->oauth_callback->register();
+
+		$sign_in_state = new SignInState();
+		$sign_in       = new PortalSignIn( $this->options, $this->credentials, $sign_in_state, null, null, $this->oauth_client, $this->oauth_requests );
+		$view          = new AccountView( $this->summaries, new QrService(), $this->options, $this->countries, $this->normalizer, $this->linker, $this->guests, $this->handoff, $this->connection, $sign_in );
+		$endpoint      = new LoyaltyEndpoint( $this->options, $view );
 		$endpoint->register();
-		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff, $this->connection ) )->register();
+		( new DashboardCard( $endpoint, $this->summaries, $this->options, $this->credentials, $this->guests, $this->logger, $this->handoff, $this->connection, $sign_in ) )->register();
 		$this->handoff->register();
 
 		( new RestController( $this->linker, $this->summaries, $this->normalizer, new RateLimiter(), $this->guests ) )->register();
-		$sign_in_state = new SignInState();
 		( new SsoLanding( $this->linker, $this->credentials, $this->guests, $this->normalizer, $this->logger, $this->options, $sign_in_state ) )->register();
-		( new PortalSignIn( $this->options, $this->credentials, $sign_in_state ) )->register();
+		$sign_in->register();
 		( new InboundController( $this->credentials, $this->summaries, $this->logger ) )->register();
 
 		( new Exporter() )->register();
@@ -230,6 +275,15 @@ final class Module {
 	 */
 	public function linker(): CustomerLinker {
 		return $this->linker;
+	}
+
+	/**
+	 * The member portal's OAuth callback.
+	 *
+	 * @return CallbackHandler
+	 */
+	public function oauth_callback(): CallbackHandler {
+		return $this->oauth_callback;
 	}
 
 	/**

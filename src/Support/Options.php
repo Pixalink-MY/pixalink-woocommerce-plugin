@@ -48,6 +48,11 @@ final class Options {
 	 */
 	public const MARKETING_CONSENT = 'pixalink_loyalty_marketing_consent';
 
+	/**
+	 * The store's OAuth client at Pixalink `{client_id, client_secret (encrypted), redirect_uri}` (member portal sign-in).
+	 */
+	public const OAUTH_CLIENT = 'pixalink_loyalty_oauth_client';
+
 	// Checkout section.
 	public const CHECKOUT_PANEL_ENABLED    = 'pixalink_loyalty_checkout_panel_enabled';
 	public const VOUCHERS_ENABLED          = 'pixalink_loyalty_vouchers_enabled';
@@ -126,6 +131,11 @@ final class Options {
 				'seed'     => false,
 			),
 			self::MARKETING_CONSENT              => array(
+				'default'  => array(),
+				'autoload' => false,
+				'seed'     => false,
+			),
+			self::OAUTH_CLIENT                   => array(
 				'default'  => array(),
 				'autoload' => false,
 				'seed'     => false,

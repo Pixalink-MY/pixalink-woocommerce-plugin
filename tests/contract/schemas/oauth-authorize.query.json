@@ -1,0 +1,21 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/oauth-authorize.query.json",
+	"title": "GET {oauth.authorization_endpoint} query (member portal page, browser redirect)",
+	"description": "The store's \"Sign in from Customer Portal\" and \"Verify with WhatsApp\" buttons send the shopper here (the heartbeat's oauth.authorization_endpoint, on the member portal host). The member signs in to the portal if needed (inverse OTP or OTP), confirms, and is sent back to redirect_uri with code and state (oauth-callback.query.json). OAuth 2.1: PKCE with S256 only, state required, redirect_uri must match the client's exactly. All values arrive as strings.",
+	"type": "object",
+	"required": [ "response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method" ],
+	"additionalProperties": false,
+	"properties": {
+		"response_type": { "const": "code" },
+		"client_id": { "type": "string", "minLength": 1, "maxLength": 255 },
+		"redirect_uri": { "$ref": "common.json#/$defs/url" },
+		"scope": { "description": "Space-separated scopes; the store asks for profile and store:link.", "type": "string", "pattern": "^[a-z:_]+( [a-z:_]+)*$" },
+		"state": { "type": "string", "pattern": "^[A-Za-z0-9_-]{32,128}$" },
+		"code_challenge": { "description": "BASE64URL(SHA256(code_verifier)), unpadded.", "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" },
+		"code_challenge_method": { "const": "S256" }
+	},
+	"examples": [
+		{ "response_type": "code", "client_id": "9f1c2b7e-3d4a-4c5b-8e6f-7a8b9c0d1e2f", "redirect_uri": "https://woo.pixalink.io/?pixalink_oauth=callback", "scope": "profile store:link", "state": "q8VJ2nX5rT1wZ7bD4fH9kM3pS6uY0aC2eG5iL8oR1tW4", "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "code_challenge_method": "S256" }
+	]
+}

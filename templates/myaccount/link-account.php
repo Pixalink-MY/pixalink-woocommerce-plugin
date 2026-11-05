@@ -5,8 +5,11 @@
  * Override by copying to yourtheme/pixalink-loyalty/myaccount/link-account.php. Keep the `data-pixalink-*` attributes:
  * build/account.js drives the one-time code dialog through them.
  *
+ * "Verify with WhatsApp" (when `$verify_url` is set) sends the shopper through the member portal's own sign-in and
+ * back here linked; the one-time code form stays below it as the alternative.
+ *
  * @package Pixalink\Loyalty
- * @version 0.3.0
+ * @version 1.0.3
  *
  * @var array<string,string> $countries  Phone country options (ISO => label).
  * @var string               $country    Selected country.
@@ -14,6 +17,7 @@
  * @var bool                 $pending    Whether a code was sent in the last 15 minutes.
  * @var bool                 $branded    Whether the member portal's colours are used.
  * @var string|null          $portal_url The member portal, signed out (null when unknown).
+ * @var string|null          $verify_url "Verify with WhatsApp" through the member portal (null when not offered).
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -23,6 +27,17 @@ $pixalink_loyalty_button = 'button pixalink-loyalty-button ' . ( function_exists
 <div class="pixalink-loyalty-link<?php echo ! empty( $branded ) ? ' is-branded' : ''; ?>" data-pixalink-link>
 	<div class="pixalink-loyalty-link__panel">
 		<h3 class="pixalink-loyalty-link__title"><?php esc_html_e( 'Verify your phone to see your points', 'pixalink-loyalty-for-woocommerce' ); ?></h3>
+
+		<?php if ( ! empty( $verify_url ) ) : ?>
+			<div class="pixalink-loyalty-link__portal-verify">
+				<p class="pixalink-loyalty-link__submit">
+					<a class="<?php echo esc_attr( trim( $pixalink_loyalty_button ) ); ?>" href="<?php echo esc_url( (string) $verify_url ); ?>" rel="nofollow"><?php esc_html_e( 'Verify with WhatsApp', 'pixalink-loyalty-for-woocommerce' ); ?></a>
+				</p>
+				<p class="pixalink-loyalty-link__intro"><?php esc_html_e( "You'll confirm on our member portal and come straight back here.", 'pixalink-loyalty-for-woocommerce' ); ?></p>
+			</div>
+			<p class="pixalink-loyalty-link__or"><span><?php esc_html_e( 'Or get a code by WhatsApp or SMS', 'pixalink-loyalty-for-woocommerce' ); ?></span></p>
+		<?php endif; ?>
+
 		<p class="pixalink-loyalty-link__intro"><?php esc_html_e( 'Enter the mobile number you use for our loyalty programme. We will send you a one-time code to confirm it is yours.', 'pixalink-loyalty-for-woocommerce' ); ?></p>
 
 		<form class="pixalink-loyalty-link__form" data-pixalink-link-form novalidate>

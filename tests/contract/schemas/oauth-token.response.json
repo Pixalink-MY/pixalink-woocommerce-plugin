@@ -1,0 +1,17 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/oauth-token.response.json",
+	"title": "POST {oauth.token_endpoint} 200 response",
+	"description": "A Bearer access token (1 hour) and a refresh token (30 days). The store uses only access_token, once.",
+	"type": "object",
+	"required": [ "token_type", "expires_in", "access_token" ],
+	"properties": {
+		"token_type": { "enum": [ "Bearer", "bearer" ] },
+		"expires_in": { "type": "integer", "minimum": 1 },
+		"access_token": { "$ref": "common.json#/$defs/oauth_access_token" },
+		"refresh_token": { "type": "string", "minLength": 1 }
+	},
+	"examples": [
+		{ "token_type": "Bearer", "expires_in": 3600, "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1MDAxIn0.c2lnbmF0dXJl", "refresh_token": "def50200f1e2d3c4b5a6" }
+	]
+}

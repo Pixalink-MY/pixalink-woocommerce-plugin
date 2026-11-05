@@ -151,7 +151,7 @@ final class SchemasTest extends TestCase {
 	public function test_hosted_pages_reference_existing_schemas(): void {
 		$hosted = ContractValidator::hosted();
 
-		$this->assertSame( array( 'connect/woocommerce', 'l/{space}/store-sign-in/{outlet}', 'l/{space}/handoff/{ticket}' ), array_column( $hosted, 'path' ) );
+		$this->assertSame( array( 'connect/woocommerce', 'l/{space}/store-sign-in/{outlet}', 'l/{space}/oauth/authorize', 'l/{space}/handoff/{ticket}' ), array_column( $hosted, 'path' ) );
 		foreach ( $hosted as $page ) {
 			foreach ( array( 'query', 'lead', 'callback' ) as $field ) {
 				if ( isset( $page[ $field ] ) ) {

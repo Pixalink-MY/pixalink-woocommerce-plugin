@@ -1,0 +1,15 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://schemas.pixalink.io/commerce/v1/connection-oauth-client.request.json",
+	"title": "POST connection/oauth-client request (signed, Idempotency-Key)",
+	"description": "The store asks for its OAuth client once the heartbeat advertises oauth: a confidential client of this outlet with the scopes profile and store:link, PKCE (S256) required. redirect_uri is the store's callback (its home URL with ?pixalink_oauth=callback); it must be on the outlet's connected store host, or the answer is 422 invalid_redirect_uri. Every call rotates the client: the previous secret stops working.",
+	"type": "object",
+	"required": [ "redirect_uri" ],
+	"additionalProperties": false,
+	"properties": {
+		"redirect_uri": { "$ref": "common.json#/$defs/url" }
+	},
+	"examples": [
+		{ "redirect_uri": "https://woo.pixalink.io/?pixalink_oauth=callback" }
+	]
+}

@@ -41,7 +41,7 @@ final class FakeServerResponsesTest extends TestCase {
 	public function test_canned_response_matches_its_schema( array $response, string $schema ): void {
 		$this->assertSame( array(), ContractValidator::validate( $schema, $response['body'] ) );
 
-		if ( 'error.response.json' === $schema ) {
+		if ( in_array( $schema, array( 'error.response.json', 'oauth-error.response.json' ), true ) ) {
 			$this->assertGreaterThanOrEqual( 400, $response['status'] );
 		} else {
 			$this->assertContains( $response['status'], array( 200, 201 ) );
@@ -60,6 +60,13 @@ final class FakeServerResponsesTest extends TestCase {
 		$this->assertSame( 410, $samples['sso unknown']['response']['status'] );
 		$this->assertSame( 410, $samples['sso replayed']['response']['status'], 'Tickets are single use.' );
 		$this->assertSame( 'ticket_invalid', $samples['sso replayed']['response']['body']['code'] );
+		$this->assertTrue( $samples['oauth member']['response']['body']['customer']['verified'], 'An access token proves the member.' );
+		$this->assertSame( 410, $samples['oauth replayed']['response']['status'], 'Access tokens are single use.' );
+		$this->assertSame( 'oauth_token_invalid', $samples['oauth replayed']['response']['body']['code'] );
+		$this->assertSame( 422, $samples['oauth client off-site']['response']['status'] );
+		$this->assertSame( 'invalid_redirect_uri', $samples['oauth client off-site']['response']['body']['code'] );
+		$this->assertSame( 'invalid_grant', $samples['token invalid grant']['response']['body']['error'] );
+		$this->assertSame( 401, $samples['token invalid client']['response']['status'], 'Only the latest secret authenticates.' );
 		$this->assertSame( 'sms', $samples['otp sms']['response']['body']['sent_via'] );
 		$this->assertSame( 422, $samples['otp verify wrong']['response']['status'] );
 		$this->assertSame( 'otp_invalid', $samples['otp verify wrong']['response']['body']['code'] );

@@ -695,6 +695,30 @@ strong.pixalink-loyalty-list__title {
 	font-size: 0.9375rem;
 }
 
+.pixalink-loyalty-link .pixalink-loyalty-link__portal-verify .pixalink-loyalty-link__intro {
+	margin: 0.5rem 0 0;
+	font-size: 0.875rem;
+}
+
+/* "Or get a code by WhatsApp or SMS" between the portal button and the code form. */
+.pixalink-loyalty-link .pixalink-loyalty-link__or {
+	display: flex;
+	align-items: center;
+	gap: 0.875rem;
+	margin: 1.25rem 0;
+	color: var(--pxl-muted);
+	font-size: 0.875rem;
+	line-height: 1.3;
+}
+
+.pixalink-loyalty-link .pixalink-loyalty-link__or::before,
+.pixalink-loyalty-link .pixalink-loyalty-link__or::after {
+	content: "";
+	flex: 1 1 0;
+	block-size: 1px;
+	background: var(--pxl-line);
+}
+
 .pixalink-loyalty-link .pixalink-loyalty-link__form {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);

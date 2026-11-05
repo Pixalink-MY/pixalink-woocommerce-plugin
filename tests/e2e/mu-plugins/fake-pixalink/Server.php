@@ -19,7 +19,8 @@ namespace Pixalink\Loyalty\Tests\FakeServer;
  *                    `balance` sets the member's points balance, `webhook` signs a server-to-store notification and
  *                    delivers it to the plugin in-process.
  * - Outgoing calls from the plugin to https://fake-pixalink.test/api/commerce/v1/* are dispatched in-process
- *   via pre_http_request, so no loopback networking is needed inside containers.
+ *   via pre_http_request, so no loopback networking is needed inside containers. So is the OAuth token endpoint,
+ *   https://fake-pixalink.test/oauth/customer/token (form-encoded, HTTP Basic; recorded as `oauth/customer/token`).
  */
 final class Server {
 
@@ -38,6 +39,8 @@ final class Server {
 	private const OUTCOME_TRANSIENT  = 'pixalink_loyalty_fake_hosted_outcome';
 	private const BALANCE_TRANSIENT  = 'pixalink_loyalty_fake_points_balance';
 	private const PAUSED_TRANSIENT   = 'pixalink_loyalty_fake_commerce_paused';
+	private const TOKENS_TRANSIENT   = 'pixalink_loyalty_fake_used_oauth';
+	private const SECRET_TRANSIENT   = 'pixalink_loyalty_fake_oauth_secret';
 	private const MAX_RECORDED       = 200;
 
 	/**
@@ -57,6 +60,7 @@ final class Server {
 		array( 'connect/exchange', 'POST', 'connect/exchange', false ),
 		array( 'connection/heartbeat', 'POST', 'connection/heartbeat', true ),
 		array( 'connection/disconnect', 'POST', 'connection/disconnect', true ),
+		array( 'connection/oauth-client', 'POST', 'connection/oauth-client', true ),
 		array( 'outlet', 'GET', 'outlet', true ),
 		array( 'customers', 'GET', 'customers', true ),
 		array( 'customers', 'POST', 'customers', true ),
@@ -295,6 +299,7 @@ final class Server {
 					'api_key'         => self::api_key(),
 					'event_seen'      => 'events' === $route && self::event_seen( (string) ( $body['id'] ?? '' ) ),
 					'ticket_used'     => 'customers' === $route && self::ticket_used( $body ),
+					'token_used'      => 'customers' === $route && self::used( self::TOKENS_TRANSIENT, $body['oauth_access_token'] ?? null ),
 					'connected_site'  => (string) get_transient( self::SITE_TRANSIENT ),
 					'commerce_paused' => self::is_commerce_paused(),
 				);
@@ -309,6 +314,12 @@ final class Server {
 		// Portal sign-in tickets are single use: any ticket presented is used up, whatever the outcome.
 		if ( 'customers' === $route && 'POST' === $method ) {
 			self::remember_ticket( $body );
+			self::remember( self::TOKENS_TRANSIENT, $body['oauth_access_token'] ?? null );
+		}
+
+		// Each client issued rotates the secret: only the latest one authenticates at the token endpoint.
+		if ( 'connection/oauth-client' === $route && 200 === $result['status'] && is_array( $result['body'] ) && isset( $result['body']['client_secret'] ) ) {
+			set_transient( self::SECRET_TRANSIENT, (string) $result['body']['client_secret'], DAY_IN_SECONDS );
 		}
 
 		// The exchange binds the site; a heartbeat with a pasted key adopts it while unconnected; disconnect frees it.
@@ -381,6 +392,9 @@ final class Server {
 		}
 
 		$path = $parts['path'] ?? '/';
+		if ( Responses::OAUTH_TOKEN_PATH === $path ) {
+			return self::token_endpoint( $args );
+		}
 		if ( 0 !== strpos( $path, self::BASE_PATH ) ) {
 			return self::http_response(
 				404,
@@ -416,6 +430,95 @@ final class Server {
 		$data     = $server->response_to_data( $response, false );
 
 		return self::http_response( $response->get_status(), $data, $response->get_headers() );
+	}
+
+	/**
+	 * The OAuth token endpoint: form fields validated against the contract, the code used up whatever the outcome.
+	 *
+	 * Scripts queued for `POST oauth/customer/token` answer first (e.g. `invalid_client`).
+	 *
+	 * @param array<string,mixed> $args HTTP request arguments.
+	 * @return array<mixed>
+	 */
+	private static function token_endpoint( array $args ): array {
+		$raw = isset( $args['body'] ) && is_string( $args['body'] ) ? $args['body'] : '';
+		parse_str( $raw, $fields );
+		$headers = array();
+		foreach ( isset( $args['headers'] ) && is_array( $args['headers'] ) ? $args['headers'] : array() as $name => $value ) {
+			$headers[ strtolower( (string) $name ) ] = is_array( $value ) ? implode( ',', $value ) : (string) $value;
+		}
+
+		$result = self::next_script( 'POST', 'oauth/customer/token' );
+		if ( null === $result ) {
+			$violations = ContractValidator::is_available() ? ContractValidator::validate( 'oauth-token.request.json', (object) $fields ) : array();
+			$result     = array() !== $violations || 'application/x-www-form-urlencoded' !== ( $headers['content-type'] ?? '' )
+				? array(
+					'status' => 400,
+					'body'   => array(
+						'error'             => 'invalid_request',
+						'error_description' => implode( ' ', $violations ),
+					),
+				)
+				: Responses::token(
+					$fields,
+					$headers['authorization'] ?? '',
+					array(
+						'client_secret' => get_transient( self::SECRET_TRANSIENT ) ? (string) get_transient( self::SECRET_TRANSIENT ) : null,
+						'code_used'     => self::used( self::CODES_TRANSIENT . '_oauth', $fields['code'] ?? null ),
+					)
+				);
+		}
+		self::remember( self::CODES_TRANSIENT . '_oauth', $fields['code'] ?? null );
+
+		$request = new \WP_REST_Request( 'POST', '/' . self::API_NAMESPACE . '/oauth/customer/token' );
+		$request->set_header( 'content-type', $headers['content-type'] ?? '' );
+		$request->set_body( '' );
+		self::record( $request, 'oauth/customer/token', $result['status'], null, $fields + array( 'basic_client_id' => self::basic_client_id( $headers['authorization'] ?? '' ) ) );
+
+		return self::http_response( $result['status'], $result['body'], $result['headers'] ?? array() );
+	}
+
+	/**
+	 * The client id in an HTTP Basic header ('' when none): recorded instead of the header, which carries the secret.
+	 *
+	 * @param string $authorization Authorization header.
+	 * @return string
+	 */
+	private static function basic_client_id( string $authorization ): string {
+		$decoded = 0 === strpos( $authorization, 'Basic ' ) ? base64_decode( substr( $authorization, 6 ), true ) : false; // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_decode -- HTTP Basic.
+
+		return is_string( $decoded ) ? rawurldecode( explode( ':', $decoded, 2 )[0] ) : '';
+	}
+
+	/**
+	 * Whether a value (a code or token) was seen before.
+	 *
+	 * @param string $transient Where the hashes are kept.
+	 * @param mixed  $value     Value.
+	 * @return bool
+	 */
+	private static function used( string $transient, $value ): bool {
+		$seen = get_transient( $transient );
+
+		return is_string( $value ) && '' !== $value && is_array( $seen ) && in_array( hash( 'sha256', $value ), $seen, true );
+	}
+
+	/**
+	 * Burn a single-use value (a code or token).
+	 *
+	 * @param string $transient Where the hashes are kept.
+	 * @param mixed  $value     Value.
+	 * @return void
+	 */
+	private static function remember( string $transient, $value ): void {
+		if ( ! is_string( $value ) || '' === $value ) {
+			return;
+		}
+
+		$seen   = get_transient( $transient );
+		$seen   = is_array( $seen ) ? $seen : array();
+		$seen[] = hash( 'sha256', $value );
+		set_transient( $transient, array_slice( array_values( array_unique( $seen ) ), -1000 ), HOUR_IN_SECONDS );
 	}
 
 	/**
@@ -600,6 +703,9 @@ final class Server {
 		delete_transient( self::OUTCOME_TRANSIENT );
 		delete_transient( self::BALANCE_TRANSIENT );
 		delete_transient( self::PAUSED_TRANSIENT );
+		delete_transient( self::TOKENS_TRANSIENT );
+		delete_transient( self::SECRET_TRANSIENT );
+		delete_transient( self::CODES_TRANSIENT . '_oauth' );
 	}
 
 	/**
@@ -893,9 +999,10 @@ final class Server {
 	 * @param string           $path       Relative path.
 	 * @param int              $status     Response status.
 	 * @param string|null      $auth_error Authentication error code, if rejected.
+	 * @param array<mixed>|null $body      Body to record instead of the request's (form posts).
 	 * @return void
 	 */
-	private static function record( \WP_REST_Request $request, string $path, int $status, ?string $auth_error ): void {
+	private static function record( \WP_REST_Request $request, string $path, int $status, ?string $auth_error, ?array $body = null ): void {
 		$headers = self::headers( $request );
 		$kept    = array();
 		foreach ( $headers as $name => $value ) {
@@ -913,7 +1020,7 @@ final class Server {
 			'path'       => $path,
 			'query'      => $request->get_query_params(),
 			'headers'    => $kept,
-			'body'       => null === $decoded ? (string) $request->get_body() : $decoded,
+			'body'       => $body ?? ( null === $decoded ? (string) $request->get_body() : $decoded ),
 			'status'     => $status,
 			'auth_error' => $auth_error,
 			'at'         => gmdate( 'Y-m-d\TH:i:s\Z', self::now() ),

@@ -228,6 +228,40 @@ final class Client {
 	}
 
 	/**
+	 * POST a form to an absolute URL with HTTP Basic authentication: the OAuth token endpoint, which is not part of the
+	 * Commerce API (no outlet key, no signature, no Idempotency-Key, never a redirect).
+	 *
+	 * Neither the body nor the credentials are logged: only the URL's path, the status and an OAuth error code.
+	 *
+	 * @param string               $url      Absolute https URL (validated by the caller).
+	 * @param array<string,string> $fields   Form fields.
+	 * @param string               $username Basic user (the OAuth client id).
+	 * @param string               $password Basic password (the OAuth client secret).
+	 * @return ApiResponse
+	 * @throws ApiException On transport errors, non-2xx responses (`{"error": ...}` becomes the code) or unreadable bodies.
+	 */
+	public function post_form( string $url, array $fields, string $username, string $password ): ApiResponse {
+		// RFC 6749 §2.3.1: the client id and secret are form-encoded before Basic.
+		$basic = rawurlencode( $username ) . ':' . rawurlencode( $password );
+		$path  = wp_parse_url( $url, PHP_URL_PATH );
+
+		return $this->send(
+			'POST',
+			$url,
+			is_string( $path ) ? $path : '',
+			array(
+				'Accept'        => 'application/json',
+				'Content-Type'  => 'application/x-www-form-urlencoded',
+				// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.obfuscation_base64_encode -- HTTP Basic credentials, not obfuscation.
+				'Authorization' => 'Basic ' . base64_encode( $basic ),
+				'User-Agent'    => $this->user_agent(),
+			),
+			http_build_query( $fields, '', '&', PHP_QUERY_RFC1738 ),
+			self::ENDPOINT_WRITE
+		);
+	}
+
+	/**
 	 * Send a request.
 	 *
 	 * @param string              $method  HTTP method.

@@ -5,12 +5,14 @@
  * Override by copying to yourtheme/pixalink-loyalty/myaccount/dashboard-card.php.
  *
  * `$card` is null for a logged-in shopper who has not verified their phone yet: they get a prompt that opens the
- * Loyalty tab, where the one-time code flow lives (their portal link, if any, opens the portal signed out). Credits are
+ * Loyalty tab, where the one-time code flow lives (their portal link, if any, opens the portal signed out), and, when
+ * `$verify_url` is set, "Verify with WhatsApp" first, which verifies through the member portal and lands on the
+ * Loyalty tab. Credits are
  * not shown here. A verified member's portal link points at the store's handler, which mints a single-use sign-in link
  * only when they click.
  *
  * @package Pixalink\Loyalty
- * @version 0.3.0
+ * @version 1.0.3
  *
  * @var array{points:int,expiring:array{points:int,expires_at:string}|null,tier:array{name:string,color:string|null,remaining:int|null,next_tier_name:string|null,percent:int|null}|null,vouchers_ready:int}|null $card
  * @var string      $title       Title of the Loyalty tab.
@@ -19,6 +21,7 @@
  * @var string|null $logo_url    Member portal logo (null: show the store name).
  * @var string      $store_name  Store or portal name.
  * @var string|null $portal_url  "Open member portal" link (signed in for verified members, signed out otherwise).
+ * @var string|null $verify_url  "Verify with WhatsApp" through the member portal (unverified shoppers; null when not offered).
  * @var string      $tier_style  Inline style carrying the tier colour ('' when none).
  */
 
@@ -32,8 +35,16 @@ $pixalink_loyalty_button = function_exists( 'wc_wp_theme_get_element_class_name'
 	<?php if ( null === $card ) : ?>
 		<div class="pixalink-loyalty-dashboard-card__invite">
 			<p class="pixalink-loyalty-dashboard-card__prompt"><?php esc_html_e( 'Link your Pixalink membership to see your points and vouchers.', 'pixalink-loyalty-for-woocommerce' ); ?></p>
+			<?php if ( ! empty( $verify_url ) ) : ?>
+				<p class="pixalink-loyalty-dashboard-card__prompt"><?php esc_html_e( "You'll confirm on our member portal and come straight back here.", 'pixalink-loyalty-for-woocommerce' ); ?></p>
+			<?php endif; ?>
 			<p class="pixalink-loyalty-dashboard-card__action">
-				<a class="<?php echo esc_attr( trim( 'button pixalink-loyalty-button ' . $pixalink_loyalty_button ) ); ?>" href="<?php echo esc_url( $loyalty_url ); ?>"><?php esc_html_e( 'Link your membership', 'pixalink-loyalty-for-woocommerce' ); ?></a>
+				<?php if ( ! empty( $verify_url ) ) : ?>
+					<a class="<?php echo esc_attr( trim( 'button pixalink-loyalty-button ' . $pixalink_loyalty_button ) ); ?>" href="<?php echo esc_url( (string) $verify_url ); ?>" rel="nofollow"><?php esc_html_e( 'Verify with WhatsApp', 'pixalink-loyalty-for-woocommerce' ); ?></a>
+					<a class="pixalink-loyalty-dashboard-card__portal" href="<?php echo esc_url( $loyalty_url ); ?>"><?php esc_html_e( 'Or get a code by WhatsApp or SMS', 'pixalink-loyalty-for-woocommerce' ); ?></a>
+				<?php else : ?>
+					<a class="<?php echo esc_attr( trim( 'button pixalink-loyalty-button ' . $pixalink_loyalty_button ) ); ?>" href="<?php echo esc_url( $loyalty_url ); ?>"><?php esc_html_e( 'Link your membership', 'pixalink-loyalty-for-woocommerce' ); ?></a>
+				<?php endif; ?>
 				<?php if ( ! empty( $portal_url ) ) : ?>
 					<a class="pixalink-loyalty-dashboard-card__portal" href="<?php echo esc_url( (string) $portal_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Open member portal', 'pixalink-loyalty-for-woocommerce' ); ?></a>
 				<?php endif; ?>

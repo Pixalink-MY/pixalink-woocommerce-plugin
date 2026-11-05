@@ -9,8 +9,10 @@ namespace Pixalink\Loyalty\Tests\Integration\Account;
 
 use Pixalink\Loyalty\Account\Assets;
 use Pixalink\Loyalty\Account\LoyaltyEndpoint;
+use Pixalink\Loyalty\Account\PortalHandoff;
 use Pixalink\Loyalty\Connect\Connection;
 use Pixalink\Loyalty\Identity\Link;
+use Pixalink\Loyalty\Identity\PortalSignIn;
 use Pixalink\Loyalty\Identity\ShopperContext;
 use Pixalink\Loyalty\Identity\UserMeta;
 use Pixalink\Loyalty\Plugin;
@@ -216,6 +218,39 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 		$this->assertSame( '', do_shortcode( '[' . LoyaltyEndpoint::QR_SHORTCODE . ']' ) );
 	}
 
+	public function test_an_unlinked_shopper_can_verify_with_whatsapp_or_get_a_code(): void {
+		$this->cache_heartbeat( self::heartbeat() );
+		$this->provision_oauth_client();
+		wp_set_current_user( $this->make_user() );
+
+		$html = self::tab();
+
+		$this->assertSame( 1, preg_match( '/<a[^>]+href="([^"]+)"[^>]*>Verify with WhatsApp<\/a>/', $html, $match ), 'The portal round trip is offered.' );
+		wp_parse_str( (string) wp_parse_url( html_entity_decode( $match[1] ), PHP_URL_QUERY ), $query );
+		$this->assertSame( PortalSignIn::ACTION, $query['action'] ?? null );
+		$this->assertSame( PortalSignIn::INTENT_VERIFY, $query['intent'] ?? null );
+		$this->assertSame( wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT ), $query['redirect_to'] ?? null, 'Back to this tab.' );
+		$this->assertStringContainsString( esc_html( "You'll confirm on our member portal and come straight back here." ), $html );
+		$this->assertStringContainsString( 'Or get a code by WhatsApp or SMS', $html );
+		$this->assertLessThan( (int) strpos( $html, 'data-pixalink-link-form' ), (int) strpos( $html, 'Verify with WhatsApp' ), 'The portal first, the code form as the alternative.' );
+		$this->assertStringContainsString( 'data-pixalink-link-form', $html );
+		$this->assertSame( array(), Server::recorded() );
+	}
+
+	public function test_without_oauth_only_the_code_form_shows(): void {
+		$status = self::heartbeat();
+		unset( $status['oauth'] );
+		$this->cache_heartbeat( $status );
+		$this->provision_oauth_client();
+		wp_set_current_user( $this->make_user() );
+
+		$html = self::tab();
+
+		$this->assertStringNotContainsString( 'Verify with WhatsApp', $html );
+		$this->assertStringNotContainsString( 'Or get a code', $html );
+		$this->assertStringContainsString( 'data-pixalink-link-form', $html );
+	}
+
 	public function test_a_verified_member_sees_points_credits_tier_vouchers_and_the_qr(): void {
 		$this->verified_member();
 
@@ -355,7 +390,7 @@ final class LoyaltyEndpointTest extends \WP_UnitTestCase {
 
 		$this->assertLessThan( (int) strpos( $html, 'Open member portal' ), (int) strpos( $html, 'Send code' ), 'Verifying stays the primary action.' );
 		$this->assertStringContainsString( 'href="' . Responses::PORTAL_URL . '" target="_blank" rel="noopener">Open member portal</a>', $html );
-		$this->assertStringNotContainsString( 'admin-post.php', $html );
+		$this->assertStringNotContainsString( PortalHandoff::ACTION, $html, 'No signed-in portal link before verifying.' );
 		$this->assertStringContainsString( 'pixalink-loyalty-link is-branded', $html );
 		$this->assertSame( array(), Server::recorded() );
 	}
