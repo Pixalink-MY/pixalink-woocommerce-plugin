@@ -4,7 +4,7 @@ Tags: loyalty, rewards, points, vouchers, membership
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.1
-Stable tag: 1.0.3
+Stable tag: 1.0.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -132,6 +132,9 @@ Self-hosted builds downloaded from the plugin's GitHub releases (not the WordPre
 4. WooCommerce › Settings › Pixalink Loyalty: the connection to Pixalink and its health.
 
 == Changelog ==
+
+= 1.0.4 =
+* Sign-in through the member portal now allows 30 minutes (enough for new members to register), shows the cancelled / try-again message to logged-out shoppers too, and logs why a sign-in did not finish.
 
 = 1.0.3 =
 * Members can verify with WhatsApp: "Verify with WhatsApp" on My Account › Loyalty sends them to your member portal and back, linked. Sign in from Customer Portal now uses OAuth 2.1 when your Pixalink account has it turned on.

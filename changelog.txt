@@ -1,6 +1,6 @@
 *** Pixalink Loyalty for WooCommerce Changelog ***
 
-= 1.0.4 - unreleased =
+= 1.0.4 - 2026-11-06 =
 * Fix - A shopper who is not logged in now sees why signing in with the member portal didn't finish ("You cancelled signing in with the member portal." after Cancel on the portal's consent page, "Signing in with the member portal didn't finish. Please try again." otherwise) on the page they return to. The notice was added to a WooCommerce session the shopper didn't have, so it was lost in the redirect. It is now passed in the URL (`pixalink_loyalty_notice=sign_in_cancelled` or `sign_in_failed`) and shown on My Account's login form, the classic checkout and the Loyalty tab, for logged-in shoppers too.
 * Fix - The OAuth sign-in request (state and PKCE verifier, in the encrypted `pixalink_loyalty_oauth` cookie) now lasts 30 minutes instead of 10. A new member who registers on the portal first (phone number, WhatsApp confirmation, profile form) could take longer than 10 minutes, and the store then had nothing to match the returning code against. The cookie is still single-use.
 * Fix - When the sign-in request is gone (expired, cleared or from another browser), the shopper now lands on the Loyalty tab if logged in, or on My Account's login form if not, instead of always on My Account.
