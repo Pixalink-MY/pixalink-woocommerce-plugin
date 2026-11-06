@@ -104,9 +104,10 @@ final class MemberLanding {
 	 * @return void
 	 */
 	public function refuse_staff( int $user_id, ?array $customer ): void {
-		$this->logger->info(
-			'Portal sign-in refused: a staff account is signed in.',
+		$this->logger->warning(
+			'Portal sign-in failed.',
 			array(
+				'reason'      => 'staff_account',
 				'user_id'     => $user_id,
 				'customer_id' => $customer['id'] ?? null,
 			)
@@ -135,7 +136,13 @@ final class MemberLanding {
 	public function link_account( int $user_id, Link $link ): bool {
 		$existing = UserMeta::link( $user_id );
 		if ( null !== $existing && $existing->customer_id !== $link->customer_id ) {
-			$this->logger->info( 'Portal sign-in for another member ignored on a linked account.', array( 'user_id' => $user_id ) );
+			$this->logger->warning(
+				'Portal sign-in failed.',
+				array(
+					'reason'  => 'linked_to_another_member',
+					'user_id' => $user_id,
+				)
+			);
 			self::notice( __( 'This account is already linked to a different loyalty member, so nothing was changed.', 'pixalink-loyalty-for-woocommerce' ) );
 
 			return false;
@@ -144,6 +151,14 @@ final class MemberLanding {
 		try {
 			$this->linker->store( ShopperContext::resolve( $user_id, '', $this->guests ), $link );
 		} catch ( LinkException $exception ) {
+			$this->logger->warning(
+				'Portal sign-in failed.',
+				array(
+					'reason'     => 'link_failed',
+					'user_id'    => $user_id,
+					'error_code' => $exception->reason(),
+				)
+			);
 			self::notice( $exception->user_message() );
 
 			return false;

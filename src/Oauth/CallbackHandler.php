@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Pixalink\Loyalty\Oauth;
 
+use Pixalink\Loyalty\Account\LoyaltyEndpoint;
 use Pixalink\Loyalty\Api\ApiException;
 use Pixalink\Loyalty\Api\Credentials;
 use Pixalink\Loyalty\Api\Resources\Oauth;
@@ -39,8 +40,16 @@ defined( 'ABSPATH' ) || exit;
  *    another member; no second confirmation, since this browser started it), a logged-out one signed in, their account
  *    created as for the store's own sign-in button, or kept as a recognised guest. The link reads `via: oauth`.
  *
- * The shopper is redirected (302, no-store, no Referer) to the page kept in the request. Codes, tokens, states and
- * secrets are never logged: only outcomes and error codes.
+ * The shopper is redirected (302, no-store, no Referer) to the page kept in the request; without it (the cookie expired
+ * or never came back), to the Loyalty tab when logged in, otherwise to My Account's login form.
+ *
+ * Every way the round trip can end without the member signed in or linked writes one warning, "Portal sign-in failed.",
+ * with a `reason` (an {@see AuthorizationRequest}::FAILURE_* code, `state_mismatch`, `account_mismatch`, `cancelled`,
+ * `portal_error`, `code_missing`, `oauth_unavailable`, `token_exchange_failed`, `redeem_failed`, or {@see MemberLanding}'s
+ * `staff_account`, `linked_to_another_member` and `link_failed`) and safe context (HTTP status, error code, purpose,
+ * user ids). Codes, tokens, states, verifiers, cookies and secrets are never logged. The shopper's notice for a
+ * cancelled or failed round trip travels in the URL ({@see PortalSignIn::query_notice()}), since a logged-out shopper
+ * has no WooCommerce session to carry it across the redirect.
  */
 final class CallbackHandler {
 
@@ -170,30 +179,35 @@ final class CallbackHandler {
 	 */
 	public function handle( array $query ): string {
 		$request = $this->requests->take();
+		$user_id = get_current_user_id();
 		if ( null === $request ) {
-			self::failed();
+			$this->failure( $this->requests->failure() ?? AuthorizationRequest::FAILURE_MISSING, array( 'user_id' => $user_id ) );
 
-			return wc_get_page_permalink( 'myaccount' );
+			return self::with_notice( self::fallback_target( $user_id ), PortalSignIn::NOTICE_FAILED );
 		}
 
 		$target  = PortalSignIn::return_url( $request['return'] );
-		$user_id = get_current_user_id();
-		if ( ! hash_equals( $request['state'], $query['state'] ?? '' ) || $request['user_id'] !== $user_id ) {
-			$this->logger->info( 'Portal sign-in callback refused: it does not match the sign-in this browser started.' );
-			self::failed();
+		$context = array(
+			'purpose' => $request['purpose'],
+			'user_id' => $user_id,
+		);
+		if ( ! hash_equals( $request['state'], $query['state'] ?? '' ) ) {
+			$this->failure( 'state_mismatch', $context );
 
-			return $target;
+			return self::with_notice( $target, PortalSignIn::NOTICE_FAILED );
+		}
+
+		if ( $request['user_id'] !== $user_id ) {
+			$this->failure( 'account_mismatch', $context + array( 'started_by' => $request['user_id'] ) );
+
+			return self::with_notice( $target, PortalSignIn::NOTICE_FAILED );
 		}
 
 		if ( isset( $query['error'] ) ) {
-			$this->logger->info( 'Portal sign-in not completed.', array( 'error' => sanitize_key( $query['error'] ) ) );
-			if ( 'access_denied' === $query['error'] ) {
-				MemberLanding::notice( __( 'You cancelled signing in with the member portal.', 'pixalink-loyalty-for-woocommerce' ) );
-			} else {
-				self::failed();
-			}
+			$cancelled = 'access_denied' === $query['error'];
+			$this->failure( $cancelled ? 'cancelled' : 'portal_error', $context + array( 'error' => sanitize_key( $query['error'] ) ) );
 
-			return $target;
+			return self::with_notice( $target, $cancelled ? PortalSignIn::NOTICE_CANCELLED : PortalSignIn::NOTICE_FAILED );
 		}
 
 		if ( CustomerLinker::is_staff( $user_id ) ) {
@@ -202,9 +216,9 @@ final class CallbackHandler {
 			return MemberLanding::where_notices_show( $target );
 		}
 
-		$customer = $this->redeem( $query['code'] ?? '', $request['verifier'], $user_id );
+		$customer = $this->redeem( $query['code'] ?? '', $request['verifier'], $user_id, $context );
 		if ( null === $customer ) {
-			return $target;
+			return self::with_notice( $target, PortalSignIn::NOTICE_FAILED );
 		}
 
 		$link = $this->landing->link_for( $customer, Link::VIA_OAUTH );
@@ -223,18 +237,32 @@ final class CallbackHandler {
 	}
 
 	/**
-	 * Exchange the code and redeem the token; null (after a notice) when either fails.
+	 * Exchange the code and redeem the token; null (after logging why) when either fails.
 	 *
-	 * @param string $code     Authorization code.
-	 * @param string $verifier PKCE verifier kept in the cookie.
-	 * @param int    $user_id  Logged-in user id (0 when nobody is logged in).
+	 * @param string              $code     Authorization code.
+	 * @param string              $verifier PKCE verifier kept in the cookie.
+	 * @param int                 $user_id  Logged-in user id (0 when nobody is logged in).
+	 * @param array<string,mixed> $context  Log context of this round trip.
 	 * @return array{id:string,phone:string,verified:bool,phone_country:string|null,email:string|null,first_name:string|null,last_name:string|null}|null
 	 */
-	private function redeem( string $code, string $verifier, int $user_id ): ?array {
+	private function redeem( string $code, string $verifier, int $user_id, array $context ): ?array {
+		if ( '' === $code ) {
+			$this->failure( 'code_missing', $context );
+
+			return null;
+		}
+
 		$capability = Capability::remote( $this->options );
 		$client     = $this->client->get();
-		if ( '' === $code || null === $capability || null === $client || ! $this->credentials->is_configured() ) {
-			self::failed();
+		if ( null === $capability || null === $client || ! $this->credentials->is_configured() ) {
+			$this->failure(
+				'oauth_unavailable',
+				$context + array(
+					'advertised' => null !== $capability,
+					'has_client' => null !== $client,
+					'connected'  => $this->credentials->is_configured(),
+				)
+			);
 
 			return null;
 		}
@@ -242,17 +270,18 @@ final class CallbackHandler {
 		try {
 			$token = $this->oauth->exchange_code( $capability->token_endpoint, $client['client_id'], $client['client_secret'], $code, ClientCredentials::redirect_uri(), $verifier );
 		} catch ( ApiException $exception ) {
-			$this->logger->warning(
-				'Portal sign-in: the code exchange failed.',
-				array(
-					'error_code'  => $exception->error_code(),
-					'http_status' => $exception->http_status(),
+			$reprovision = 'invalid_client' === $exception->error_code();
+			$this->failure(
+				'token_exchange_failed',
+				$context + array(
+					'error_code'    => $exception->error_code(),
+					'http_status'   => $exception->http_status(),
+					'reprovisioned' => $reprovision,
 				)
 			);
-			if ( 'invalid_client' === $exception->error_code() ) {
+			if ( $reprovision ) {
 				$this->client->reprovision();
 			}
-			self::failed();
 
 			return null;
 		}
@@ -260,18 +289,53 @@ final class CallbackHandler {
 		try {
 			return $this->linker->redeem_oauth( $token, $user_id );
 		} catch ( LinkException $exception ) {
-			MemberLanding::notice( $exception->user_message() );
+			$previous = $exception->getPrevious();
+			$this->failure(
+				'redeem_failed',
+				$context + array(
+					'error_code'  => $exception->reason(),
+					'http_status' => $previous instanceof ApiException ? $previous->http_status() : null,
+				)
+			);
 
 			return null;
 		}
 	}
 
 	/**
-	 * The generic "try again" notice.
+	 * Log why the round trip did not finish: one warning, never codes, tokens, states, verifiers or secrets.
 	 *
+	 * @param string              $reason  Reason code.
+	 * @param array<string,mixed> $context Safe context.
 	 * @return void
 	 */
-	private static function failed(): void {
-		MemberLanding::notice( ( new LinkException( LinkException::OAUTH_TOKEN_INVALID ) )->user_message() );
+	private function failure( string $reason, array $context ): void {
+		$this->logger->warning( 'Portal sign-in failed.', array( 'reason' => $reason ) + $context );
+	}
+
+	/**
+	 * Where a shopper goes when the request kept in the browser is gone, and with it the page they started from: the
+	 * Loyalty tab when logged in and it is on, otherwise My Account (the login form for a logged-out shopper).
+	 *
+	 * @param int $user_id Logged-in user id (0 when nobody is logged in).
+	 * @return string
+	 */
+	private function fallback_target( int $user_id ): string {
+		if ( $user_id > 0 && $this->options->get_bool( Options::ACCOUNT_TAB_ENABLED ) ) {
+			return wc_get_account_endpoint_url( LoyaltyEndpoint::ENDPOINT );
+		}
+
+		return wc_get_page_permalink( 'myaccount' );
+	}
+
+	/**
+	 * The landing page with the notice to show there ({@see PortalSignIn::query_notice()}).
+	 *
+	 * @param string $target Landing URL.
+	 * @param string $notice PortalSignIn::NOTICE_*.
+	 * @return string
+	 */
+	private static function with_notice( string $target, string $notice ): string {
+		return add_query_arg( PortalSignIn::NOTICE_PARAM, $notice, $target );
 	}
 }

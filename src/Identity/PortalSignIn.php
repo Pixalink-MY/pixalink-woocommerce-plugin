@@ -34,7 +34,7 @@ defined( 'ABSPATH' ) || exit;
  * client ({@see ClientCredentials}), otherwise through the portal's sign-in page (`branding.sign_in_url`, on the
  * portal host). Every press sends the browser (303, no cache, no Referer) to the portal and nothing to Pixalink:
  *
- * - OAuth: an {@see AuthorizationRequest} (state and PKCE verifier in an encrypted ten-minute cookie) and the
+ * - OAuth: an {@see AuthorizationRequest} (state and PKCE verifier in an encrypted thirty-minute cookie) and the
  *   authorize page; the portal sends the shopper back to the store's callback, {@see \Pixalink\Loyalty\Oauth\CallbackHandler};
  * - otherwise: a random state in a ten-minute cookie ({@see SignInState}) and the sign-in page with `return` (the page
  *   to come back to, on this store) and `state`; the portal sends them back to `return` with a `pixalink_sso` ticket
@@ -45,6 +45,10 @@ defined( 'ABSPATH' ) || exit;
  * `intent=verify`): the member confirms on the portal (inverse OTP or OTP, as the merchant set it) and the account is
  * linked on return without a second confirmation. Never for staff or an account that is already linked; without OAuth
  * the button is not offered and the one-time code form stays the way to verify.
+ *
+ * Why the shopper is back without being signed in travels in the URL (`pixalink_loyalty_notice`), not in the
+ * WooCommerce session: a logged-out shopper has none, so a notice added before the redirect would be lost.
+ * {@see PortalSignIn::query_notice()} shows it on the page they land on.
  */
 final class PortalSignIn {
 
@@ -58,6 +62,16 @@ final class PortalSignIn {
 	public const NOTICE_PARAM = PortalHandoff::NOTICE_PARAM;
 
 	public const NOTICE_UNAVAILABLE = 'sign_in_unavailable';
+
+	/**
+	 * The member pressed Cancel on the portal's consent page.
+	 */
+	public const NOTICE_CANCELLED = 'sign_in_cancelled';
+
+	/**
+	 * The OAuth round trip did not finish (the reason is in the log).
+	 */
+	public const NOTICE_FAILED = 'sign_in_failed';
 
 	/**
 	 * `intent` of the start link when a logged-in shopper verifies their membership ("Verify with WhatsApp").
@@ -148,7 +162,7 @@ final class PortalSignIn {
 	public function register(): void {
 		add_action( 'woocommerce_login_form_end', array( $this, 'render_button' ) );
 		add_action( 'wp_enqueue_scripts', array( $this, 'enqueue_style' ) );
-		add_action( 'template_redirect', array( $this, 'unavailable_notice' ), 20 );
+		add_action( 'template_redirect', array( $this, 'query_notice' ), 20 );
 		add_action( 'admin_post_nopriv_' . self::ACTION, array( $this, 'handle_request' ) );
 		add_action( 'admin_post_' . self::ACTION, array( $this, 'handle_request' ) );
 	}
@@ -295,18 +309,27 @@ final class PortalSignIn {
 	}
 
 	/**
-	 * `template_redirect` callback: say why the shopper is back when the portal sign-in could not start.
+	 * `template_redirect` callback: say why the shopper is back when the portal sign-in could not start, was cancelled
+	 * or did not finish. Added on the page that prints it, so it shows without a WooCommerce session.
 	 *
 	 * @return void
 	 */
-	public function unavailable_notice(): void {
+	public function query_notice(): void {
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only selects a fixed message.
 		$notice = isset( $_GET[ self::NOTICE_PARAM ] ) && is_string( $_GET[ self::NOTICE_PARAM ] ) ? sanitize_key( wp_unslash( $_GET[ self::NOTICE_PARAM ] ) ) : '';
-		if ( self::NOTICE_UNAVAILABLE !== $notice || is_user_logged_in() || ! function_exists( 'wc_add_notice' ) || null === WC()->session ) {
+		if ( ! function_exists( 'wc_add_notice' ) || null === WC()->session ) {
 			return;
 		}
 
-		wc_add_notice( __( 'Signing in with the member portal isn\'t available right now. Log in with your password, or try again later.', 'pixalink-loyalty-for-woocommerce' ), 'notice' );
+		$message = match ( $notice ) {
+			self::NOTICE_UNAVAILABLE => is_user_logged_in() ? null : __( 'Signing in with the member portal isn\'t available right now. Log in with your password, or try again later.', 'pixalink-loyalty-for-woocommerce' ),
+			self::NOTICE_CANCELLED => __( 'You cancelled signing in with the member portal.', 'pixalink-loyalty-for-woocommerce' ),
+			self::NOTICE_FAILED => ( new LinkException( LinkException::OAUTH_TOKEN_INVALID ) )->user_message(),
+			default => null,
+		};
+		if ( null !== $message ) {
+			wc_add_notice( $message, 'notice' );
+		}
 	}
 
 	/**
