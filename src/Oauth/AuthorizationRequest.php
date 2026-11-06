@@ -19,20 +19,38 @@ defined( 'ABSPATH' ) || exit;
  * {@see AuthorizationRequest::start()} generates a state and a PKCE verifier (each 32 random bytes, base64url), keeps
  * them with the purpose, the page to come back to and the account that started it in the `pixalink_loyalty_oauth`
  * cookie, encrypted with {@see Crypto} (HttpOnly, SameSite=Lax so it comes back on the portal's top-level redirect,
- * Secure on https, ten minutes), and returns the authorize URL with the state and the S256 challenge. A cookie rather
+ * Secure on https, thirty minutes: a new member registers on the portal first), and returns the authorize URL with the state and the S256 challenge. A cookie rather
  * than a server-side record, so it works for shoppers who are not logged in and costs nothing until they come back.
  *
  * {@see AuthorizationRequest::take()} reads it once: the cookie is expired whatever it held, and only a value this site
- * encrypted, untampered and within its ten minutes, comes back.
+ * encrypted, untampered and within its thirty minutes, comes back. When nothing does, {@see AuthorizationRequest::failure()}
+ * says why, for the log.
  */
 final class AuthorizationRequest {
 
 	public const COOKIE = 'pixalink_loyalty_oauth';
 
 	/**
-	 * Seconds the request lives (the shopper may have to sign in or register on the portal first).
+	 * Seconds the request lives: the shopper may have to sign in, or register on the portal first (phone number, the
+	 * WhatsApp confirmation, then the profile form), which took more than ten minutes in practice.
 	 */
-	public const TTL = 600;
+	public const TTL = 1800;
+
+	/**
+	 * {@see AuthorizationRequest::failure()}: no cookie came back (never started in this browser, cleared, or expired by
+	 * the browser itself, which is how a request older than {@see AuthorizationRequest::TTL} usually arrives).
+	 */
+	public const FAILURE_MISSING = 'request_missing';
+
+	/**
+	 * {@see AuthorizationRequest::failure()}: a cookie this site did not write, or one that was changed.
+	 */
+	public const FAILURE_UNREADABLE = 'request_unreadable';
+
+	/**
+	 * {@see AuthorizationRequest::failure()}: the browser kept the cookie past its expiry.
+	 */
+	public const FAILURE_EXPIRED = 'request_expired';
 
 	/**
 	 * A logged-out shopper signing in ("Sign in from Customer Portal").
@@ -64,6 +82,13 @@ final class AuthorizationRequest {
 	 * @var \Closure():int
 	 */
 	private \Closure $now;
+
+	/**
+	 * Why the last {@see AuthorizationRequest::take()} returned nothing (FAILURE_*), null when it returned the request.
+	 *
+	 * @var string|null
+	 */
+	private ?string $failure = null;
 
 	/**
 	 * Constructor.
@@ -149,9 +174,12 @@ final class AuthorizationRequest {
 	 *         cookie, or it is not one this site wrote, was changed or has expired.
 	 */
 	public function take(): ?array {
+		$this->failure = self::FAILURE_MISSING;
 		if ( ! isset( $_COOKIE[ self::COOKIE ] ) ) {
 			return null;
 		}
+
+		$this->failure = self::FAILURE_UNREADABLE;
 
 		$value = $_COOKIE[ self::COOKIE ]; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized,WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Unslashed below, then authenticated by Crypto; never printed.
 		unset( $_COOKIE[ self::COOKIE ] );
@@ -169,9 +197,17 @@ final class AuthorizationRequest {
 			}
 		}
 
-		if ( ! isset( $request['user_id'], $request['expires'] ) || ! is_int( $request['user_id'] ) || ! is_int( $request['expires'] ) || $request['expires'] < ( $this->now )() ) {
+		if ( ! isset( $request['user_id'], $request['expires'] ) || ! is_int( $request['user_id'] ) || ! is_int( $request['expires'] ) ) {
 			return null;
 		}
+
+		if ( $request['expires'] < ( $this->now )() ) {
+			$this->failure = self::FAILURE_EXPIRED;
+
+			return null;
+		}
+
+		$this->failure = null;
 
 		return array(
 			'state'    => $request['state'],
@@ -180,6 +216,15 @@ final class AuthorizationRequest {
 			'return'   => $request['return'],
 			'user_id'  => $request['user_id'],
 		);
+	}
+
+	/**
+	 * Why the last {@see AuthorizationRequest::take()} returned nothing.
+	 *
+	 * @return string|null FAILURE_*, or null when it returned the request (or was not called).
+	 */
+	public function failure(): ?string {
+		return $this->failure;
 	}
 
 	/**

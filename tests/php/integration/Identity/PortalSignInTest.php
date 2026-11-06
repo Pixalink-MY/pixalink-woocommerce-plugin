@@ -652,7 +652,7 @@ final class PortalSignInTest extends \WP_UnitTestCase {
 		$this->assertSame( array(), $this->cookies );
 
 		$_GET = array( PortalSignIn::NOTICE_PARAM => PortalSignIn::NOTICE_UNAVAILABLE );
-		$this->sign_in()->unavailable_notice();
+		$this->sign_in()->query_notice();
 		$this->assertStringContainsString( 'Signing in with the member portal isn\'t available right now', implode( ' ', array_column( wc_get_notices( 'notice' ), 'notice' ) ) );
 	}
 

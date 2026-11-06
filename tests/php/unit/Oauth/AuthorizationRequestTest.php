@@ -15,9 +15,10 @@ use Pixalink\Loyalty\Support\Crypto;
 use Pixalink\Loyalty\Tests\Unit\TestCase;
 
 /**
- * One sign-in through the member portal: a random state and PKCE verifier kept, encrypted, in a ten-minute HttpOnly
+ * One sign-in through the member portal: a random state and PKCE verifier kept, encrypted, in a thirty-minute HttpOnly
  * SameSite=Lax cookie (so it works for shoppers who are not logged in), an authorize URL that carries only the state and
- * the S256 challenge, and a cookie that is read back once, and only when it is ours, untampered and unexpired.
+ * the S256 challenge, and a cookie that is read back once, and only when it is ours, untampered and unexpired. When it does not come back, it says why
+ * (missing, unreadable or expired), for the log.
  *
  * @covers \Pixalink\Loyalty\Oauth\AuthorizationRequest
  */
@@ -125,7 +126,7 @@ final class AuthorizationRequestTest extends TestCase {
 		$this->assertStringStartsWith( self::AUTHORIZE . '?lang=ms&response_type=code&', $url );
 	}
 
-	public function test_the_cookie_is_encrypted_httponly_lax_secure_and_lives_ten_minutes(): void {
+	public function test_the_cookie_is_encrypted_httponly_lax_secure_and_lives_thirty_minutes(): void {
 		$this->request()->start( self::capability(), 'client-uuid', 'https://shop.example.test/?pixalink_oauth=callback', AuthorizationRequest::PURPOSE_VERIFY, 'https://shop.example.test/my-account/pixalink-loyalty/', 17 );
 
 		$this->assertCount( 1, $this->cookies );
@@ -134,7 +135,8 @@ final class AuthorizationRequestTest extends TestCase {
 		$this->assertStringStartsWith( Crypto::PAYLOAD_PREFIX, $value );
 		$this->assertStringNotContainsString( 'verifier', $value, 'Nothing readable in the browser.' );
 		$this->assertStringNotContainsString( 'pixalink-loyalty', $value );
-		$this->assertSame( $this->now + 600, $options['expires'] );
+		$this->assertSame( 1800, AuthorizationRequest::TTL, 'Time enough to register on the portal (phone, WhatsApp, profile) first.' );
+		$this->assertSame( $this->now + 1800, $options['expires'] );
 		$this->assertTrue( $options['httponly'] );
 		$this->assertTrue( $options['secure'] );
 		$this->assertSame( 'Lax', $options['samesite'], 'Lax: it comes back on the portal\'s top-level redirect.' );
@@ -170,10 +172,22 @@ final class AuthorizationRequestTest extends TestCase {
 	public function test_an_expired_request_is_refused_even_if_the_browser_kept_the_cookie(): void {
 		$this->request()->start( self::capability(), 'c', 'https://shop.example.test/?pixalink_oauth=callback', AuthorizationRequest::PURPOSE_SIGN_IN, 'https://shop.example.test/', 0 );
 		$this->come_back();
-		$this->now += 601;
+		$this->now += 1801;
 
-		$this->assertNull( $this->request()->take() );
+		$request = $this->request();
+		$this->assertNull( $request->take() );
+		$this->assertSame( AuthorizationRequest::FAILURE_EXPIRED, $request->failure() );
 		$this->assertSame( '', $this->cookies[0][1] ?? null, 'Cleared all the same.' );
+	}
+
+	public function test_a_request_is_still_good_after_twenty_nine_minutes(): void {
+		$this->request()->start( self::capability(), 'c', 'https://shop.example.test/?pixalink_oauth=callback', AuthorizationRequest::PURPOSE_SIGN_IN, 'https://shop.example.test/', 0 );
+		$this->come_back();
+		$this->now += 1799;
+
+		$request = $this->request();
+		$this->assertNotNull( $request->take() );
+		$this->assertNull( $request->failure() );
 	}
 
 	/**
@@ -198,7 +212,9 @@ final class AuthorizationRequestTest extends TestCase {
 	public function test_a_cookie_the_store_did_not_write_is_refused( $value ): void {
 		$_COOKIE[ AuthorizationRequest::COOKIE ] = $value;
 
-		$this->assertNull( $this->request()->take() );
+		$request = $this->request();
+		$this->assertNull( $request->take() );
+		$this->assertSame( AuthorizationRequest::FAILURE_UNREADABLE, $request->failure() );
 	}
 
 	public function test_a_tampered_cookie_is_refused(): void {
@@ -218,7 +234,9 @@ final class AuthorizationRequestTest extends TestCase {
 	}
 
 	public function test_no_cookie_means_no_request(): void {
-		$this->assertNull( $this->request()->take() );
+		$request = $this->request();
+		$this->assertNull( $request->take() );
+		$this->assertSame( AuthorizationRequest::FAILURE_MISSING, $request->failure() );
 		$this->assertSame( array(), $this->cookies, 'Nothing to clear.' );
 	}
 }
